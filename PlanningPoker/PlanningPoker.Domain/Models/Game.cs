@@ -12,9 +12,10 @@ public class Game
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; } = false;
     public Guid CreatedByUserId { get; set; }
-    public User CreatedByUser { get; set; }
-    public IColelection<GameParticipant> Participants { get; set; }
-    public ICollection<Issue> Issues { get; set; }
-    public ICollection<Vote> Votes { get; set; }
-    public ICollection<VotingHistoryEntry> HistoryEntries { get; set; }
+    public User CreatedByUser { get; set; } = null!;
+    public ICollection<GameParticipant> Participants { get; set; }
+    public ICollection<Issue> Issues { get; set; } = null!;
+    public ICollection<Vote> Votes { get; set; } = new List<Vote>();
+    public ICollection<VotingHistory> VotingHistories { get; set; }  = new List<VotingHistory>();
 }
+
