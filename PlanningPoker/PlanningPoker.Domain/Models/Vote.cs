@@ -2,20 +2,15 @@ namespace PlanningPoker.Domain.Models;
 using System.ComponentModel.DataAnnotations;
 public class Vote
 {
-    public int Id { get; set; }
-
-    public int GameId { get; set; }
-    public Game Game { get; set;}
-
-    public int IssueId { get; set; }
-    public Issue Issue{ get; set;}
-
-    public int ParticipantId { get; set; }
-    public Participant Participant { get; set;}
-
-    [Required]
-    [MaxLength(50)]
+    public Guid Id { get; set;}
+    public Guid IssueId { get; set; } 
+    public Issuer Issuer { get; set;} = null!;
+    public Guid ParticipantId { get; set; }
+    public GameParticipant Participant { get; set;} = null!;
     public string Value { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; } 
 }
+
+
+
