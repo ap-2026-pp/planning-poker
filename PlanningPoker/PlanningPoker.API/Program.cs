@@ -1,3 +1,4 @@
+using PlanningPoker.API.Middlewares;
 using PlanningPoker.BLL;
 using PlanningPoker.DAL;
 
@@ -10,6 +11,9 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDalServices(builder.Configuration);
 builder.Services.AddBllServices();
 
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -18,6 +22,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseExceptionHandler();
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
