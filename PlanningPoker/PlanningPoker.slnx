@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="PlanningPoker.API/PlanningPoker.API.csproj" />
+  <Project Path="PlanningPoker.BLL/PlanningPoker.BLL.csproj" />
+  <Project Path="PlanningPoker.DAL/PlanningPoker.DAL.csproj" />
+  <Project Path="PlanningPoker.Domain/PlanningPoker.Domain.csproj" />
+  <Project Path="PlanningPoker.Tests/PlanningPoker.Tests.csproj" />
+</Solution>
