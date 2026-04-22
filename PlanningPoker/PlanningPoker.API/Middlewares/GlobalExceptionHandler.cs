@@ -8,9 +8,6 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        logger.LogError(
-            exception, "Exception occurred: {Message}", exception.Message);
-
         var (status, title) = exception switch
         {
             NotFoundException => (404, "The requested resource was not found"),
@@ -29,6 +26,28 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
             Instance = httpContext.Request.Path
         };
 
+        if (status >= 500)
+        {
+            logger.LogError(
+                exception,
+                "Unhandled exception {ExceptionType} for {Method} {Path}. StatusCode: {StatusCode}. Message: {Message}",
+                exception.GetType().Name,
+                httpContext.Request.Method,
+                httpContext.Request.Path,
+                status,
+                exception.Message);
+        }
+        else
+        {
+            logger.LogWarning(
+                "Handled exception {ExceptionType} for {Method} {Path}. StatusCode: {StatusCode}. Message: {Message}",
+                exception.GetType().Name,
+                httpContext.Request.Method,
+                httpContext.Request.Path,
+                status,
+                exception.Message);
+        }
+        
         await httpContext.Response.WriteAsJsonAsync(context, cancellationToken);
         return true;
     }
