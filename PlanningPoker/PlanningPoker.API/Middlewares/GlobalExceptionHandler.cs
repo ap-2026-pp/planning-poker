@@ -8,25 +8,25 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        var (status, title) = exception switch
+        var (statusCode, title) = exception switch
         {
-            NotFoundException => (404, "The requested resource was not found"),
-            BadHttpRequestException => (400, "Bad Request"),
-            _ => (500, "Internal Server Error")
+            NotFoundException => (StatusCodes.Status404NotFound, "The requested resource was not found"),
+            BadHttpRequestException => (StatusCodes.Status400BadRequest, "Bad Request"),
+            _ => (StatusCodes.Status500InternalServerError, "Internal Server Error")
         };
 
-        httpContext.Response.StatusCode = status;
+        httpContext.Response.StatusCode = statusCode;
         
         var context = new ProblemDetails
         {
-            Status = status,
+            Status = statusCode,
             Type = exception.GetType().Name,
             Title = title,
             Detail = exception.Message,
             Instance = httpContext.Request.Path
         };
 
-        if (status >= 500)
+        if (statusCode >= 500)
         {
             logger.LogError(
                 exception,
@@ -34,7 +34,7 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 exception.GetType().Name,
                 httpContext.Request.Method,
                 httpContext.Request.Path,
-                status,
+                statusCode,
                 exception.Message);
         }
         else
@@ -44,7 +44,7 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
                 exception.GetType().Name,
                 httpContext.Request.Method,
                 httpContext.Request.Path,
-                status,
+                statusCode,
                 exception.Message);
         }
         
