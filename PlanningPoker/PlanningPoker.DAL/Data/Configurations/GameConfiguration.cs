@@ -1,4 +1,3 @@
-using System.Security.Cryptography.X509Certificates;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using PlanningPoker.Domain.Models;
@@ -10,33 +9,39 @@ public class GameConfiguration : IEntityTypeConfiguration<Game>
     public void Configure(EntityTypeBuilder<Game> builder)
     {
         builder.ToTable("Games");
-        builder.HasKey(e => e.Id);
-        
-        builder.Property(x => x.Name)
-                .IsRequired()
-                .HasMaxLength(200);
-        
-        builder.Property(x => x.VotingSystem)
-                .IsRequired()
-                .HasMaxLength(50);
-        
-        builder.Property(x => x.InviteCode)
-                .IsRequired()
-                .HasMaxLength(50);
-        
-        builder.Property(x => x.CreatedAt)
-                .IsRequired();
 
-        builder.HasMany(g => g.Participants)
-               .WithOne(p => p.Game)
-               .HasForeignKey(p => p.GameId);
-        
-        builder.HasMany(g => g.Issues)
-               .WithOne(i => i.Game)
-               .HasForeignKey(i => i.GameId);
-        
-        builder.HasMany(g => g.VotingHistories)
-               .WithOne(h => h.Game)
-               .HasForeignKey(h => h.GameId);
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Name)
+            .IsRequired()
+            .HasMaxLength(200);
+
+        builder.Property(x => x.VotingSystem)
+            .IsRequired();
+
+        builder.Property(x => x.InviteCode)
+            .IsRequired()
+            .HasMaxLength(50);
+
+        builder.Property(x => x.CreatedAt)
+            .IsRequired();
+
+        builder.Property(x => x.IsActive)
+            .IsRequired();
+
+        builder.Property(x => x.IsDeleted)
+            .IsRequired();
+
+        builder.HasOne(x => x.CreatedByUser)
+            .WithMany(x => x.CreatedGames)
+            .HasForeignKey(x => x.CreatedBy);
+
+        builder.HasMany(x => x.Participants)
+            .WithOne(x => x.Game)
+            .HasForeignKey(x => x.GameId);
+
+        builder.HasMany(x => x.Issues)
+            .WithOne(x => x.Game)
+            .HasForeignKey(x => x.GameId);
     }
 }

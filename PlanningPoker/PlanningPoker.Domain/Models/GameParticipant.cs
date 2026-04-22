@@ -1,5 +1,5 @@
 namespace PlanningPoker.Domain.Models;
-using System.ComponentModel.DataAnnotations;
+
 
 public class GameParticipant
 {

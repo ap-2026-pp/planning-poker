@@ -1,6 +1,5 @@
 namespace PlanningPoker.Domain.Models;
-
-public class VotingHistory
+public class VotingResult
 {
     public Guid Id { get; set; }
     public Guid GameId { get; set; }

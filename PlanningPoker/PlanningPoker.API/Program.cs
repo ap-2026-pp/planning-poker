@@ -1,12 +1,11 @@
 using PlanningPoker.BLL;
 using PlanningPoker.DAL;
-using PlanningPoker.BLL.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
 
 builder.Services.AddDalServices(builder.Configuration);
 builder.Services.AddBllServices();

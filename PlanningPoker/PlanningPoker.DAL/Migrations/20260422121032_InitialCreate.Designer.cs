@@ -12,7 +12,7 @@ using PlanningPoker.DAL.Data;
 namespace PlanningPoker.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260421190450_InitialCreate")]
+    [Migration("20260422121032_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace PlanningPoker.DAL.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.7")
+                .HasAnnotation("ProductVersion", "10.0.6")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -167,7 +167,7 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("CreatedByUserId")
+                    b.Property<Guid>("CreatedBy")
                         .HasColumnType("uuid");
 
                     b.Property<string>("InviteCode")
@@ -192,14 +192,12 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<bool>("ShowCountdownAnimation")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("VotingSystem")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                    b.Property<int>("VotingSystem")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedByUserId");
+                    b.HasIndex("CreatedBy");
 
                     b.ToTable("Games", (string)null);
                 });
@@ -246,28 +244,24 @@ namespace PlanningPoker.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
-                    b.Property<string>("FinalEstimate")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<Guid>("GameId")
                         .HasColumnType("uuid");
 
                     b.Property<bool>("IsCurrent")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRemoved")
                         .HasColumnType("boolean");
 
                     b.Property<int>("Order")
@@ -278,10 +272,14 @@ namespace PlanningPoker.DAL.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<bool>("isRemoved")
-                        .HasColumnType("boolean");
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedBy");
 
                     b.HasIndex("GameId");
 
@@ -378,6 +376,11 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("FinalEstimate")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<Guid?>("GameId")
                         .HasColumnType("uuid");
 
@@ -390,11 +393,6 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("GameId");
@@ -404,10 +402,10 @@ namespace PlanningPoker.DAL.Migrations
                     b.HasIndex("ParticipantId", "IssueId")
                         .IsUnique();
 
-                    b.ToTable("Vote", (string)null);
+                    b.ToTable("Votes", (string)null);
                 });
 
-            modelBuilder.Entity("PlanningPoker.Domain.Models.VotingHistory", b =>
+            modelBuilder.Entity("PlanningPoker.Domain.Models.VotingResult", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -439,7 +437,7 @@ namespace PlanningPoker.DAL.Migrations
 
                     b.HasIndex("IssueId");
 
-                    b.ToTable("VotingHistories", (string)null);
+                    b.ToTable("VotingResults", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -497,7 +495,7 @@ namespace PlanningPoker.DAL.Migrations
                 {
                     b.HasOne("PlanningPoker.Domain.Models.User", "CreatedByUser")
                         .WithMany("CreatedGames")
-                        .HasForeignKey("CreatedByUserId")
+                        .HasForeignKey("CreatedBy")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -525,11 +523,19 @@ namespace PlanningPoker.DAL.Migrations
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.Issue", b =>
                 {
+                    b.HasOne("PlanningPoker.Domain.Models.GameParticipant", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("PlanningPoker.Domain.Models.Game", "Game")
                         .WithMany("Issues")
                         .HasForeignKey("GameId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("CreatedByUser");
 
                     b.Navigation("Game");
                 });
@@ -557,16 +563,16 @@ namespace PlanningPoker.DAL.Migrations
                     b.Navigation("Participant");
                 });
 
-            modelBuilder.Entity("PlanningPoker.Domain.Models.VotingHistory", b =>
+            modelBuilder.Entity("PlanningPoker.Domain.Models.VotingResult", b =>
                 {
                     b.HasOne("PlanningPoker.Domain.Models.Game", "Game")
-                        .WithMany("VotingHistories")
+                        .WithMany()
                         .HasForeignKey("GameId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("PlanningPoker.Domain.Models.Issue", "Issue")
-                        .WithMany("VotingHistories")
+                        .WithMany("VotingResults")
                         .HasForeignKey("IssueId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -583,8 +589,6 @@ namespace PlanningPoker.DAL.Migrations
                     b.Navigation("Participants");
 
                     b.Navigation("Votes");
-
-                    b.Navigation("VotingHistories");
                 });
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.GameParticipant", b =>
@@ -596,7 +600,7 @@ namespace PlanningPoker.DAL.Migrations
                 {
                     b.Navigation("Votes");
 
-                    b.Navigation("VotingHistories");
+                    b.Navigation("VotingResults");
                 });
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.User", b =>

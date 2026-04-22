@@ -10,19 +10,19 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
     {
         builder.ToTable("Users");
 
-        builder.Property(e => e.DisplayName)
-               .IsRequired()
-               .HasMaxLength(200);
-        
+        builder.Property(x => x.DisplayName)
+            .IsRequired()
+            .HasMaxLength(200);
+
         builder.Property(x => x.CreatedAt)
             .IsRequired();
 
-         builder.Property(x => x.RefreshToken)
+        builder.Property(x => x.RefreshToken)
             .HasMaxLength(500);
 
         builder.HasMany(x => x.CreatedGames)
             .WithOne(x => x.CreatedByUser)
-            .HasForeignKey(x => x.CreatedByUserId)
+            .HasForeignKey(x => x.CreatedBy)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(x => x.Participants)

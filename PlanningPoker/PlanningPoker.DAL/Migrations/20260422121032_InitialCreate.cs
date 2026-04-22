@@ -167,7 +167,7 @@ namespace PlanningPoker.DAL.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    VotingSystem = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    VotingSystem = table.Column<int>(type: "integer", nullable: false),
                     InviteCode = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     AutoRevealCards = table.Column<bool>(type: "boolean", nullable: false),
                     ShowAverage = table.Column<bool>(type: "boolean", nullable: false),
@@ -175,14 +175,14 @@ namespace PlanningPoker.DAL.Migrations
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
                     IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedByUserId = table.Column<Guid>(type: "uuid", nullable: false)
+                    CreatedBy = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Games", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Games_Users_CreatedByUserId",
-                        column: x => x.CreatedByUserId,
+                        name: "FK_Games_Users_CreatedBy",
+                        column: x => x.CreatedBy,
                         principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -223,18 +223,24 @@ namespace PlanningPoker.DAL.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     GameId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Code = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    Url = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
                     Title = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
                     Order = table.Column<int>(type: "integer", nullable: false),
-                    FinalEstimate = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     IsCurrent = table.Column<bool>(type: "boolean", nullable: false),
-                    isRemoved = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    IsRemoved = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Issues", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Issues_GameParticipants_CreatedBy",
+                        column: x => x.CreatedBy,
+                        principalTable: "GameParticipants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_Issues_Games_GameId",
                         column: x => x.GameId,
@@ -244,33 +250,33 @@ namespace PlanningPoker.DAL.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Vote",
+                name: "Votes",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     IssueId = table.Column<Guid>(type: "uuid", nullable: false),
                     ParticipantId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Value = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    FinalEstimate = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     GameId = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Vote", x => x.Id);
+                    table.PrimaryKey("PK_Votes", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Vote_GameParticipants_ParticipantId",
+                        name: "FK_Votes_GameParticipants_ParticipantId",
                         column: x => x.ParticipantId,
                         principalTable: "GameParticipants",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_Vote_Games_GameId",
+                        name: "FK_Votes_Games_GameId",
                         column: x => x.GameId,
                         principalTable: "Games",
                         principalColumn: "Id");
                     table.ForeignKey(
-                        name: "FK_Vote_Issues_IssueId",
+                        name: "FK_Votes_Issues_IssueId",
                         column: x => x.IssueId,
                         principalTable: "Issues",
                         principalColumn: "Id",
@@ -278,7 +284,7 @@ namespace PlanningPoker.DAL.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "VotingHistories",
+                name: "VotingResults",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -291,15 +297,15 @@ namespace PlanningPoker.DAL.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_VotingHistories", x => x.Id);
+                    table.PrimaryKey("PK_VotingResults", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_VotingHistories_Games_GameId",
+                        name: "FK_VotingResults_Games_GameId",
                         column: x => x.GameId,
                         principalTable: "Games",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_VotingHistories_Issues_IssueId",
+                        name: "FK_VotingResults_Issues_IssueId",
                         column: x => x.IssueId,
                         principalTable: "Issues",
                         principalColumn: "Id",
@@ -343,9 +349,14 @@ namespace PlanningPoker.DAL.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Games_CreatedByUserId",
+                name: "IX_Games_CreatedBy",
                 table: "Games",
-                column: "CreatedByUserId");
+                column: "CreatedBy");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Issues_CreatedBy",
+                table: "Issues",
+                column: "CreatedBy");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Issues_GameId",
@@ -364,29 +375,29 @@ namespace PlanningPoker.DAL.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_Vote_GameId",
-                table: "Vote",
+                name: "IX_Votes_GameId",
+                table: "Votes",
                 column: "GameId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Vote_IssueId",
-                table: "Vote",
+                name: "IX_Votes_IssueId",
+                table: "Votes",
                 column: "IssueId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Vote_ParticipantId_IssueId",
-                table: "Vote",
+                name: "IX_Votes_ParticipantId_IssueId",
+                table: "Votes",
                 columns: new[] { "ParticipantId", "IssueId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_VotingHistories_GameId",
-                table: "VotingHistories",
+                name: "IX_VotingResults_GameId",
+                table: "VotingResults",
                 column: "GameId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_VotingHistories_IssueId",
-                table: "VotingHistories",
+                name: "IX_VotingResults_IssueId",
+                table: "VotingResults",
                 column: "IssueId");
         }
 
@@ -409,19 +420,19 @@ namespace PlanningPoker.DAL.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
-                name: "Vote");
+                name: "Votes");
 
             migrationBuilder.DropTable(
-                name: "VotingHistories");
+                name: "VotingResults");
 
             migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
-                name: "GameParticipants");
+                name: "Issues");
 
             migrationBuilder.DropTable(
-                name: "Issues");
+                name: "GameParticipants");
 
             migrationBuilder.DropTable(
                 name: "Games");

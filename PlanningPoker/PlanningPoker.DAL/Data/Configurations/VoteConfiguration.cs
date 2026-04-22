@@ -8,16 +8,26 @@ public class VoteConfiguration : IEntityTypeConfiguration<Vote>
 {
     public void Configure(EntityTypeBuilder<Vote> builder)
     {
-        builder.ToTable("Vote");
-        builder.HasKey(e => e.Id);
-        builder.Property(e => e.Value)
+        builder.ToTable("Votes");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.FinalEstimate)
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(e => e.CreatedAt)
+        builder.Property(x => x.CreatedAt)
             .IsRequired();
 
-        builder.HasIndex(i => new { i.ParticipantId, i.IssueId })
+        builder.HasOne(x => x.Issue)
+            .WithMany(x => x.Votes)
+            .HasForeignKey(x => x.IssueId);
+
+        builder.HasOne(x => x.Participant)
+            .WithMany(x => x.Votes)
+            .HasForeignKey(x => x.ParticipantId);
+
+        builder.HasIndex(x => new { x.ParticipantId, x.IssueId })
             .IsUnique();
     }
 }

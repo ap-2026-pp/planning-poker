@@ -12,7 +12,7 @@ public class AppDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
     public DbSet<GameParticipant> GameParticipants { get; set; }
     public DbSet<Issue> Issues { get; set; }
     public DbSet<Vote> Votes { get; set; }
-    public DbSet<VotingHistory> VotingHistories { get; set; }
+    public DbSet<VotingResult> VotingResults { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
