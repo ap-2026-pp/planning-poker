@@ -12,7 +12,7 @@ using PlanningPoker.DAL.Data;
 namespace PlanningPoker.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260422121032_InitialCreate")]
+    [Migration("20260422134110_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -258,6 +258,9 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<Guid>("GameId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("GameParticipantId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("IsCurrent")
                         .HasColumnType("boolean");
 
@@ -274,14 +277,16 @@ namespace PlanningPoker.DAL.Migrations
 
                     b.Property<string>("Url")
                         .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedBy");
 
                     b.HasIndex("GameId");
+
+                    b.HasIndex("GameParticipantId");
 
                     b.ToTable("Issues", (string)null);
                 });
@@ -523,7 +528,7 @@ namespace PlanningPoker.DAL.Migrations
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.Issue", b =>
                 {
-                    b.HasOne("PlanningPoker.Domain.Models.GameParticipant", "CreatedByUser")
+                    b.HasOne("PlanningPoker.Domain.Models.GameParticipant", "CreatedByParticipant")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -535,7 +540,11 @@ namespace PlanningPoker.DAL.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("CreatedByUser");
+                    b.HasOne("PlanningPoker.Domain.Models.GameParticipant", null)
+                        .WithMany("Issues")
+                        .HasForeignKey("GameParticipantId");
+
+                    b.Navigation("CreatedByParticipant");
 
                     b.Navigation("Game");
                 });
@@ -593,6 +602,8 @@ namespace PlanningPoker.DAL.Migrations
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.GameParticipant", b =>
                 {
+                    b.Navigation("Issues");
+
                     b.Navigation("Votes");
                 });
 

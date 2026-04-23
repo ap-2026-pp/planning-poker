@@ -223,14 +223,15 @@ namespace PlanningPoker.DAL.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     GameId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Url = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    Url = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
                     Title = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
                     Order = table.Column<int>(type: "integer", nullable: false),
                     IsCurrent = table.Column<bool>(type: "boolean", nullable: false),
                     IsRemoved = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    CreatedBy = table.Column<Guid>(type: "uuid", nullable: false)
+                    CreatedBy = table.Column<Guid>(type: "uuid", nullable: false),
+                    GameParticipantId = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -241,6 +242,11 @@ namespace PlanningPoker.DAL.Migrations
                         principalTable: "GameParticipants",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Issues_GameParticipants_GameParticipantId",
+                        column: x => x.GameParticipantId,
+                        principalTable: "GameParticipants",
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_Issues_Games_GameId",
                         column: x => x.GameId,
@@ -362,6 +368,11 @@ namespace PlanningPoker.DAL.Migrations
                 name: "IX_Issues_GameId",
                 table: "Issues",
                 column: "GameId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Issues_GameParticipantId",
+                table: "Issues",
+                column: "GameParticipantId");
 
             migrationBuilder.CreateIndex(
                 name: "EmailIndex",

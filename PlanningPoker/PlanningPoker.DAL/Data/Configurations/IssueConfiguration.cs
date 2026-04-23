@@ -13,7 +13,7 @@ public class IssueConfiguration : IEntityTypeConfiguration<Issue>
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Url)
-            .HasMaxLength(500);
+            .HasMaxLength(2000);
 
         builder.Property(x => x.Title)
             .IsRequired()
@@ -35,7 +35,7 @@ public class IssueConfiguration : IEntityTypeConfiguration<Issue>
             .WithMany(x => x.Issues)
             .HasForeignKey(x => x.GameId);
 
-        builder.HasOne(x => x.CreatedByUser)
+         builder.HasOne(x => x.CreatedByParticipant)
             .WithMany()
             .HasForeignKey(x => x.CreatedBy);
 
