@@ -1,41 +1,33 @@
-using PlanningPoker.Domain.Models;
 using Microsoft.EntityFrameworkCore;
-namespace PlanningPoker.Domain.Interfaces.Repositories;
+using PlanningPoker.DAL.Data;
+using PlanningPoker.Domain.Interfaces.Repositories;
+
+namespace PlanningPoker.DAL.Repositories;
 
 
-public class BaseRepository<T> where T : class IBaseRepository<T> 
+public class BaseRepository<T>(AppDbContext context, DbSet<T> dbSet) : IBaseRepository<T> where T : class
 {
-    protected readonly AppDbContext _context;
-    protected readonly DbSet<T> _dbSet;
-    
-    public BaseRepository(AppDbContext contex) 
+    public async Task<T?> GetByIdAsync(Guid id)
     {
-        _context = context;
-        _dbSet = _context.Set<T>();
-
-    }
-    
-    public Task<T?> GetByIdAsync(Guid id)
-    {
-        return await _dbSet.FindAsync(id);
+        return await dbSet.FindAsync(id);
     }
 
-    public Task AddAsync(T entity)
-    {
-        return await _dbSet.AddAsync(entity);
+    public async Task AddAsync(T entity)
+    { 
+        await dbSet.AddAsync(entity);
     }
     public void Update(T entity)
     {
-        _dbSet.Update(entity);
+        dbSet.Update(entity);
     }
     
     public void Delete(T entity)
     {
-        _dbset.Remove(entity);
+        dbSet.Remove(entity);
     }
 
     public async Task SaveChangesAsync()
     {
-        await _context.SaveChangesAsync()
+        await context.SaveChangesAsync();
     }
 }

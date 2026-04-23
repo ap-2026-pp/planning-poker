@@ -1,7 +1,6 @@
-using PlanningPoker.PlanningPoker.DAL;
 namespace PlanningPoker.Domain.Interfaces.Repositories;
 
-public interface IBaseRepository<T> where T : class<T>
+public interface IBaseRepository<T> where T : class
 {
     Task<T?> GetByIdAsync(Guid id);
     Task AddAsync(T entity);
