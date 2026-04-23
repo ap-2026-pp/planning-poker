@@ -10,6 +10,7 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
     {
         var (statusCode, title) = exception switch
         {
+            GameAlreadyExistsException => (StatusCodes.Status409Conflict, "Game already exists"),
             NotFoundException => (StatusCodes.Status404NotFound, "The requested resource was not found"),
             BadHttpRequestException => (StatusCodes.Status400BadRequest, "Bad Request"),
             _ => (StatusCodes.Status500InternalServerError, "Internal Server Error")

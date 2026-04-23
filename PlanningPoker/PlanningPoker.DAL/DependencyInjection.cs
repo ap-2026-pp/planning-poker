@@ -15,6 +15,14 @@ public static class DependencyInjection
     {
         services.AddDbContext<AppDbContext>(opt =>
             opt.UseNpgsql(config.GetConnectionString("Default")));
+
+        services.AddIdentityCore<User>()
+            .AddEntityFrameworkStores<AppDbContext>();
+
+        services.AddScoped(typeof(IBaseRepository<>), typeof(BaseRepository<>));
+        services.AddScoped<IGameRepository, GameRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
+
         
         services.AddScoped<IUserRepository, UserRepository>();
 
