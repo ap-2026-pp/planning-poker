@@ -16,16 +16,17 @@ public class GameMapper
             IsActive = game.IsActive,
             CreatedBy = game.CreatedBy
         };
-
-    public static Game ToGame(GameDto gameDto) =>
+    
+    public static Game ToGame(GameDto createGameDto) =>
         new()
         {
-            Name = gameDto.Name,
-            VotingSystem = gameDto.VotingSystem,
-            AutoRevealCards = gameDto.AutoRevealCards,
-            ShowAverage = gameDto.ShowAverage,
-            ShowCountdownAnimation = gameDto.ShowCountdownAnimation,
-            IsActive = gameDto.IsActive,
-            CreatedBy = gameDto.CreatedBy.GetValueOrDefault()
+            Name = createGameDto.Name,
+            VotingSystem = createGameDto.VotingSystem,
+            AutoRevealCards = createGameDto.AutoRevealCards,
+            ShowAverage = createGameDto.ShowAverage,
+            ShowCountdownAnimation = createGameDto.ShowCountdownAnimation,
+            IsActive = createGameDto.IsActive,
+            InviteCode = "123",
+            CreatedBy = createGameDto.CreatedBy.GetValueOrDefault()
         };
 }
