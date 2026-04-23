@@ -1,6 +1,5 @@
 namespace PlanningPoker.Domain.Models;
 
-
 public class GameParticipant
 {
     public Guid Id { get; set; }
@@ -13,4 +12,5 @@ public class GameParticipant
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
     public bool IsConnected { get; set; }
     public ICollection<Vote> Votes { get; set; } = new List<Vote>();
+    public ICollection<Issue> Issues { get; set; } = new List<Issue>();
 }

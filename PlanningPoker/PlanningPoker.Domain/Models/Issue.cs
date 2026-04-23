@@ -14,7 +14,7 @@ public class Issue
     public bool IsRemoved{ get; set; }
     public DateTime CreatedAt { get; set; }
     public Guid CreatedBy { get; set; }
-    public GameParticipant CreatedByUser { get; set; } = null!;
+    public GameParticipant CreatedByParticipant { get; set; } = null!;
     public ICollection<Vote> Votes { get; set; } = new List<Vote>();
     public ICollection<VotingResult> VotingResults { get; set; } = new List<VotingResult>();
 }
