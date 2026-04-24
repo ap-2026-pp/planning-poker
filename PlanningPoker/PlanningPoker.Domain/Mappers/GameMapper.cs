@@ -5,6 +5,34 @@ namespace PlanningPoker.Domain.Mappers;
 
 public static class GameMapper
 {
+    public static Game ToGame(CreateGameRequestDto createGameRequestDto) =>
+        new()
+        {
+            Name = createGameRequestDto.Name,
+            VotingSystem = createGameRequestDto.VotingSystem,
+            AutoRevealCards = createGameRequestDto.AutoRevealCards,
+            ShowAverage = createGameRequestDto.ShowAverage,
+            ShowCountdownAnimation = createGameRequestDto.ShowCountdownAnimation,
+            IsActive = true,
+            IsDeleted = false,
+            InviteCode = "123", // TODO temporary
+            CreatedBy = createGameRequestDto.CreatedBy.GetValueOrDefault(),
+        };
+    
+    public static Game ToGame(UpdateGameRequestDto updateGameRequestDto) =>
+        new()
+        {
+            Name = updateGameRequestDto.Name,
+            VotingSystem = updateGameRequestDto.VotingSystem,
+            AutoRevealCards = updateGameRequestDto.AutoRevealCards,
+            ShowAverage = updateGameRequestDto.ShowAverage,
+            ShowCountdownAnimation = updateGameRequestDto.ShowCountdownAnimation,
+            IsActive = updateGameRequestDto.IsActive,
+            IsDeleted = false,
+            InviteCode = "123", // TODO temporary
+            CreatedBy = updateGameRequestDto.CreatedBy.GetValueOrDefault(),
+        };
+
     public static GameDto ToGameDto(Game game) =>
         new()
         {
@@ -14,34 +42,8 @@ public static class GameMapper
             ShowAverage = game.ShowAverage,
             ShowCountdownAnimation = game.ShowCountdownAnimation,
             IsActive = game.IsActive,
-            CreatedBy = game.CreatedBy
-        };
-    
-    public static Game ToGame(GameDto createGameDto) =>
-        new()
-        {
-            Name = createGameDto.Name,
-            VotingSystem = createGameDto.VotingSystem,
-            AutoRevealCards = createGameDto.AutoRevealCards,
-            ShowAverage = createGameDto.ShowAverage,
-            ShowCountdownAnimation = createGameDto.ShowCountdownAnimation,
-            IsActive = createGameDto.IsActive,
-            IsDeleted = false,
-            InviteCode = "123", // TODO temporary
-            CreatedBy = createGameDto.CreatedBy.GetValueOrDefault(),
-        };
-
-    public static GameRequestDto ToGameRequestDto(Game game) =>
-        new()
-        {
-            Name = game.Name,
-            VotingSystem = game.VotingSystem,
-            AutoRevealCards = game.AutoRevealCards,
-            ShowAverage = game.ShowAverage,
-            ShowCountdownAnimation = game.ShowCountdownAnimation,
-            IsActive = game.IsActive,
-            IsDeleted = game.IsDeleted,
-            Participants = game.Participants.Select(ParticipantMapper.ToGameParticipantDto).ToList(),
-            CreatedBy = game.CreatedBy
+            CreatedAt =  game.CreatedAt,
+            CreatedBy = game.CreatedBy,
+            Participants = game.Participants.Select(ParticipantMapper.ToGameParticipantDto).ToList()
         };
 }

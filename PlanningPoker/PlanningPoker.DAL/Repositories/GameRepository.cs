@@ -9,7 +9,15 @@ public class GameRepository(AppDbContext context) : BaseRepository<Game>(context
 {
     public async Task<bool> ExistsByNameAsync(string name, Guid createdBy)
     {
-        return await DbSet.AnyAsync(g => g.Name == name && g.CreatedBy == createdBy);
+        return await DbSet.AnyAsync(g => g.Name == name && g.CreatedBy == createdBy && !g.IsDeleted);
+    }
+
+    public async Task<bool> ExistsByNameAsync(string name, Guid createdBy, Guid excludedGameId)
+    {
+        return await DbSet.AnyAsync(g =>
+            g.Name == name &&
+            g.CreatedBy == createdBy &&
+            g.Id != excludedGameId && !g.IsDeleted);
     }
     
     public new async Task<Game?> GetByIdAsync(Guid id)

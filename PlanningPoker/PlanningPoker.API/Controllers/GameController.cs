@@ -11,25 +11,25 @@ public class GameController(IGameService service) : ControllerBase
 {
    
     [HttpPost]
-    public async Task<ActionResult> CreateGame([FromBody] GameDto createGameDto)
+    public async Task<ActionResult> CreateGame([FromBody] CreateGameRequestDto createCreateGameRequestDto)
     {
-        var game = GameMapper.ToGame(createGameDto);
+        var game = GameMapper.ToGame(createCreateGameRequestDto);
         var createdGame = await service.AddGameAsync(game);
        
         return Ok(GameMapper.ToGameDto(createdGame));
     }
 
     [HttpGet("{gameId:guid}")]
-    public async Task<ActionResult<GameDto>> GetGame(Guid gameId)
+    public async Task<ActionResult<CreateGameRequestDto>> GetGame(Guid gameId)
     {
         var game = await service.GetGameByIdAsync(gameId);
-        return Ok(GameMapper.ToGameRequestDto(game));
+        return Ok(GameMapper.ToGameDto(game));
     }
 
     [HttpPut("{gameId:guid}")]
-    public async Task<ActionResult> UpdateGame(Guid gameId, [FromBody] GameDto updateGameDto)
+    public async Task<ActionResult> UpdateGame(Guid gameId, [FromBody] UpdateGameRequestDto updateGameRequestDto)
     {
-        var game = GameMapper.ToGame(updateGameDto);
+        var game = GameMapper.ToGame(updateGameRequestDto);
         var updatedGame = await service.UpdateGameAsync(gameId, game);
         return Ok(GameMapper.ToGameDto(updatedGame));
     }

@@ -9,6 +9,7 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
 {
     public async Task<Game> AddGameAsync(Game game)
     {
+        // TODO temporary
         var user = await userRepository.GetByIdAsync(game.CreatedBy);
         if (user is null) 
         {
@@ -20,7 +21,8 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
         {
             throw new GameAlreadyExistsException(game.Name); 
         }
-
+        
+        game.IsActive = true;
         game.InviteCode = "123"; //TODO autogeneration etc
         game.Participants = new List<GameParticipant>
         {
@@ -51,20 +53,22 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
         {
             throw new NotFoundException(gameId);
         }
-        
+
+        var exists = await gameRepository.ExistsByNameAsync(game.Name, existingGame.CreatedBy, gameId);
+        if (exists)
+        {
+            throw new GameAlreadyExistsException(game.Name);
+        }
         existingGame.Name = game.Name;
-        existingGame.InviteCode = "123";
-        existingGame.Participants = game.Participants;
         existingGame.AutoRevealCards = game.AutoRevealCards;
         existingGame.IsActive = game.IsActive;
         existingGame.ShowAverage = game.ShowAverage;
         existingGame.VotingSystem = game.VotingSystem;
         existingGame.ShowCountdownAnimation = game.ShowCountdownAnimation;
-        existingGame.CreatedBy = game.CreatedBy;
         
-        gameRepository.Update(game);
+        gameRepository.Update(existingGame);
         await gameRepository.SaveChangesAsync();
-        return  game;
+        return existingGame;
     }
 
     public async Task DeleteGameAsync(Guid gameId)

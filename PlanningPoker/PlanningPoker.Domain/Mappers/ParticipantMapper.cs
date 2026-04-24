@@ -13,8 +13,6 @@ public static class ParticipantMapper
             DisplayName = participant.DisplayName,
             Role = participant.Role,
             JoinedAt = participant.JoinedAt,
-            IsConnected = participant.IsConnected,
-            Votes = participant.Votes,
-            Issues = participant.Issues
+            IsConnected = participant.IsConnected
         };
 }
