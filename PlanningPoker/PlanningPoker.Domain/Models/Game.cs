@@ -1,4 +1,5 @@
 namespace PlanningPoker.Domain.Models;
+
 public class Game
 {
     public Guid Id { get; set; }

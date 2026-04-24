@@ -12,7 +12,7 @@ using PlanningPoker.DAL.Data;
 namespace PlanningPoker.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260422134110_InitialCreate")]
+    [Migration("20260423204013_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -343,7 +343,6 @@ namespace PlanningPoker.DAL.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("RefreshToken")
-                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
