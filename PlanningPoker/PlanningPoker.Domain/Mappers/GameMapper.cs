@@ -3,7 +3,7 @@ using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.Domain.Mappers;
 
-public class GameMapper
+public static class GameMapper
 {
     public static GameDto ToGameDto(Game game) =>
         new()
@@ -26,7 +26,22 @@ public class GameMapper
             ShowAverage = createGameDto.ShowAverage,
             ShowCountdownAnimation = createGameDto.ShowCountdownAnimation,
             IsActive = createGameDto.IsActive,
-            InviteCode = "123",
-            CreatedBy = createGameDto.CreatedBy.GetValueOrDefault()
+            IsDeleted = false,
+            InviteCode = "123", // TODO temporary
+            CreatedBy = createGameDto.CreatedBy.GetValueOrDefault(),
+        };
+
+    public static GameRequestDto ToGameRequestDto(Game game) =>
+        new()
+        {
+            Name = game.Name,
+            VotingSystem = game.VotingSystem,
+            AutoRevealCards = game.AutoRevealCards,
+            ShowAverage = game.ShowAverage,
+            ShowCountdownAnimation = game.ShowCountdownAnimation,
+            IsActive = game.IsActive,
+            IsDeleted = game.IsDeleted,
+            Participants = game.Participants.Select(ParticipantMapper.ToGameParticipantDto).ToList(),
+            CreatedBy = game.CreatedBy
         };
 }

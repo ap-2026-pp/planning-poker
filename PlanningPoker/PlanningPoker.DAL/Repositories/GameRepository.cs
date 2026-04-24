@@ -11,4 +11,9 @@ public class GameRepository(AppDbContext context) : BaseRepository<Game>(context
     {
         return await DbSet.AnyAsync(g => g.Name == name && g.CreatedBy == createdBy);
     }
+    
+    public new async Task<Game?> GetByIdAsync(Guid id)
+    {
+        return await DbSet.Include(g => g.Participants).FirstOrDefaultAsync(g => g.Id == id);
+    }
 }

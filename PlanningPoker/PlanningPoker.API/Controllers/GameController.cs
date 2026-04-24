@@ -23,7 +23,7 @@ public class GameController(IGameService service) : ControllerBase
     public async Task<ActionResult<GameDto>> GetGame(Guid gameId)
     {
         var game = await service.GetGameByIdAsync(gameId);
-        return Ok(GameMapper.ToGameDto(game));
+        return Ok(GameMapper.ToGameRequestDto(game));
     }
 
     [HttpPut("{gameId:guid}")]
