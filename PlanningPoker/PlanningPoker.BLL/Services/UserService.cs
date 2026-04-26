@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using PlanningPoker.BLL.Constants;
 using PlanningPoker.BLL.DTOs.Auth;
+using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Mappers;
 using PlanningPoker.Domain.Models;
@@ -13,11 +14,16 @@ internal class UserService : IUserService
 {
     private readonly UserManager<User> _userManager;
     private readonly IJwtService _jwtService;
-
-    public UserService(UserManager<User> userManager, IJwtService jwtService)
+    private readonly ICurrentUserService _currentUserService;
+    
+    public UserService(
+        UserManager<User> userManager,
+        IJwtService jwtService,
+        ICurrentUserService currentUserService)
     {
         _userManager = userManager;
         _jwtService = jwtService;
+        _currentUserService = currentUserService;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
@@ -129,11 +135,12 @@ internal class UserService : IUserService
         );
     }
 
-    public async Task RevokeTokenAsync(Guid userId)
+    public async Task RevokeTokenAsync()
     {
+        var userId = _currentUserService.GetRequiredUserId();
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user is null)
-            throw new KeyNotFoundException("User not found.");
+            throw new NotFoundException(nameof(User), userId.ToString());
 
         user.RefreshToken = string.Empty;
         user.RefreshTokenExpiryTime = null;
@@ -141,11 +148,12 @@ internal class UserService : IUserService
         await _userManager.UpdateAsync(user);
     }
 
-    public async Task<UserDto> GetCurrentUserAsync(Guid userId)
+    public async Task<UserDto> GetCurrentUserAsync()
     {
+        var userId = _currentUserService.GetRequiredUserId();
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user is null)
-            throw new KeyNotFoundException("User not found.");
+            throw new NotFoundException(nameof(User), userId.ToString());
 
         return AuthMapper.ToUserDto(user);
     }

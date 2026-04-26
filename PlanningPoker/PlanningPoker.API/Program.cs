@@ -4,15 +4,20 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PlanningPoker.API.Middlewares;
+using PlanningPoker.API.Services;
 using PlanningPoker.BLL;
 using PlanningPoker.DAL;
 using PlanningPoker.DAL.Data;
+using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, configuration) => configuration.ReadFrom.Configuration(context.Configuration));
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

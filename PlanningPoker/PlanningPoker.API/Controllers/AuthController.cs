@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 using PlanningPoker.BLL.DTOs.Auth;
 using PlanningPoker.Domain.Interfaces.Services;
 
@@ -12,9 +11,9 @@ namespace PlanningPoker.API.Controllers
     {
         private readonly IUserService _userService;
 
-        public AuthController(IUserService UserService)
+        public AuthController(IUserService userService)
         {
-            _userService = UserService;
+            _userService = userService;
         }
 
         [AllowAnonymous]
@@ -37,12 +36,7 @@ namespace PlanningPoker.API.Controllers
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
-            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (string.IsNullOrWhiteSpace(userIdClaim))
-                return Unauthorized();
-
-            await _userService.RevokeTokenAsync(Guid.Parse(userIdClaim));
+            await _userService.RevokeTokenAsync();
             return NoContent();
         }
 
@@ -56,14 +50,9 @@ namespace PlanningPoker.API.Controllers
 
         [Authorize]
         [HttpGet("me")]
-        public async Task<IActionResult> GetCurrentUser()
+        public async Task<IActionResult> Me()
         {
-            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (string.IsNullOrWhiteSpace(userIdClaim))
-                return Unauthorized();
-
-            var result = await _userService.GetCurrentUserAsync(Guid.Parse(userIdClaim));
+            var result = await _userService.GetCurrentUserAsync();
             return Ok(result);
         }
     }

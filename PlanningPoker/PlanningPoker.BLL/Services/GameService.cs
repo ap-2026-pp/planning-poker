@@ -5,10 +5,14 @@ using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.BLL.Services;
 
-public class GameService(IGameRepository gameRepository, IUserRepository userRepository) : IGameService
+public class GameService(
+    IGameRepository gameRepository,
+    IUserRepository userRepository,
+    ICurrentUserService currentUserService) : IGameService
 {
-    public async Task<Game> AddGameAsync(Guid currentUserId, Game game)
+    public async Task<Game> AddGameAsync(Game game)
     {
+        var currentUserId = currentUserService.GetRequiredUserId();
         var user = await userRepository.GetByIdAsync(currentUserId);
         if (user is null)
         {
@@ -48,8 +52,9 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
         return game ?? throw new NotFoundException(nameof(Game), gameId);
     }
 
-    public async Task<Game> UpdateGameAsync(Guid gameId, Game game, Guid currentUserId)
+    public async Task<Game> UpdateGameAsync(Guid gameId, Game game)
     {
+        var currentUserId = currentUserService.GetRequiredUserId();
         var existingGame = await gameRepository.GetByIdAsync(gameId);
         if (existingGame is null)
         {
@@ -79,8 +84,9 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
         return existingGame;
     }
 
-    public async Task DeleteGameAsync(Guid gameId, Guid currentUserId)
+    public async Task DeleteGameAsync(Guid gameId)
     {
+        var currentUserId = currentUserService.GetRequiredUserId();
         var game = await gameRepository.GetByIdAsync(gameId);
         
         if (game is null)
