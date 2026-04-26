@@ -13,7 +13,4 @@ public class UpdateGameRequestDto
     public bool ShowAverage { get; set; } = true;
     public bool ShowCountdownAnimation { get; set; } = true;
     public bool IsActive { get; set; } = true;
-    
-    // TODO remove when auth implemented
-    public Guid? CreatedBy { get; set; }
 }

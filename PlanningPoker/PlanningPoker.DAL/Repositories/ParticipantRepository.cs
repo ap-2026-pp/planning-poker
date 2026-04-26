@@ -9,7 +9,7 @@ public class ParticipantRepository(AppDbContext context) : BaseRepository<GamePa
 {
     public async Task<IEnumerable<GameParticipant>?> GetGameParticipantsAsync(Guid gameId)
     {
-        return await DbSet.Include(participant => participant.Votes)
+        return await _dbSet.Include(participant => participant.Votes)
             .Include(participant => participant.Issues)
             .Where(participant => participant.GameId == gameId)
             .ToListAsync();
@@ -17,6 +17,6 @@ public class ParticipantRepository(AppDbContext context) : BaseRepository<GamePa
 
     public void DeleteGameParticipant(Guid gameId, Guid participantId)
     {
-        DbSet.RemoveRange(DbSet.Where(participant => participant.GameId == gameId && participant.Id == participantId));
+        _dbSet.RemoveRange(_dbSet.Where(participant => participant.GameId == gameId && participant.Id == participantId));
     } 
 }

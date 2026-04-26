@@ -12,7 +12,4 @@ public class CreateGameRequestDto
     public bool AutoRevealCards { get; set; } = true;
     public bool ShowAverage { get; set; } = true;
     public bool ShowCountdownAnimation { get; set; } = true;
-    
-    // TODO remove when auth implemented
-    public Guid? CreatedBy { get; set; }
 }

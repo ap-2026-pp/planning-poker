@@ -9,12 +9,12 @@ public class GameRepository(AppDbContext context) : BaseRepository<Game>(context
 {
     public async Task<bool> ExistsByNameAsync(string name, Guid createdBy)
     {
-        return await DbSet.AnyAsync(g => g.Name == name && g.CreatedBy == createdBy && !g.IsDeleted);
+        return await _dbSet.AnyAsync(g => g.Name == name && g.CreatedBy == createdBy && !g.IsDeleted);
     }
 
     public async Task<bool> ExistsByNameAsync(string name, Guid createdBy, Guid excludedGameId)
     {
-        return await DbSet.AnyAsync(g =>
+        return await _dbSet.AnyAsync(g =>
             g.Name == name &&
             g.CreatedBy == createdBy &&
             g.Id != excludedGameId && !g.IsDeleted);
@@ -22,6 +22,6 @@ public class GameRepository(AppDbContext context) : BaseRepository<Game>(context
     
     public new async Task<Game?> GetByIdAsync(Guid id)
     {
-        return await DbSet.Include(g => g.Participants).FirstOrDefaultAsync(g => g.Id == id);
+        return await _dbSet.Include(g => g.Participants).FirstOrDefaultAsync(g => g.Id == id);
     }
 }

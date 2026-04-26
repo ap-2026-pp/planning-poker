@@ -56,7 +56,8 @@ public static class DbInitializer
             Email = email,
             EmailConfirmed = true,
             DisplayName = displayName,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            RefreshToken = string.Empty
         };
 
         var result = await userManager.CreateAsync(user, password);

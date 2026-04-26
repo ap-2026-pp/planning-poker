@@ -35,7 +35,8 @@ internal class UserService : IUserService
             UserName = dto.Email,
             Email = dto.Email,
             DisplayName = dto.Email,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            RefreshToken = string.Empty
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -134,7 +135,7 @@ internal class UserService : IUserService
         if (user is null)
             throw new KeyNotFoundException("User not found.");
 
-        user.RefreshToken = null!;
+        user.RefreshToken = string.Empty;
         user.RefreshTokenExpiryTime = null;
 
         await _userManager.UpdateAsync(user);

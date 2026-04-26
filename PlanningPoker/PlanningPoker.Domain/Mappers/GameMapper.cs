@@ -14,9 +14,7 @@ public static class GameMapper
             ShowAverage = createGameRequestDto.ShowAverage,
             ShowCountdownAnimation = createGameRequestDto.ShowCountdownAnimation,
             IsActive = true,
-            IsDeleted = false,
-            InviteCode = "123", // TODO temporary
-            CreatedBy = createGameRequestDto.CreatedBy.GetValueOrDefault(),
+            IsDeleted = false
         };
     
     public static Game ToGame(UpdateGameRequestDto updateGameRequestDto) =>
@@ -28,9 +26,7 @@ public static class GameMapper
             ShowAverage = updateGameRequestDto.ShowAverage,
             ShowCountdownAnimation = updateGameRequestDto.ShowCountdownAnimation,
             IsActive = updateGameRequestDto.IsActive,
-            IsDeleted = false,
-            InviteCode = "123", // TODO temporary
-            CreatedBy = updateGameRequestDto.CreatedBy.GetValueOrDefault(),
+            IsDeleted = false
         };
 
     public static GameDto ToGameDto(Game game) =>
