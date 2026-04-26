@@ -1,3 +1,4 @@
+using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
@@ -11,13 +12,20 @@ public class ParticipantService(IParticipantRepository participantRepository) : 
         return await participantRepository.GetGameParticipantsAsync(gameId);
     }
 
-    public async Task DeleteGameParticipantAsync(Guid gameId, Guid participantId)
+    public async Task DeleteGameParticipantAsync(Guid currentUserId, Guid gameId, Guid participantId)
     {
-        var participant = await participantRepository.GetByIdAsync(participantId);
-        if (participant == null)
+        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
+        if (currentUserParticipant is null || currentUserParticipant.Role != Role.Master)
         {
-            return;
+            throw new ForbiddenException("delete", "participant");
         }
+        
+        var participant = await participantRepository.GetByIdAsync(participantId);
+        if (participant is null || participant.GameId != gameId)
+        {
+            throw new NotFoundException(nameof(GameParticipant), participantId);
+        }
+        
         participantRepository.DeleteGameParticipant(gameId, participantId);
         await participantRepository.SaveChangesAsync();
     }

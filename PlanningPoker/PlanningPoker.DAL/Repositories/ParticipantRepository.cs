@@ -15,6 +15,13 @@ public class ParticipantRepository(AppDbContext context) : BaseRepository<GamePa
             .ToListAsync();
     }
 
+    public async Task<GameParticipant?> GetByUserIdAndGameIdAsync(Guid userId, Guid gameId)
+    {
+        return await _dbSet.FirstOrDefaultAsync(participant =>
+            participant.UserId == userId &&
+            participant.GameId == gameId);
+    }
+
     public void DeleteGameParticipant(Guid gameId, Guid participantId)
     {
         _dbSet.RemoveRange(_dbSet.Where(participant => participant.GameId == gameId && participant.Id == participantId));

@@ -5,5 +5,5 @@ namespace PlanningPoker.Domain.Interfaces.Services;
 public interface IParticipantService
 {
     public Task<IEnumerable<GameParticipant>?> GetGameParticipantsAsync(Guid gameId);
-    public Task DeleteGameParticipantAsync(Guid gameId, Guid participantId);
+    public Task DeleteGameParticipantAsync(Guid currentUserId, Guid gameId, Guid participantId);
 }
