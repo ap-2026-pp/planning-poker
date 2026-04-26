@@ -12,7 +12,7 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
         var user = await userRepository.GetByIdAsync(currentUserId);
         if (user is null)
         {
-            throw new NotFoundException(currentUserId);
+            throw new NotFoundException(nameof(User), currentUserId);
         }
 
         var exists = await gameRepository.ExistsByNameAsync(game.Name, currentUserId);
@@ -45,7 +45,7 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
     public async Task<Game> GetGameByIdAsync(Guid gameId)
     {
         var game = await gameRepository.GetByIdAsync(gameId);
-        return game ?? throw new NotFoundException(gameId);
+        return game ?? throw new NotFoundException(nameof(Game), gameId);
     }
 
     public async Task<Game> UpdateGameAsync(Guid gameId, Game game, Guid currentUserId)
@@ -53,12 +53,12 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
         var existingGame = await gameRepository.GetByIdAsync(gameId);
         if (existingGame is null)
         {
-            throw new NotFoundException(gameId);
+            throw new NotFoundException(nameof(Game), gameId);
         }
 
         if (!IsMaster(existingGame, currentUserId))
         {
-            throw new UnauthorizedAccessException("Only a master can update the game.");
+            throw new ForbiddenException("update", "game");
         }
 
         var exists = await gameRepository.ExistsByNameAsync(game.Name, existingGame.CreatedBy, gameId);
@@ -90,7 +90,7 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
         
         if (!IsMaster(game, currentUserId))
         {
-            throw new UnauthorizedAccessException("Only a master can delete the game.");
+            throw new ForbiddenException("delete", "game");
         }
         
         game.IsActive = false;
