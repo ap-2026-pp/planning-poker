@@ -56,9 +56,9 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
             throw new NotFoundException(gameId);
         }
 
-        if (currentUserId != existingGame.CreatedBy)
+        if (!IsMaster(existingGame, currentUserId))
         {
-            throw new UnauthorizedAccessException("Forbidden"); // TODO forbidden exception
+            throw new UnauthorizedAccessException("Only a master can update the game.");
         }
 
         var exists = await gameRepository.ExistsByNameAsync(game.Name, existingGame.CreatedBy, gameId);
@@ -88,14 +88,21 @@ public class GameService(IGameRepository gameRepository, IUserRepository userRep
             return;
         }
         
-        if (currentUserId != game.CreatedBy)
+        if (!IsMaster(game, currentUserId))
         {
-            throw new UnauthorizedAccessException("Forbidden"); // TODO forbidden exception
+            throw new UnauthorizedAccessException("Only a master can delete the game.");
         }
         
         game.IsActive = false;
         game.IsDeleted = true;
         gameRepository.Update(game);
         await gameRepository.SaveChangesAsync();
+    }
+
+    private static bool IsMaster(Game game, Guid currentUserId)
+    {
+        return game.Participants.Any(participant =>
+            participant.UserId == currentUserId &&
+            participant.Role == Role.Master);
     }
 }
