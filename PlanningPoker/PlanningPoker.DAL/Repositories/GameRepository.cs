@@ -22,6 +22,8 @@ public class GameRepository(AppDbContext context) : BaseRepository<Game>(context
     
     public new async Task<Game?> GetByIdAsync(Guid id)
     {
-        return await _dbSet.Include(g => g.Participants).FirstOrDefaultAsync(g => g.Id == id);
+        return await _dbSet
+            .Include(g => g.Participants.Where(participant => participant.RemovedAt == null))
+            .FirstOrDefaultAsync(g => g.Id == id);
     }
 }

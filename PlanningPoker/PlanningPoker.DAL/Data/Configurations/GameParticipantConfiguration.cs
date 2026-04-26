@@ -22,6 +22,8 @@ public class GameParticipantConfiguration : IEntityTypeConfiguration<GamePartici
         builder.Property(x => x.IsConnected)
             .IsRequired();
 
+        builder.Property(x => x.RemovedAt);
+
         builder.Property(x => x.Role)
             .IsRequired();
 

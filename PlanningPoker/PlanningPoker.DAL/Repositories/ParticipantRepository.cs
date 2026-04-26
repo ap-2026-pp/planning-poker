@@ -11,19 +11,29 @@ public class ParticipantRepository(AppDbContext context) : BaseRepository<GamePa
     {
         return await _dbSet.Include(participant => participant.Votes)
             .Include(participant => participant.Issues)
-            .Where(participant => participant.GameId == gameId)
+            .Where(participant => participant.GameId == gameId && participant.RemovedAt == null)
             .ToListAsync();
+    }
+
+    public async Task<GameParticipant?> GetActiveByIdAsync(Guid participantId)
+    {
+        return await _dbSet.FirstOrDefaultAsync(participant =>
+            participant.Id == participantId &&
+            participant.RemovedAt == null);
     }
 
     public async Task<GameParticipant?> GetByUserIdAndGameIdAsync(Guid userId, Guid gameId)
     {
         return await _dbSet.FirstOrDefaultAsync(participant =>
             participant.UserId == userId &&
-            participant.GameId == gameId);
+            participant.GameId == gameId &&
+            participant.RemovedAt == null);
     }
 
-    public void DeleteGameParticipant(Guid gameId, Guid participantId)
+    public void RemoveGameParticipant(GameParticipant participant)
     {
-        _dbSet.RemoveRange(_dbSet.Where(participant => participant.GameId == gameId && participant.Id == participantId));
+        participant.IsConnected = false;
+        participant.RemovedAt = DateTime.UtcNow;
+        _dbSet.Update(participant);
     } 
 }

@@ -23,13 +23,13 @@ public class ParticipantService(
             throw new ForbiddenException("delete", "participant");
         }
         
-        var participant = await participantRepository.GetByIdAsync(participantId);
+        var participant = await participantRepository.GetActiveByIdAsync(participantId);
         if (participant is null || participant.GameId != gameId)
         {
             throw new NotFoundException(nameof(GameParticipant), participantId);
         }
         
-        participantRepository.DeleteGameParticipant(gameId, participantId);
+        participantRepository.RemoveGameParticipant(participant);
         await participantRepository.SaveChangesAsync();
     }
 }
