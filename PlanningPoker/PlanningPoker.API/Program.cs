@@ -12,8 +12,7 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((context, configuration) =>
-    configuration
+builder.Host.UseSerilog((context, configuration) => configuration
         .MinimumLevel.Information()
         .WriteTo.Console());
 
@@ -26,7 +25,7 @@ builder.Services.AddBllServices();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
-builder.Services.AddIdentity<User, IdentityRole<Guid>>()
+builder.Services.AddIdentity<User, Role>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
@@ -134,8 +133,8 @@ static async Task SeedDatabaseAsync(WebApplication app)
 
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-
-        await DbInitializer.SeedDataAsync(context, userManager);
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+        await DbInitializer.SeedDataAsync(context, userManager, roleManager);
     }
     catch (Exception ex)
     {
