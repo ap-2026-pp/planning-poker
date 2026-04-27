@@ -56,7 +56,7 @@ public class GameService(
     {
         var currentUserId = currentUserService.GetRequiredUserId();
         var existingGame = await gameRepository.GetByIdAsync(gameId);
-        if (existingGame is null)
+        if (existingGame is null || existingGame.IsDeleted)
         {
             throw new NotFoundException(nameof(Game), gameId);
         }
