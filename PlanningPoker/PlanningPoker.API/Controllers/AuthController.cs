@@ -10,18 +10,18 @@ namespace PlanningPoker.API.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly IAuthService _authService;
+        private readonly IUserService _UserService;
 
-        public AuthController(IAuthService authService)
+        public AuthController(IUserService UserService)
         {
-            _authService = authService;
+            _UserService = UserService;
         }
 
         [AllowAnonymous]
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDto dto)
         {
-            var result = await _authService.RegisterAsync(dto);
+            var result = await _UserService.RegisterAsync(dto);
             return Ok(result);
         }
 
@@ -29,7 +29,7 @@ namespace PlanningPoker.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
-            var result = await _authService.LoginAsync(dto);
+            var result = await _UserService.LoginAsync(dto);
             return Ok(result);
         }
 
@@ -42,7 +42,7 @@ namespace PlanningPoker.API.Controllers
             if (string.IsNullOrWhiteSpace(userIdClaim))
                 return Unauthorized();
 
-            await _authService.RevokeTokenAsync(Guid.Parse(userIdClaim));
+            await _UserService.RevokeTokenAsync(Guid.Parse(userIdClaim));
             return NoContent();
         }
 
@@ -50,20 +50,20 @@ namespace PlanningPoker.API.Controllers
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh([FromBody] TokenRequestDto dto)
         {
-            var result = await _authService.RefreshTokensAsync(dto);
+            var result = await _UserService.RefreshTokensAsync(dto);
             return Ok(result);
         }
 
         [Authorize]
         [HttpGet("me")]
-        public async Task<IActionResult> Me()
+        public async Task<IActionResult> GetCurrentUser()
         {
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
             if (string.IsNullOrWhiteSpace(userIdClaim))
                 return Unauthorized();
 
-            var result = await _authService.GetCurrentUserAsync(Guid.Parse(userIdClaim));
+            var result = await _UserService.GetCurrentUserAsync(Guid.Parse(userIdClaim));
             return Ok(result);
         }
     }
