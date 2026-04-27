@@ -18,7 +18,7 @@ public class ParticipantService(
     {
         var currentUserId = currentUserService.GetRequiredUserId();
         var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
-        if (currentUserParticipant is null || currentUserParticipant.Role != Role.Master)
+        if (currentUserParticipant is null || currentUserParticipant.Role != ParticipantRole.Master)
         {
             throw new ForbiddenException("delete", "participant");
         }

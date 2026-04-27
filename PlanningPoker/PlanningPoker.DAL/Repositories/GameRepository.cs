@@ -5,7 +5,7 @@ using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.DAL.Repositories;
 
-public class GameRepository(AppDbContext context) : BaseRepository<Game>(context), IGameRepository
+internal class GameRepository(AppDbContext context) : BaseRepository<Game>(context), IGameRepository
 {
     public async Task<bool> ExistsByNameAsync(string name, Guid createdBy)
     {

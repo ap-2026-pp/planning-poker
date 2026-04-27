@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using PlanningPoker.BLL.DTOs.Auth;
 using PlanningPoker.Domain.Interfaces.Services;
 
@@ -10,7 +11,7 @@ namespace PlanningPoker.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IUserService _userService;
-
+        
         public AuthController(IUserService userService)
         {
             _userService = userService;
@@ -50,7 +51,7 @@ namespace PlanningPoker.API.Controllers
 
         [Authorize]
         [HttpGet("me")]
-        public async Task<IActionResult> Me()
+        public async Task<IActionResult> GetCurrentUser()
         {
             var result = await _userService.GetCurrentUserAsync();
             return Ok(result);

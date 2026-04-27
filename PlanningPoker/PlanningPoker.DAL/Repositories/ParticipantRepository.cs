@@ -5,7 +5,7 @@ using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.DAL.Repositories;
 
-public class ParticipantRepository(AppDbContext context) : BaseRepository<GameParticipant>(context), IParticipantRepository
+internal class ParticipantRepository(AppDbContext context) : BaseRepository<GameParticipant>(context), IParticipantRepository
 {
     public async Task<IEnumerable<GameParticipant>?> GetGameParticipantsAsync(Guid gameId)
     {

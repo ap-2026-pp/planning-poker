@@ -35,7 +35,7 @@ public class GameService(
                 Id = Guid.NewGuid(),
                 UserId = user.Id,
                 DisplayName = user.DisplayName,
-                Role = Role.Master,
+                Role = ParticipantRole.Master,
                 JoinedAt = DateTime.UtcNow,
                 IsConnected = true
             }
@@ -109,6 +109,6 @@ public class GameService(
     {
         return game.Participants.Any(participant =>
             participant.UserId == currentUserId &&
-            participant.Role == Role.Master);
+            participant.Role == ParticipantRole.Master);
     }
 }
