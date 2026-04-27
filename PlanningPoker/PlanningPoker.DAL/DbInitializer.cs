@@ -6,84 +6,46 @@ namespace PlanningPoker.DAL.Data;
 
 public static class DbInitializer
 {
-    private const string MasterRole = "Master";
-    private const string PlayerRole = "Player";
-    private const string SpectatorRole = "Spectator";
-
     public static async Task SeedDataAsync(
         AppDbContext context,
-        UserManager<User> userManager,
-        RoleManager<Role> roleManager)
+        UserManager<User> userManager)
     {
         await context.Database.MigrateAsync();
 
-        await EnsureRoleAsync(roleManager, MasterRole);
-        await EnsureRoleAsync(roleManager, PlayerRole);
-        await EnsureRoleAsync(roleManager, SpectatorRole);
-
-        var masterUser = await EnsureUserAsync(userManager, "master@test.com", "Master123!", "Master", MasterRole);
-        var playerUser = await EnsureUserAsync(userManager, "player@test.com", "Player123!", "Player", PlayerRole);
-        var spectatorUser = await EnsureUserAsync(userManager, "spectator@test.com", "Spectator123!", "Spectator", SpectatorRole);
+        var masterUser = await EnsureUserAsync(userManager, "master@test.com", "Master123!", "Master");
+        var playerUser = await EnsureUserAsync(userManager, "player@test.com", "Player123!", "Player");
+        var spectatorUser = await EnsureUserAsync(userManager, "spectator@test.com", "Spectator123!", "Spectator");
 
         await SeedGameAsync(context, masterUser, playerUser, spectatorUser);
-    }
-
-    private static async Task EnsureRoleAsync(RoleManager<Role> roleManager, string roleName)
-    {
-        if (await roleManager.RoleExistsAsync(roleName))
-            return;
-
-        var result = await roleManager.CreateAsync(new Role
-        {
-            Name = roleName,
-            NormalizedName = roleName.ToUpperInvariant()
-        });
-
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException(
-                $"Failed to create role '{roleName}': {string.Join("; ", result.Errors.Select(e => e.Description))}");
-        }
     }
 
     private static async Task<User> EnsureUserAsync(
         UserManager<User> userManager,
         string email,
         string password,
-        string displayName,
-        string role)
+        string displayName)
     {
         var user = await userManager.FindByEmailAsync(email);
 
-        if (user is null)
+        if (user is not null)
+            return user;
+
+        user = new User
         {
-            user = new User
-            {
-                UserName = email,
-                Email = email,
-                EmailConfirmed = true,
-                DisplayName = displayName,
-                CreatedAt = DateTime.UtcNow
-            };
+            Id = Guid.NewGuid(),
+            UserName = email,
+            Email = email,
+            EmailConfirmed = true,
+            DisplayName = displayName,
+            CreatedAt = DateTime.UtcNow
+        };
 
-            var result = await userManager.CreateAsync(user, password);
+        var result = await userManager.CreateAsync(user, password);
 
-            if (!result.Succeeded)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to create seed user '{email}': {string.Join("; ", result.Errors.Select(e => e.Description))}");
-            }
-        }
-
-        if (!await userManager.IsInRoleAsync(user, role))
+        if (!result.Succeeded)
         {
-            var roleResult = await userManager.AddToRoleAsync(user, role);
-
-            if (!roleResult.Succeeded)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to add role '{role}' to user '{email}': {string.Join("; ", roleResult.Errors.Select(e => e.Description))}");
-            }
+            throw new InvalidOperationException(
+                $"Failed to create seed user '{email}': {string.Join("; ", result.Errors.Select(e => e.Description))}");
         }
 
         return user;
