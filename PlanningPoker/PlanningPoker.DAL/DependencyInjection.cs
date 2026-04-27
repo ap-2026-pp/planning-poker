@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PlanningPoker.DAL.Data;
 using PlanningPoker.Domain.Models;
 using Microsoft.AspNetCore.Identity;
-// using PlanningPoker.DAL.Repositories;
+using PlanningPoker.DAL.Repositories;
 using PlanningPoker.Domain.Interfaces.Repositories;
 
 namespace PlanningPoker.DAL;
@@ -15,10 +15,9 @@ public static class DependencyInjection
     {
         services.AddDbContext<AppDbContext>(opt =>
             opt.UseNpgsql(config.GetConnectionString("Default")));
+        
+        services.AddScoped<IUserRepository, UserRepository>();
 
-        services.AddIdentityCore<User>()
-            .AddEntityFrameworkStores<AppDbContext>();
-   
         return services;
     }
 }

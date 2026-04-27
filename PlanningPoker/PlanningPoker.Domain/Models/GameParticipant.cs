@@ -8,7 +8,7 @@ public class GameParticipant
     public Guid UserId { get; set; }
     public User User { get; set; } = null!;
     public string DisplayName { get; set; }
-    public Role Role { get; set; }  = Role.Player;
+    public ParticipantRole Role { get; set; }  = ParticipantRole.Player;
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
     public bool IsConnected { get; set; }
     public ICollection<Vote> Votes { get; set; } = new List<Vote>();

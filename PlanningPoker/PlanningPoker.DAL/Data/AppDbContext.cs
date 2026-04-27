@@ -1,11 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;    
-using Microsoft.AspNetCore.Identity;
 using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.DAL.Data;
 
-public class AppDbContext : IdentityDbContext<User, IdentityRole<Guid>, Guid>
+public class AppDbContext : IdentityDbContext<User, Role, Guid>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
     public DbSet<Game> Games { get; set; }

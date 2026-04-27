@@ -4,30 +4,39 @@ using PlanningPoker.Domain.Interfaces.Repositories;
 
 namespace PlanningPoker.DAL.Repositories;
 
-
-public class BaseRepository<T>(AppDbContext context, DbSet<T> dbSet) : IBaseRepository<T> where T : class
+internal class BaseRepository<T> : IBaseRepository<T> where T : class
 {
+    protected readonly AppDbContext _context;
+    protected readonly DbSet<T> _dbSet;
+
+    public BaseRepository(AppDbContext context)
+    {
+        _context = context;
+        _dbSet = context.Set<T>();
+    }
+
     public async Task<T?> GetByIdAsync(Guid id)
     {
-        return await dbSet.FindAsync(id);
+        return await _dbSet.FindAsync(id);
     }
 
     public async Task AddAsync(T entity)
-    { 
-        await dbSet.AddAsync(entity);
+    {
+        await _dbSet.AddAsync(entity);
     }
+
     public void Update(T entity)
     {
-        dbSet.Update(entity);
+        _dbSet.Update(entity);
     }
-    
+
     public void Delete(T entity)
     {
-        dbSet.Remove(entity);
+        _dbSet.Remove(entity);
     }
 
     public async Task SaveChangesAsync()
     {
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
     }
 }

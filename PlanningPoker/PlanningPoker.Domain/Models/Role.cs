@@ -1,9 +1,7 @@
 namespace PlanningPoker.Domain.Models;
+using Microsoft.AspNetCore.Identity;
 
-
-public enum Role
+public class Role : IdentityRole<Guid>
 {
-    Master, 
-    Player,
-    Spectator
+
 }
