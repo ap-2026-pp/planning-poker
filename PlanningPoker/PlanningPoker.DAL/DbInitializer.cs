@@ -16,7 +16,26 @@ public static class DbInitializer
         var playerUser = await EnsureUserAsync(userManager, "player@test.com", "Player123!", "Player");
         var spectatorUser = await EnsureUserAsync(userManager, "spectator@test.com", "Spectator123!", "Spectator");
 
+
         await SeedGameAsync(context, masterUser, playerUser, spectatorUser);
+    }
+  
+    private static async Task EnsureRoleAsync(RoleManager<Role> roleManager, string roleName)
+    {
+        if (await roleManager.RoleExistsAsync(roleName))
+            return;
+
+        var result = await roleManager.CreateAsync(new Role
+        {
+            Name = roleName,
+            NormalizedName = roleName.ToUpperInvariant()
+        });
+
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Failed to create role '{roleName}': {string.Join("; ", result.Errors.Select(e => e.Description))}");
+        }
     }
 
     private static async Task<User> EnsureUserAsync(

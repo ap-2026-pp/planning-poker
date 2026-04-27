@@ -134,6 +134,7 @@ static async Task SeedDatabaseAsync(WebApplication app)
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
         await DbInitializer.SeedDataAsync(context, userManager);
+
     }
     catch (Exception ex)
     {
