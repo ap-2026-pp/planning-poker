@@ -4,7 +4,7 @@ using PlanningPoker.Domain.Interfaces.Repositories;
 
 namespace PlanningPoker.DAL.Repositories;
 
-public class BaseRepository<T> : IBaseRepository<T> where T : class
+internal class BaseRepository<T> : IBaseRepository<T> where T : class
 {
     protected readonly AppDbContext _context;
     protected readonly DbSet<T> _dbSet;

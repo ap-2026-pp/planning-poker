@@ -1,7 +1,7 @@
 namespace PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.BLL.DTOs.Auth;
 
-public interface IAuthService
+public interface IUserService
 {
     Task<AuthResponseDto> RegisterAsync(RegisterDto dto);
     Task<AuthResponseDto> LoginAsync(LoginDto dto);

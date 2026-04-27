@@ -6,59 +6,84 @@ namespace PlanningPoker.DAL.Data;
 
 public static class DbInitializer
 {
+    private const string MasterRole = "Master";
+    private const string PlayerRole = "Player";
+    private const string SpectatorRole = "Spectator";
+
     public static async Task SeedDataAsync(
         AppDbContext context,
-        UserManager<User> userManager)
+        UserManager<User> userManager,
+        RoleManager<Role> roleManager)
     {
         await context.Database.MigrateAsync();
 
-        var masterUser = await EnsureUserAsync(
-            userManager,
-            "master@test.com",
-            "Master123!",
-            "Master");
+        await EnsureRoleAsync(roleManager, MasterRole);
+        await EnsureRoleAsync(roleManager, PlayerRole);
+        await EnsureRoleAsync(roleManager, SpectatorRole);
 
-        var playerUser = await EnsureUserAsync(
-            userManager,
-            "player@test.com",
-            "Player123!",
-            "Player");
-
-        var spectatorUser = await EnsureUserAsync(
-            userManager,
-            "spectator@test.com",
-            "Spectator123!",
-            "Spectator");
+        var masterUser = await EnsureUserAsync(userManager, "master@test.com", "Master123!", "Master", MasterRole);
+        var playerUser = await EnsureUserAsync(userManager, "player@test.com", "Player123!", "Player", PlayerRole);
+        var spectatorUser = await EnsureUserAsync(userManager, "spectator@test.com", "Spectator123!", "Spectator", SpectatorRole);
 
         await SeedGameAsync(context, masterUser, playerUser, spectatorUser);
+    }
+
+    private static async Task EnsureRoleAsync(RoleManager<Role> roleManager, string roleName)
+    {
+        if (await roleManager.RoleExistsAsync(roleName))
+            return;
+
+        var result = await roleManager.CreateAsync(new Role
+        {
+            Name = roleName,
+            NormalizedName = roleName.ToUpperInvariant()
+        });
+
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Failed to create role '{roleName}': {string.Join("; ", result.Errors.Select(e => e.Description))}");
+        }
     }
 
     private static async Task<User> EnsureUserAsync(
         UserManager<User> userManager,
         string email,
         string password,
-        string displayName)
+        string displayName,
+        string role)
     {
         var user = await userManager.FindByEmailAsync(email);
 
-        if (user is not null)
-            return user;
-
-        user = new User
+        if (user is null)
         {
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
-            DisplayName = displayName,
-            CreatedAt = DateTime.UtcNow
-        };
+            user = new User
+            {
+                UserName = email,
+                Email = email,
+                EmailConfirmed = true,
+                DisplayName = displayName,
+                CreatedAt = DateTime.UtcNow
+            };
 
-        var result = await userManager.CreateAsync(user, password);
+            var result = await userManager.CreateAsync(user, password);
 
-        if (!result.Succeeded)
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to create seed user '{email}': {string.Join("; ", result.Errors.Select(e => e.Description))}");
+            }
+        }
+
+        if (!await userManager.IsInRoleAsync(user, role))
         {
-            throw new InvalidOperationException(
-                $"Failed to create seed user '{email}': {string.Join("; ", result.Errors.Select(e => e.Description))}");
+            var roleResult = await userManager.AddToRoleAsync(user, role);
+
+            if (!roleResult.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to add role '{role}' to user '{email}': {string.Join("; ", roleResult.Errors.Select(e => e.Description))}");
+            }
         }
 
         return user;
@@ -93,42 +118,38 @@ public static class DbInitializer
             Participants = new List<GameParticipant>()
         };
 
-        var masterParticipant = new GameParticipant
+        game.Participants.Add(new GameParticipant
         {
             Id = Guid.NewGuid(),
             GameId = game.Id,
             UserId = masterUser.Id,
             DisplayName = masterUser.DisplayName,
-            Role = Role.Master,
+            Role = ParticipantRole.Master,
             JoinedAt = DateTime.UtcNow,
             IsConnected = true
-        };
+        });
 
-        var playerParticipant = new GameParticipant
+        game.Participants.Add(new GameParticipant
         {
             Id = Guid.NewGuid(),
             GameId = game.Id,
             UserId = playerUser.Id,
             DisplayName = playerUser.DisplayName,
-            Role = Role.Player,
+            Role = ParticipantRole.Player,
             JoinedAt = DateTime.UtcNow,
             IsConnected = true
-        };
+        });
 
-        var spectatorParticipant = new GameParticipant
+        game.Participants.Add(new GameParticipant
         {
             Id = Guid.NewGuid(),
             GameId = game.Id,
             UserId = spectatorUser.Id,
             DisplayName = spectatorUser.DisplayName,
-            Role = Role.Spectator,
+            Role = ParticipantRole.Spectator,
             JoinedAt = DateTime.UtcNow,
             IsConnected = true
-        };
-
-        game.Participants.Add(masterParticipant);
-        game.Participants.Add(playerParticipant);
-        game.Participants.Add(spectatorParticipant);
+        });
 
         await context.Games.AddAsync(game);
         await context.SaveChangesAsync();

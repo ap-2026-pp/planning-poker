@@ -4,11 +4,12 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.Interfaces.Services;
 
 namespace PlanningPoker.BLL.Services;
 
-public class JwtService : IJwtService
+internal class JwtService : IJwtService
 {
     private readonly IConfiguration _configuration;
 
@@ -17,25 +18,30 @@ public class JwtService : IJwtService
         _configuration = configuration;
     }
 
-    public string GenerateAccessToken(Guid userId, string email)
+    public string GenerateAccessToken(Guid userId, string email, IList<string> roles)
     {
         var keyString = GetRequiredConfig("Jwt:Key");
         var issuer = GetRequiredConfig("Jwt:Issuer");
         var audience = GetRequiredConfig("Jwt:Audience");
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-            new Claim(ClaimTypes.Email, email),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new(ClaimTypes.NameIdentifier, userId.ToString()),
+            new(ClaimTypes.Email, email),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        foreach (var role in roles)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
+        }
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyString));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var expiresInMinutes = double.TryParse(_configuration["Jwt:ExpiresInMinutes"], out var minutes)
             ? minutes
-            : 60;
+            : JwtDefaults.ExpiresInMinutes;
 
         var token = new JwtSecurityToken(
             issuer: issuer,
@@ -49,9 +55,9 @@ public class JwtService : IJwtService
 
     public string GenerateRefreshToken()
     {
-        var bytes = new byte[64];
-        using var rng = RandomNumberGenerator.Create();
+        var bytes = new byte[JwtDefaults.RefreshTokenBytesLength];
 
+        using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(bytes);
 
         return Convert.ToBase64String(bytes);

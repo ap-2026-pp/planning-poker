@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.BLL.DTOs.Auth;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Mappers;
@@ -8,12 +9,12 @@ using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.BLL.Services;
 
-public class AuthService : IAuthService
+internal class UserService : IUserService
 {
     private readonly UserManager<User> _userManager;
     private readonly IJwtService _jwtService;
 
-    public AuthService(UserManager<User> userManager, IJwtService jwtService)
+    public UserService(UserManager<User> userManager, IJwtService jwtService)
     {
         _userManager = userManager;
         _jwtService = jwtService;
@@ -44,16 +45,17 @@ public class AuthService : IAuthService
 
         var refreshToken = _jwtService.GenerateRefreshToken();
         user.RefreshToken = refreshToken;
-        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(JwtDefaults.RefreshTokenExpiresInDays);
 
         await _userManager.UpdateAsync(user);
 
-        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!);
+        var roles = await _userManager.GetRolesAsync(user);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
 
         return AuthMapper.ToAuthResponseDto(
             accessToken,
             refreshToken,
-            DateTime.UtcNow.AddMinutes(60),
+            DateTime.UtcNow.AddMinutes(JwtDefaults.ExpiresInMinutes),
             user
         );
     }
@@ -71,18 +73,19 @@ public class AuthService : IAuthService
         if (!isPasswordValid)
             throw new UnauthorizedAccessException("Invalid credentials.");
 
-        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!);
+        var roles = await _userManager.GetRolesAsync(user);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
         var refreshToken = _jwtService.GenerateRefreshToken();
 
         user.RefreshToken = refreshToken;
-        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(JwtDefaults.RefreshTokenExpiresInDays);
 
         await _userManager.UpdateAsync(user);
 
         return AuthMapper.ToAuthResponseDto(
             accessToken,
             refreshToken,
-            DateTime.UtcNow.AddMinutes(60),
+            DateTime.UtcNow.AddMinutes(JwtDefaults.ExpiresInMinutes),
             user
         );
     }
@@ -108,18 +111,19 @@ public class AuthService : IAuthService
         if (user.RefreshTokenExpiryTime is null || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
             throw new SecurityTokenException("Refresh token expired.");
 
-        var newAccessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!);
+        var roles = await _userManager.GetRolesAsync(user);
+        var newAccessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
         var newRefreshToken = _jwtService.GenerateRefreshToken();
 
         user.RefreshToken = newRefreshToken;
-        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+        user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(JwtDefaults.RefreshTokenExpiresInDays);
 
         await _userManager.UpdateAsync(user);
 
         return AuthMapper.ToAuthResponseDto(
             newAccessToken,
             newRefreshToken,
-            DateTime.UtcNow.AddMinutes(60),
+            DateTime.UtcNow.AddMinutes(JwtDefaults.ExpiresInMinutes),
             user
         );
     }

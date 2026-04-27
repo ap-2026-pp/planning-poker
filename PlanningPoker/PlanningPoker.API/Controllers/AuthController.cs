@@ -10,18 +10,18 @@ namespace PlanningPoker.API.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly IUserService _UserService;
+        private readonly IUserService _userService;
 
         public AuthController(IUserService UserService)
         {
-            _UserService = UserService;
+            _userService = UserService;
         }
 
         [AllowAnonymous]
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDto dto)
         {
-            var result = await _UserService.RegisterAsync(dto);
+            var result = await _userService.RegisterAsync(dto);
             return Ok(result);
         }
 
@@ -29,7 +29,7 @@ namespace PlanningPoker.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
-            var result = await _UserService.LoginAsync(dto);
+            var result = await _userService.LoginAsync(dto);
             return Ok(result);
         }
 
@@ -42,7 +42,7 @@ namespace PlanningPoker.API.Controllers
             if (string.IsNullOrWhiteSpace(userIdClaim))
                 return Unauthorized();
 
-            await _UserService.RevokeTokenAsync(Guid.Parse(userIdClaim));
+            await _userService.RevokeTokenAsync(Guid.Parse(userIdClaim));
             return NoContent();
         }
 
@@ -50,7 +50,7 @@ namespace PlanningPoker.API.Controllers
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh([FromBody] TokenRequestDto dto)
         {
-            var result = await _UserService.RefreshTokensAsync(dto);
+            var result = await _userService.RefreshTokensAsync(dto);
             return Ok(result);
         }
 
@@ -63,7 +63,7 @@ namespace PlanningPoker.API.Controllers
             if (string.IsNullOrWhiteSpace(userIdClaim))
                 return Unauthorized();
 
-            var result = await _UserService.GetCurrentUserAsync(Guid.Parse(userIdClaim));
+            var result = await _userService.GetCurrentUserAsync(Guid.Parse(userIdClaim));
             return Ok(result);
         }
     }

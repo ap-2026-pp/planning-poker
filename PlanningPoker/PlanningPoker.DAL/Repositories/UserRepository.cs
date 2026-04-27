@@ -5,9 +5,9 @@ using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.DAL.Repositories;
 
-public class AuthRepository : BaseRepository<User>, IAuthRepository
+internal class UserRepository : BaseRepository<User>, IUserRepository
 {
-    public AuthRepository(AppDbContext context) : base(context)
+    public UserRepository(AppDbContext context) : base(context)
     {
     }
 
