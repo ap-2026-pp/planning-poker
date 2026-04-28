@@ -123,7 +123,7 @@ public class ParticipantService(
         var exists = await participantRepository.ExistsByDisplayNameAsync(displayName, gameId);
         if (exists)
         {
-            throw new GameAlreadyExistsException(displayName); // TODO change exception
+            throw new ResourceAlreadyExistsException(nameof(GameParticipant), displayName); // TODO change exception
         }
     }
     

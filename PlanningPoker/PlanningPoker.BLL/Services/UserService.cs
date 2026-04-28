@@ -33,7 +33,7 @@ internal class UserService : IUserService
 
         var existingUser = await _userManager.FindByEmailAsync(dto.Email);
         if (existingUser is not null)
-            throw new InvalidOperationException("User with this email already exists.");
+            throw new ResourceAlreadyExistsException(nameof(User), "email", dto.Email);
 
         var user = new User
         {

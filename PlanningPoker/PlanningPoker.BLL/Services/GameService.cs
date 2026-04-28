@@ -112,7 +112,7 @@ public class GameService(
 
         if (exists)
         {
-            throw new GameAlreadyExistsException(gameName);
+            throw new ResourceAlreadyExistsException(nameof(Game), gameName);
         }
     }
 
