@@ -9,4 +9,5 @@ public interface IParticipantService
     public Task<GameDto> JoinGameByInviteCodeAsync(string inviteCode,  string displayName);
     public Task LeaveGameAsync(Guid gameId);
     public Task DeleteGameParticipantAsync(Guid gameId, Guid participantId);
+    public Task<GameParticipant> UpdateDisplayNameAsync(Guid gameId, string displayName);
 }

@@ -2,7 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.API.Services;
 using PlanningPoker.Domain.DTOs.Game;
+using PlanningPoker.Domain.DTOs.Participant;
 using PlanningPoker.Domain.Interfaces.Services;
+using PlanningPoker.Domain.Mappers;
+using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.API.Controllers;
 
@@ -63,5 +66,12 @@ public class GameController(
     {
         await service.DeleteGameAsync(gameId);
         return NoContent();
+    }
+
+    [HttpPut("{gameId:guid}/change-display-name")]
+    public async Task<ActionResult> ChangeDisplayName(Guid gameId, [FromBody] UpdateDisplayNameDto updateDisplayNameDto)
+    {
+        var updatedParticipant = await participantService.UpdateDisplayNameAsync(gameId, updateDisplayNameDto.DisplayName);
+        return Ok(ParticipantMapper.ToGameParticipantDto(updatedParticipant));
     }
 }
