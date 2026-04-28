@@ -11,7 +11,7 @@ public class ParticipantService(
     IParticipantRepository participantRepository, IGameRepository gameRepository,
     ICurrentUserService currentUserService) : IParticipantService
 {
-    public async Task<IEnumerable<GameParticipantDto>?> GetGameParticipantsAsync(Guid gameId)
+    public async Task<IEnumerable<GameParticipantDto>> GetGameParticipantsAsync(Guid gameId)
     {
         var participants = await participantRepository.GetGameParticipantsAsync(gameId);
         return (participants ?? []).Select(ParticipantMapper.ToGameParticipantDto);
@@ -20,23 +20,8 @@ public class ParticipantService(
     public async Task<GameDto> JoinGameByInviteCodeAsync(string inviteCode, string displayName)
     {
         var currentUserId = currentUserService.GetRequiredUserId();
-        
-        var game = await gameRepository.GetByInviteCodeAsync(inviteCode);
-        if (game is null)
-        {
-            throw new NotFoundException(nameof(Game), nameof(Game.InviteCode), inviteCode);
-        }
-
-        if (!game.IsActive)
-        {
-            throw new ForbiddenException("join", "game");
-        }
-        
-        var exists = await participantRepository.ExistsByDisplayNameAsync(displayName, game.Id);
-        if (exists)
-        {
-            throw new GameAlreadyExistsException(displayName); // TODO change to ResourceNotFoundException
-        }
+        var game = await GetActiveGameByInviteCodeOrThrowAsync(inviteCode);
+        await EnsureDisplayNameIsAvailableAsync(displayName, game.Id);
 
         var activeParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, game.Id);
         if (activeParticipant is not null)
@@ -44,8 +29,7 @@ public class ParticipantService(
             activeParticipant.IsConnected = true;
             activeParticipant.JoinedAt = DateTime.UtcNow;
             await participantRepository.SaveChangesAsync();
-            var g = await gameRepository.GetByIdAsync(game.Id) ?? game;
-            return GameMapper.ToGameDto(g);
+            return await GetGameDtoAsync(game);
         }
 
         var existingParticipant = await participantRepository.GetByUserIdAndGameIdIncludingRemovedAsync(currentUserId, game.Id);
@@ -71,8 +55,7 @@ public class ParticipantService(
         }
 
         await participantRepository.SaveChangesAsync();
-        var joinedGame = await gameRepository.GetByIdAsync(game.Id) ?? game;
-        return GameMapper.ToGameDto(joinedGame);
+        return await GetGameDtoAsync(game);
     }
 
     public async Task LeaveGameAsync(Guid gameId)
@@ -96,51 +79,83 @@ public class ParticipantService(
     public async Task DeleteGameParticipantAsync(Guid gameId, Guid participantId)
     {
         var currentUserId = currentUserService.GetRequiredUserId();
-        var game = await gameRepository.GetByIdAsync(gameId);
-        if (game is null)
+        await GetGameOrThrowAsync(gameId);
+        await EnsureCurrentUserIsGameMasterAsync(currentUserId, gameId);
+        
+        var participant = await GetParticipantInGameOrThrowAsync(gameId, participantId);
+        participantRepository.RemoveGameParticipant(participant);
+        await participantRepository.SaveChangesAsync();
+    }
+
+    public async Task<GameParticipantDto> UpdateDisplayNameAsync(Guid gameId, string displayName)
+    {
+        var currentUserId = currentUserService.GetRequiredUserId();
+        var game = await GetGameOrThrowAsync(gameId);
+        await EnsureDisplayNameIsAvailableAsync(displayName, game.Id);
+
+        var currentUserParticipant = await GetCurrentUserParticipantOrThrowAsync(currentUserId, gameId);
+        currentUserParticipant.DisplayName = displayName;
+        await participantRepository.SaveChangesAsync();
+        return ParticipantMapper.ToGameParticipantDto(currentUserParticipant);
+    }
+
+    private async Task<Game> GetActiveGameByInviteCodeOrThrowAsync(string inviteCode)
+    {
+        var game = await gameRepository.GetByInviteCodeAsync(inviteCode)
+                   ?? throw new NotFoundException(nameof(Game), nameof(Game.InviteCode), inviteCode);
+
+        if (!game.IsActive)
         {
-            throw new NotFoundException(nameof(Game), gameId);
+            throw new ForbiddenException("join", "game");
         }
         
+        return game;
+    }
+
+    private async Task<Game> GetGameOrThrowAsync(Guid gameId)
+    {
+        return await gameRepository.GetByIdAsync(gameId)
+               ?? throw new NotFoundException(nameof(Game), gameId);
+    }
+
+    private async Task EnsureDisplayNameIsAvailableAsync(string displayName, Guid gameId)
+    {
+        var exists = await participantRepository.ExistsByDisplayNameAsync(displayName, gameId);
+        if (exists)
+        {
+            throw new GameAlreadyExistsException(displayName); // TODO change exception
+        }
+    }
+    
+    private async Task EnsureCurrentUserIsGameMasterAsync(Guid currentUserId, Guid gameId)
+    {
         var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
         if (currentUserParticipant is null || currentUserParticipant.Role != ParticipantRole.Master)
         {
             throw new ForbiddenException("delete", "participant");
         }
-        
+    }
+
+    private async Task<GameParticipant> GetParticipantInGameOrThrowAsync(Guid gameId, Guid participantId)
+    {
         var participant = await participantRepository.GetActiveByIdAsync(participantId);
         if (participant is null || participant.GameId != gameId)
         {
             throw new NotFoundException(nameof(GameParticipant), participantId);
         }
-        
-        participantRepository.RemoveGameParticipant(participant);
-        await participantRepository.SaveChangesAsync();
+
+        return participant;
     }
 
-    public async Task<GameParticipant> UpdateDisplayNameAsync(Guid gameId, string displayName)
+    private async Task<GameParticipant> GetCurrentUserParticipantOrThrowAsync(Guid currentUserId, Guid gameId)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
-        var game = await gameRepository.GetByIdAsync(gameId);
-        if (game is null)
-        {
-            throw new NotFoundException(nameof(Game), gameId);
-        }
-        
-        var exists = await participantRepository.ExistsByDisplayNameAsync(displayName, game.Id);
-        if (exists)
-        {
-            throw new GameAlreadyExistsException(displayName); // TODO change exception
-        }
-        
-        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId,  gameId);
-        if (currentUserParticipant is null)
-        {
-            throw new NotFoundException("User participant was not found in the game.");
-        }
-        
-        currentUserParticipant.DisplayName = displayName;
-        await participantRepository.SaveChangesAsync();
-        return currentUserParticipant;
+        return await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId)
+               ?? throw new NotFoundException("User participant was not found in the game.");
+    }
+
+    private async Task<GameDto> GetGameDtoAsync(Game fallbackGame)
+    {
+        var game = await gameRepository.GetByIdAsync(fallbackGame.Id) ?? fallbackGame;
+        return GameMapper.ToGameDto(game);
     }
 }
