@@ -1,27 +1,51 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.Domain.DTOs.Game;
+using PlanningPoker.Domain.DTOs.Participant;
 using PlanningPoker.Domain.Interfaces.Services;
-using PlanningPoker.Domain.Mappers;
 
 namespace PlanningPoker.API.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/game/{gameId:guid}/participants")]
-public class GameParticipantController(IParticipantService service) : ControllerBase
+[Route("api/game")]
+public class GameParticipantController(IParticipantService participantService) : ControllerBase
 {
-    
-    [HttpGet]
+    [HttpGet("{gameId:guid}/participants")]
     public async Task<ActionResult<IEnumerable<GameParticipantDto>>> GetGameParticipants(Guid gameId)
     {
-        return Ok(await service.GetGameParticipantsAsync(gameId));
+        return Ok(await participantService.GetGameParticipantsAsync(gameId));
     }
 
-    [HttpDelete("{participantId:guid}")]
-    public async Task<ActionResult> DeleteGameParticipant([FromRoute]Guid gameId, Guid participantId)
+    [HttpDelete("{gameId:guid}/participants/{participantId:guid}")]
+    public async Task<ActionResult> DeleteGameParticipant([FromRoute] Guid gameId, Guid participantId)
     {
-        await service.DeleteGameParticipantAsync(gameId, participantId);
+        await participantService.DeleteGameParticipantAsync(gameId, participantId);
         return NoContent();
+    }
+
+    [HttpPost("join/{inviteCode}")]
+    public async Task<ActionResult<GameDto>> JoinGameByInviteCode(
+        [FromRoute] string inviteCode,
+        [FromBody] JoinGameRequestDto joinGameRequestDto)
+    {
+        var game = await participantService.JoinGameByInviteCodeAsync(inviteCode, joinGameRequestDto.DisplayName);
+        return Ok(game);
+    }
+
+    [HttpPost("{gameId:guid}/leave")]
+    public async Task<ActionResult> LeaveGame([FromRoute] Guid gameId)
+    {
+        await participantService.LeaveGameAsync(gameId);
+        return NoContent();
+    }
+
+    [HttpPut("{gameId:guid}/change-display-name")]
+    public async Task<ActionResult<GameParticipantDto>> ChangeDisplayName(
+        [FromRoute] Guid gameId,
+        [FromBody] UpdateDisplayNameDto updateDisplayNameDto)
+    {
+        var updatedParticipant = await participantService.UpdateDisplayNameAsync(gameId, updateDisplayNameDto.DisplayName);
+        return Ok(updatedParticipant);
     }
 }
