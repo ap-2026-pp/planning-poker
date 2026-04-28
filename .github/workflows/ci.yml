@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'chore/**'
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore PlanningPoker/PlanningPoker.slnx
+
+      - name: Build solution
+        run: dotnet build PlanningPoker/PlanningPoker.slnx --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test PlanningPoker/PlanningPoker.Tests/PlanningPoker.Tests.csproj --configuration Release --no-build --logger "trx;LogFileName=PlanningPoker.Tests.trx" --results-directory PlanningPoker/artifacts/test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: PlanningPoker/artifacts/test-results
+          if-no-files-found: ignore
