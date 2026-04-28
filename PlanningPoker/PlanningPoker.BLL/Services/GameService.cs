@@ -1,6 +1,8 @@
+using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
+using PlanningPoker.Domain.Mappers;
 using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.BLL.Services;
@@ -10,8 +12,10 @@ public class GameService(
     IUserRepository userRepository,
     ICurrentUserService currentUserService) : IGameService
 {
-    public async Task<Game> AddGameAsync(Game game)
+    public async Task<GameDto> AddGameAsync(CreateGameRequestDto createGameRequestDto)
     {
+        var game = GameMapper.ToGame(createGameRequestDto);
+        
         var currentUserId = currentUserService.GetRequiredUserId();
         var user = await userRepository.GetByIdAsync(currentUserId);
         if (user is null)
@@ -43,17 +47,20 @@ public class GameService(
         
         await gameRepository.AddAsync(game);
         await gameRepository.SaveChangesAsync();
-        return game;
+        
+        return GameMapper.ToGameDto(game);
     }
 
-    public async Task<Game> GetGameByIdAsync(Guid gameId)
+    public async Task<GameDto> GetGameByIdAsync(Guid gameId)
     {
         var game = await gameRepository.GetByIdAsync(gameId);
-        return game ?? throw new NotFoundException(nameof(Game), gameId);
+        return GameMapper.ToGameDto(game ?? throw new NotFoundException(nameof(Game), gameId));
     }
 
-    public async Task<Game> UpdateGameAsync(Guid gameId, Game game)
+    public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto updateGameRequestDto)
     {
+        var game = GameMapper.ToGame(updateGameRequestDto);
+        
         var currentUserId = currentUserService.GetRequiredUserId();
         var existingGame = await gameRepository.GetByIdAsync(gameId);
         if (existingGame is null || existingGame.IsDeleted)
@@ -81,7 +88,8 @@ public class GameService(
         
         gameRepository.Update(existingGame);
         await gameRepository.SaveChangesAsync();
-        return existingGame;
+        
+        return GameMapper.ToGameDto(existingGame);
     }
 
     public async Task DeleteGameAsync(Guid gameId)

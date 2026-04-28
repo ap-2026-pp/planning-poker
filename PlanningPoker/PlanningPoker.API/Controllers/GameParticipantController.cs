@@ -8,15 +8,14 @@ namespace PlanningPoker.API.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/Game/{gameId:guid}/Participants")]
+[Route("api/game/{gameId:guid}/participants")]
 public class GameParticipantController(IParticipantService service) : ControllerBase
 {
     
     [HttpGet]
     public async Task<ActionResult<IEnumerable<GameParticipantDto>>> GetGameParticipants(Guid gameId)
     {
-        var participants = await service.GetGameParticipantsAsync(gameId);
-        return Ok((participants ?? []).Select(ParticipantMapper.ToGameParticipantDto));
+        return Ok(await service.GetGameParticipantsAsync(gameId));
     }
 
     [HttpDelete("{participantId:guid}")]
