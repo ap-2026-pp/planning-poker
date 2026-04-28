@@ -12,6 +12,10 @@ public class GameConfiguration : IEntityTypeConfiguration<Game>
 
         builder.HasKey(x => x.Id);
 
+        builder.HasIndex(x => new { x.Name, x.CreatedBy })
+            .IsUnique()
+            .HasFilter("\"IsDeleted\" = false");
+
         builder.Property(x => x.Name)
             .IsRequired()
             .HasMaxLength(200);

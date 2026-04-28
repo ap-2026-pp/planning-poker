@@ -11,6 +11,7 @@ public class GameParticipant
     public ParticipantRole Role { get; set; }  = ParticipantRole.Player;
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
     public bool IsConnected { get; set; }
+    public DateTime? RemovedAt { get; set; }
     public ICollection<Vote> Votes { get; set; } = new List<Vote>();
     public ICollection<Issue> Issues { get; set; } = new List<Issue>();
 }

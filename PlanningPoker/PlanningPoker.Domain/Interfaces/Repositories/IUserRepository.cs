@@ -3,7 +3,6 @@ using PlanningPoker.Domain.Models;
 
 public interface IUserRepository : IBaseRepository<User>
 {
-  Task<User?> GetByEmailAsync(string email);
-  Task<User?> RefreshTokenAsync(string refreshToken);
+    Task<User?> GetByEmailAsync(string email);
+    Task<User?> RefreshTokenAsync(string refreshToken);
 }
-
