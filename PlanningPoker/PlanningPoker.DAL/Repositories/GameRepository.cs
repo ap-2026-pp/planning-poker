@@ -19,11 +19,23 @@ internal class GameRepository(AppDbContext context) : BaseRepository<Game>(conte
             g.CreatedBy == createdBy &&
             g.Id != excludedGameId && !g.IsDeleted);
     }
+
+    public async Task<bool> ExistsByInviteCodeAsync(string inviteCode)
+    {
+        return await _dbSet.AnyAsync(g => g.InviteCode == inviteCode && !g.IsDeleted);
+    }
     
     public new async Task<Game?> GetByIdAsync(Guid id)
     {
         return await _dbSet
             .Include(g => g.Participants.Where(participant => participant.RemovedAt == null))
             .FirstOrDefaultAsync(g => g.Id == id);
+    }
+
+    public async Task<Game?> GetByInviteCodeAsync(string inviteCode)
+    {
+        return await _dbSet
+            .Include(g => g.Participants.Where(participant => participant.RemovedAt == null))
+            .FirstOrDefaultAsync(g => g.InviteCode == inviteCode && !g.IsDeleted);
     }
 }

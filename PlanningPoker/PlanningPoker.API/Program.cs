@@ -18,6 +18,7 @@ builder.Host.UseSerilog((context, configuration) => configuration.ReadFrom.Confi
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<InviteLinkService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

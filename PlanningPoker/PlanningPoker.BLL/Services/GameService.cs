@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
@@ -9,9 +10,13 @@ namespace PlanningPoker.BLL.Services;
 
 public class GameService(
     IGameRepository gameRepository,
+    IParticipantRepository participantRepository,
     IUserRepository userRepository,
     ICurrentUserService currentUserService) : IGameService
 {
+    private const int InviteCodeLength = 20;
+    private const string InviteCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    
     public async Task<GameDto> AddGameAsync(CreateGameRequestDto createGameRequestDto)
     {
         var game = GameMapper.ToGame(createGameRequestDto);
@@ -31,14 +36,14 @@ public class GameService(
         
         game.CreatedBy = currentUserId;
         game.IsActive = true;
-        game.InviteCode = "123"; //TODO autogeneration etc
+        game.InviteCode = await GenerateInviteCodeAsync();
         game.Participants = new List<GameParticipant>
         {
             new()
             {
                 Id = Guid.NewGuid(),
                 UserId = user.Id,
-                DisplayName = user.DisplayName,
+                DisplayName = createGameRequestDto.HostDisplayName,
                 Role = ParticipantRole.Master,
                 JoinedAt = DateTime.UtcNow,
                 IsConnected = true
@@ -63,7 +68,7 @@ public class GameService(
         
         var currentUserId = currentUserService.GetRequiredUserId();
         var existingGame = await gameRepository.GetByIdAsync(gameId);
-        if (existingGame is null || existingGame.IsDeleted)
+        if (existingGame is null)
         {
             throw new NotFoundException(nameof(Game), gameId);
         }
@@ -118,5 +123,98 @@ public class GameService(
         return game.Participants.Any(participant =>
             participant.UserId == currentUserId &&
             participant.Role == ParticipantRole.Master);
+    }
+
+    private async Task<string> GenerateInviteCodeAsync()
+    {
+        var inviteCodeBuffer = new char[InviteCodeLength];
+        string inviteCode;
+
+        do
+        {
+            for (var i = 0; i < inviteCodeBuffer.Length; i++)
+            {
+                inviteCodeBuffer[i] = InviteCodeAlphabet[RandomNumberGenerator.GetInt32(InviteCodeAlphabet.Length)];
+            }
+
+            inviteCode = new string(inviteCodeBuffer);
+        } while (await gameRepository.ExistsByInviteCodeAsync(inviteCode));
+
+        return inviteCode;
+    }
+    
+     public async Task<Game> GetGameInviteAsync(Guid gameId)
+    {
+        var currentUserId = currentUserService.GetRequiredUserId();
+        var game = await gameRepository.GetByIdAsync(gameId);
+        if (game is null)
+        {
+            throw new NotFoundException(nameof(Game), gameId);
+        }
+
+        var isParticipant = game.Participants.Any(participant => participant.UserId == currentUserId);
+        if (!isParticipant)
+        {
+            throw new ForbiddenException("view", "game invite");
+        }
+
+        return game;
+    }
+
+    public async Task<Game> JoinGameByInviteCodeAsync(string inviteCode)
+    {
+        var currentUserId = currentUserService.GetRequiredUserId();
+        var user = await userRepository.GetByIdAsync(currentUserId);
+        if (user is null)
+        {
+            throw new NotFoundException(nameof(User), currentUserId);
+        }
+
+        var game = await gameRepository.GetByInviteCodeAsync(inviteCode);
+        if (game is null)
+        {
+            throw new NotFoundException(nameof(Game), nameof(Game.InviteCode), inviteCode);
+        }
+
+        if (!game.IsActive)
+        {
+            throw new ForbiddenException("join", "game");
+        }
+
+        var activeParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, game.Id);
+        if (activeParticipant is not null)
+        {
+            activeParticipant.IsConnected = true;
+            activeParticipant.DisplayName = user.DisplayName;
+            activeParticipant.JoinedAt = DateTime.UtcNow;
+            await participantRepository.SaveChangesAsync();
+            return await gameRepository.GetByIdAsync(game.Id) ?? game;
+        }
+
+        var existingParticipant = await participantRepository.GetByUserIdAndGameIdIncludingRemovedAsync(currentUserId, game.Id);
+        if (existingParticipant is not null)
+        {
+            existingParticipant.DisplayName = user.DisplayName;
+            existingParticipant.IsConnected = true;
+            existingParticipant.JoinedAt = DateTime.UtcNow;
+            existingParticipant.RemovedAt = null;
+            participantRepository.Update(existingParticipant);
+        }
+        else
+        {
+            await participantRepository.AddAsync(new GameParticipant
+            {
+                Id = Guid.NewGuid(),
+                GameId = game.Id,
+                UserId = user.Id,
+                DisplayName = user.DisplayName,
+                Role = ParticipantRole.Player,
+                JoinedAt = DateTime.UtcNow,
+                IsConnected = true
+            });
+        }
+
+        await participantRepository.SaveChangesAsync();
+        return await gameRepository.GetByIdAsync(game.Id) ?? game;
     }
 }

@@ -11,6 +11,8 @@ public class GameParticipantConfiguration : IEntityTypeConfiguration<GamePartici
         builder.ToTable("GameParticipants");
 
         builder.HasKey(x => x.Id);
+        
+        builder.HasIndex(x => new { x.GameId, x.DisplayName}).IsUnique();
 
         builder.Property(x => x.DisplayName)
             .IsRequired()

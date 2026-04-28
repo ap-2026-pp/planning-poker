@@ -30,10 +30,22 @@ internal class ParticipantRepository(AppDbContext context) : BaseRepository<Game
             participant.RemovedAt == null);
     }
 
+    public async Task<GameParticipant?> GetByUserIdAndGameIdIncludingRemovedAsync(Guid userId, Guid gameId)
+    {
+        return await _dbSet.FirstOrDefaultAsync(participant =>
+            participant.UserId == userId &&
+            participant.GameId == gameId);
+    }
+
     public void RemoveGameParticipant(GameParticipant participant)
     {
         participant.IsConnected = false;
         participant.RemovedAt = DateTime.UtcNow;
         _dbSet.Update(participant);
-    } 
+    }
+
+    public async Task<bool> ExistsByDisplayNameAsync(string displayName,  Guid gameId)
+    {
+        return await _dbSet.AnyAsync(participant => participant.DisplayName == displayName && participant.GameId == gameId);
+    }
 }
