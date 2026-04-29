@@ -6,7 +6,7 @@ using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
 
-namespace PlanningPoker.Tests.Services;
+namespace PlanningPoker.Tests.BLL;
 
 public class GameServiceTests
 {
