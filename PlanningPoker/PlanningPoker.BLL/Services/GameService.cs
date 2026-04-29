@@ -18,18 +18,26 @@ public class GameService(
     public async Task<GameDto> AddGameAsync(CreateGameRequestDto createGameRequestDto)
     {
         var currentUser = await currentUserContext.GetRequiredUserAsync();
-        var currentUserId = currentUser.Id;
-
         var game = GameMapper.ToGame(createGameRequestDto);
-        await EnsureUniqueGameNameAsync(game.Name, currentUserId);
+        await EnsureUniqueGameNameAsync(game.Name, currentUser.Id);
+
+        var hostDisplayName = string.IsNullOrWhiteSpace(createGameRequestDto.HostDisplayName)
+            ? currentUser.DisplayName
+            : createGameRequestDto.HostDisplayName.Trim();
         
-        game.CreatedBy = currentUserId;
+        game.CreatedBy = currentUser.Id;
         game.InviteCode = await GenerateInviteCodeAsync();
         game.Participants =
         [
-            CreateMasterParticipant(
-                currentUserId,
-                ResolveDisplayName(createGameRequestDto.HostDisplayName, currentUser.DisplayName))
+            new GameParticipant
+            {
+                Id = Guid.NewGuid(),
+                UserId = currentUser.Id,
+                DisplayName = hostDisplayName,
+                Role = ParticipantRole.Master,
+                JoinedAt = DateTime.UtcNow,
+                IsConnected = true
+            }
         ];
         
         await gameRepository.AddAsync(game);
@@ -52,7 +60,13 @@ public class GameService(
 
         var updatedGame = GameMapper.ToGame(updateGameRequestDto);
         await EnsureUniqueGameNameAsync(updatedGame.Name, existingGame.CreatedBy, gameId);
-        ApplyGameUpdates(existingGame, updatedGame);
+
+        existingGame.Name = updatedGame.Name;
+        existingGame.AutoRevealCards = updatedGame.AutoRevealCards;
+        existingGame.IsActive = updatedGame.IsActive;
+        existingGame.ShowAverage = updatedGame.ShowAverage;
+        existingGame.VotingSystem = updatedGame.VotingSystem;
+        existingGame.ShowCountdownAnimation = updatedGame.ShowCountdownAnimation;
         
         gameRepository.Update(existingGame);
         await gameRepository.SaveChangesAsync();
@@ -120,36 +134,6 @@ public class GameService(
         {
             throw new ResourceAlreadyExistsException(nameof(Game), gameName);
         }
-    }
-
-    private static string ResolveDisplayName(string? requestedDisplayName, string defaultDisplayName)
-    {
-        return string.IsNullOrWhiteSpace(requestedDisplayName)
-            ? defaultDisplayName
-            : requestedDisplayName.Trim();
-    }
-
-    private static GameParticipant CreateMasterParticipant(Guid currentUserId, string displayName)
-    {
-        return new GameParticipant
-        {
-            Id = Guid.NewGuid(),
-            UserId = currentUserId,
-            DisplayName = displayName,
-            Role = ParticipantRole.Master,
-            JoinedAt = DateTime.UtcNow,
-            IsConnected = true
-        };
-    }
-
-    private static void ApplyGameUpdates(Game existingGame, Game updatedGame)
-    {
-        existingGame.Name = updatedGame.Name;
-        existingGame.AutoRevealCards = updatedGame.AutoRevealCards;
-        existingGame.IsActive = updatedGame.IsActive;
-        existingGame.ShowAverage = updatedGame.ShowAverage;
-        existingGame.VotingSystem = updatedGame.VotingSystem;
-        existingGame.ShowCountdownAnimation = updatedGame.ShowCountdownAnimation;
     }
 
     private static void EnsureUserIsGameMaster(Game game, Guid currentUserId, string action)
