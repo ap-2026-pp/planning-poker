@@ -26,4 +26,9 @@
     <ProjectReference Include="..\PlanningPoker.Domain\PlanningPoker.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Services\" />
+    <Folder Include="Controllers\" />
+  </ItemGroup>
+
 </Project>
