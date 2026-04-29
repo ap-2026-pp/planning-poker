@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Moq;
 using PlanningPoker.API.Controllers;
 using PlanningPoker.Domain.DTOs.Game;
+using PlanningPoker.Domain.DTOs.Participant;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
@@ -43,6 +44,57 @@ public class GameParticipantControllerTests
     }
 
     [Fact]
+    public async Task JoinGameByInviteCode_WhenRequestIsValid_ReturnsOkWithGame()
+    {
+        const string inviteCode = "invite-code";
+        var request = new JoinGameRequestDto { DisplayName = "Player" };
+        var game = CreateGameDto("Demo Game");
+
+        _participantService
+            .Setup(service => service.JoinGameByInviteCodeAsync(inviteCode, request.DisplayName))
+            .ReturnsAsync(game);
+
+        var result = await _controller.JoinGameByInviteCode(inviteCode, request);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<GameDto>(okResult.Value);
+
+        Assert.Same(game, payload);
+        _participantService.Verify(service => service.JoinGameByInviteCodeAsync(inviteCode, request.DisplayName), Times.Once);
+    }
+
+    [Fact]
+    public async Task LeaveGame_WhenServiceSucceeds_ReturnsNoContent()
+    {
+        var gameId = Guid.NewGuid();
+
+        var result = await _controller.LeaveGame(gameId);
+
+        Assert.IsType<NoContentResult>(result);
+        _participantService.Verify(service => service.LeaveGameAsync(gameId), Times.Once);
+    }
+
+    [Fact]
+    public async Task ChangeDisplayName_WhenRequestIsValid_ReturnsOkWithUpdatedParticipant()
+    {
+        var gameId = Guid.NewGuid();
+        var request = new UpdateDisplayNameDto { DisplayName = "Updated Player" };
+        var participant = CreateParticipantDto(request.DisplayName, ParticipantRole.Player);
+
+        _participantService
+            .Setup(service => service.UpdateDisplayNameAsync(gameId, request.DisplayName))
+            .ReturnsAsync(participant);
+
+        var result = await _controller.ChangeDisplayName(gameId, request);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<GameParticipantDto>(okResult.Value);
+
+        Assert.Same(participant, payload);
+        _participantService.Verify(service => service.UpdateDisplayNameAsync(gameId, request.DisplayName), Times.Once);
+    }
+
+    [Fact]
     public async Task DeleteGameParticipant_WhenUserHasRights_ReturnsNoContent()
     {
         var gameId = Guid.NewGuid();
@@ -80,6 +132,22 @@ public class GameParticipantControllerTests
             Role = role,
             IsConnected = true,
             JoinedAt = DateTime.UtcNow
+        };
+    }
+
+    private static GameDto CreateGameDto(string name)
+    {
+        return new GameDto
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            InviteCode = "invite-code",
+            VotingSystem = VotingSystem.Custom,
+            AutoRevealCards = true,
+            ShowAverage = true,
+            ShowCountdownAnimation = true,
+            IsActive = true,
+            Participants = []
         };
     }
 }
