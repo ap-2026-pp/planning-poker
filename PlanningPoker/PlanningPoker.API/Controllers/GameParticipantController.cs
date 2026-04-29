@@ -8,7 +8,7 @@ namespace PlanningPoker.API.Controllers;
 
 [ApiController]
 [Authorize]
-[Route("api/game")]
+[Route("api/games")]
 public class GameParticipantController(IParticipantService participantService) : ControllerBase
 {
     [HttpGet("{gameId:guid}/participants")]
@@ -18,7 +18,7 @@ public class GameParticipantController(IParticipantService participantService) :
     }
 
     [HttpDelete("{gameId:guid}/participants/{participantId:guid}")]
-    public async Task<ActionResult> DeleteGameParticipant([FromRoute] Guid gameId, Guid participantId)
+    public async Task<ActionResult> DeleteGameParticipant(Guid gameId, Guid participantId)
     {
         await participantService.DeleteGameParticipantAsync(gameId, participantId);
         return NoContent();
@@ -26,23 +26,23 @@ public class GameParticipantController(IParticipantService participantService) :
 
     [HttpPost("join/{inviteCode}")]
     public async Task<ActionResult<GameDto>> JoinGameByInviteCode(
-        [FromRoute] string inviteCode,
+        string inviteCode,
         [FromBody] JoinGameRequestDto joinGameRequestDto)
     {
         var game = await participantService.JoinGameByInviteCodeAsync(inviteCode, joinGameRequestDto.DisplayName);
         return Ok(game);
     }
 
-    [HttpPost("{gameId:guid}/leave")]
-    public async Task<ActionResult> LeaveGame([FromRoute] Guid gameId)
+    [HttpDelete("{gameId:guid}/participants/me")]
+    public async Task<ActionResult> LeaveGame(Guid gameId)
     {
         await participantService.LeaveGameAsync(gameId);
         return NoContent();
     }
 
-    [HttpPut("{gameId:guid}/change-display-name")]
+    [HttpPut("{gameId:guid}/participants/me/display-name")]
     public async Task<ActionResult<GameParticipantDto>> ChangeDisplayName(
-        [FromRoute] Guid gameId,
+        Guid gameId,
         [FromBody] UpdateDisplayNameDto updateDisplayNameDto)
     {
         var updatedParticipant = await participantService.UpdateDisplayNameAsync(gameId, updateDisplayNameDto.DisplayName);

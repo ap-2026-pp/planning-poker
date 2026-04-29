@@ -10,16 +10,15 @@ namespace PlanningPoker.BLL.Services;
 
 public class GameService(
     IGameRepository gameRepository,
-    IUserRepository userRepository,
-    ICurrentUserService currentUserService) : IGameService
+    ICurrentUserContext currentUserContext) : IGameService
 {
     private const int InviteCodeLength = 20;
     private const string InviteCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     
     public async Task<GameDto> AddGameAsync(CreateGameRequestDto createGameRequestDto)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
-        var user = await GetCurrentUserOrThrowAsync(currentUserId);
+        var currentUser = await currentUserContext.GetRequiredUserAsync();
+        var currentUserId = currentUser.Id;
 
         var game = GameMapper.ToGame(createGameRequestDto);
         await EnsureUniqueGameNameAsync(game.Name, currentUserId);
@@ -30,7 +29,7 @@ public class GameService(
         [
             CreateMasterParticipant(
                 currentUserId,
-                ResolveDisplayName(createGameRequestDto.HostDisplayName, user.DisplayName))
+                ResolveDisplayName(createGameRequestDto.HostDisplayName, currentUser.DisplayName))
         ];
         
         await gameRepository.AddAsync(game);
@@ -47,7 +46,7 @@ public class GameService(
 
     public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto updateGameRequestDto)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
+        var currentUserId = currentUserContext.GetRequiredUserId();
         var existingGame = await GetGameOrThrowAsync(gameId);
         EnsureUserIsGameMaster(existingGame, currentUserId, "update");
 
@@ -63,7 +62,7 @@ public class GameService(
 
     public async Task DeleteGameAsync(Guid gameId)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
+        var currentUserId = currentUserContext.GetRequiredUserId();
         var game = await gameRepository.GetByIdAsync(gameId);
         
         if (game is null)
@@ -98,7 +97,7 @@ public class GameService(
     
     public async Task<Game> GetGameInviteAsync(Guid gameId)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
+        var currentUserId = currentUserContext.GetRequiredUserId();
         var game = await GetGameOrThrowAsync(gameId);
         EnsureUserIsParticipant(game, currentUserId, "view", "game invite");
 
@@ -109,12 +108,6 @@ public class GameService(
     {
         return await gameRepository.GetByIdAsync(gameId)
                ?? throw new NotFoundException(nameof(Game), gameId);
-    }
-
-    private async Task<User> GetCurrentUserOrThrowAsync(Guid currentUserId)
-    {
-        return await userRepository.GetByIdAsync(currentUserId)
-               ?? throw new NotFoundException(nameof(User), currentUserId);
     }
 
     private async Task EnsureUniqueGameNameAsync(string gameName, Guid createdBy, Guid? excludedGameId = null)

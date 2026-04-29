@@ -10,8 +10,7 @@ namespace PlanningPoker.BLL.Services;
 public class ParticipantService(
     IParticipantRepository participantRepository,
     IGameRepository gameRepository,
-    IUserRepository userRepository,
-    ICurrentUserService currentUserService) : IParticipantService
+    ICurrentUserContext currentUserContext) : IParticipantService
 {
     public async Task<IEnumerable<GameParticipantDto>> GetGameParticipantsAsync(Guid gameId)
     {
@@ -21,8 +20,8 @@ public class ParticipantService(
     
     public async Task<GameDto> JoinGameByInviteCodeAsync(string inviteCode, string? displayName)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
-        var currentUser = await GetCurrentUserOrThrowAsync(currentUserId);
+        var currentUser = await currentUserContext.GetRequiredUserAsync();
+        var currentUserId = currentUser.Id;
         var resolvedDisplayName = ResolveDisplayName(displayName, currentUser.DisplayName);
         var game = await GetActiveGameByInviteCodeOrThrowAsync(inviteCode);
 
@@ -76,7 +75,7 @@ public class ParticipantService(
 
     public async Task LeaveGameAsync(Guid gameId)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
+        var currentUserId = currentUserContext.GetRequiredUserId();
         var participant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
         if (participant is null)
         {
@@ -85,7 +84,7 @@ public class ParticipantService(
 
         if (participant.Role == ParticipantRole.Master)
         {
-            throw new ForbiddenException("The game master cannot leave the game. Delete the game or transfer ownership first.");
+            throw new ForbiddenException("The game master cannot leave the game. Delete the game or transfer ownership first."); // TODO change to if master leaves, his rights transfer to random participant and vive versa
         }
 
         participantRepository.RemoveGameParticipant(participant);
@@ -94,7 +93,7 @@ public class ParticipantService(
 
     public async Task DeleteGameParticipantAsync(Guid gameId, Guid participantId)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
+        var currentUserId = currentUserContext.GetRequiredUserId();
         await GetGameOrThrowAsync(gameId);
         await EnsureCurrentUserIsGameMasterAsync(currentUserId, gameId);
         
@@ -105,8 +104,8 @@ public class ParticipantService(
 
     public async Task<GameParticipantDto> UpdateDisplayNameAsync(Guid gameId, string? displayName)
     {
-        var currentUserId = currentUserService.GetRequiredUserId();
-        var currentUser = await GetCurrentUserOrThrowAsync(currentUserId);
+        var currentUser = await currentUserContext.GetRequiredUserAsync();
+        var currentUserId = currentUser.Id;
         await GetGameOrThrowAsync(gameId);
         var currentUserParticipant = await GetCurrentUserParticipantOrThrowAsync(currentUserId, gameId);
         var resolvedDisplayName = ResolveDisplayName(displayName, currentUser.DisplayName);
@@ -138,12 +137,6 @@ public class ParticipantService(
     {
         return await gameRepository.GetByIdAsync(gameId)
                ?? throw new NotFoundException(nameof(Game), gameId);
-    }
-
-    private async Task<User> GetCurrentUserOrThrowAsync(Guid currentUserId)
-    {
-        return await userRepository.GetByIdAsync(currentUserId)
-               ?? throw new NotFoundException(nameof(User), currentUserId);
     }
 
     private async Task EnsureDisplayNameIsAvailableAsync(string displayName, Guid gameId)

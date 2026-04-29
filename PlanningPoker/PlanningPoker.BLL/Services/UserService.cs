@@ -14,16 +14,16 @@ internal class UserService : IUserService
 {
     private readonly UserManager<User> _userManager;
     private readonly IJwtService _jwtService;
-    private readonly ICurrentUserService _currentUserService;
+    private readonly ICurrentUserContext _currentUserContext;
     
     public UserService(
         UserManager<User> userManager,
         IJwtService jwtService,
-        ICurrentUserService currentUserService)
+        ICurrentUserContext currentUserContext)
     {
         _userManager = userManager;
         _jwtService = jwtService;
-        _currentUserService = currentUserService;
+        _currentUserContext = currentUserContext;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
@@ -137,10 +137,7 @@ internal class UserService : IUserService
 
     public async Task RevokeTokenAsync()
     {
-        var userId = _currentUserService.GetRequiredUserId();
-        var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            throw new NotFoundException(nameof(User), userId.ToString());
+        var user = await _currentUserContext.GetRequiredUserAsync();
 
         user.RefreshToken = string.Empty;
         user.RefreshTokenExpiryTime = null;
@@ -150,10 +147,7 @@ internal class UserService : IUserService
 
     public async Task<UserDto> GetCurrentUserAsync()
     {
-        var userId = _currentUserService.GetRequiredUserId();
-        var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            throw new NotFoundException(nameof(User), userId.ToString());
+        var user = await _currentUserContext.GetRequiredUserAsync();
 
         return AuthMapper.ToUserDto(user);
     }

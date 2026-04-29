@@ -11,15 +11,14 @@ namespace PlanningPoker.Tests.Services;
 public class GameServiceTests
 {
     private readonly Mock<IGameRepository> _gameRepository = new();
-    private readonly Mock<IUserRepository> _userRepository = new();
-    private readonly Mock<ICurrentUserService> _currentUserService = new();
+    private readonly Mock<ICurrentUserContext> _currentUserContext = new();
     private readonly GameService _gameService;
     private readonly Guid _playerId = Guid.NewGuid();
     private readonly Guid _masterId = Guid.NewGuid();
 
     public GameServiceTests()
     {
-        _gameService = new GameService(_gameRepository.Object, _userRepository.Object, _currentUserService.Object);
+        _gameService = new GameService(_gameRepository.Object, _currentUserContext.Object);
     }
 
     [Fact]
@@ -28,8 +27,7 @@ public class GameServiceTests
         var request = CreateGameRequest("newGame", "ScrumMaster", VotingSystem.Custom, true);
         var user = CreateUser(_masterId, "Default From Db");
 
-        SetupCurrentUser(_masterId);
-        _userRepository.Setup(repository => repository.GetByIdAsync(_masterId)).ReturnsAsync(user);
+        SetupCurrentUser(user);
         _gameRepository.Setup(repository => repository.ExistsByNameAsync(request.Name, _masterId)).ReturnsAsync(false);
         _gameRepository.Setup(repository => repository.ExistsByInviteCodeAsync(It.IsAny<string>())).ReturnsAsync(false);
 
@@ -72,8 +70,7 @@ public class GameServiceTests
         var request = CreateGameRequest("newGame", null, VotingSystem.Custom, true);
         var user = CreateUser(_masterId, "Default From Db");
 
-        SetupCurrentUser(_masterId);
-        _userRepository.Setup(repository => repository.GetByIdAsync(_masterId)).ReturnsAsync(user);
+        SetupCurrentUser(user);
         _gameRepository.Setup(repository => repository.ExistsByNameAsync(request.Name, _masterId)).ReturnsAsync(false);
         _gameRepository.Setup(repository => repository.ExistsByInviteCodeAsync(It.IsAny<string>())).ReturnsAsync(false);
 
@@ -88,8 +85,9 @@ public class GameServiceTests
     {
         var request = CreateGameRequest("newGame", null, VotingSystem.Custom, true);
 
-        SetupCurrentUser(_masterId);
-        _userRepository.Setup(repository => repository.GetByIdAsync(_masterId)).ReturnsAsync((User?)null);
+        _currentUserContext
+            .Setup(context => context.GetRequiredUserAsync())
+            .ThrowsAsync(new NotFoundException(nameof(User), _masterId));
 
         var act = async () => await _gameService.AddGameAsync(request);
 
@@ -103,8 +101,7 @@ public class GameServiceTests
     {
         var request = CreateGameRequest("newGame", "ScrumMaster", VotingSystem.Custom, true);
 
-        SetupCurrentUser(_masterId);
-        _userRepository.Setup(repository => repository.GetByIdAsync(_masterId)).ReturnsAsync(CreateUser(_masterId, "Default From Db"));
+        SetupCurrentUser(CreateUser(_masterId, "Default From Db"));
         _gameRepository.Setup(repository => repository.ExistsByNameAsync(request.Name, _masterId)).ReturnsAsync(true);
 
         var act = async () => await _gameService.AddGameAsync(request);
@@ -278,9 +275,15 @@ public class GameServiceTests
         _gameRepository.Verify(repository => repository.SaveChangesAsync(), Times.Never);
     }
 
+    private void SetupCurrentUser(User user)
+    {
+        _currentUserContext.Setup(context => context.GetRequiredUserId()).Returns(user.Id);
+        _currentUserContext.Setup(context => context.GetRequiredUserAsync()).ReturnsAsync(user);
+    }
+
     private void SetupCurrentUser(Guid userId)
     {
-        _currentUserService.Setup(service => service.GetRequiredUserId()).Returns(userId);
+        SetupCurrentUser(CreateUser(userId, $"User{userId}"));
     }
 
     private static User CreateUser(Guid userId, string displayName)
