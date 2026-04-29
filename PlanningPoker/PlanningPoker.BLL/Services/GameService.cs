@@ -10,6 +10,7 @@ namespace PlanningPoker.BLL.Services;
 
 public class GameService(
     IGameRepository gameRepository,
+    IUserRepository userRepository,
     ICurrentUserService currentUserService) : IGameService
 {
     private const int InviteCodeLength = 20;
@@ -18,13 +19,19 @@ public class GameService(
     public async Task<GameDto> AddGameAsync(CreateGameRequestDto createGameRequestDto)
     {
         var currentUserId = currentUserService.GetRequiredUserId();
+        var user = await GetCurrentUserOrThrowAsync(currentUserId);
 
         var game = GameMapper.ToGame(createGameRequestDto);
         await EnsureUniqueGameNameAsync(game.Name, currentUserId);
         
         game.CreatedBy = currentUserId;
         game.InviteCode = await GenerateInviteCodeAsync();
-        game.Participants = [CreateMasterParticipant(currentUserId, createGameRequestDto.HostDisplayName)];
+        game.Participants =
+        [
+            CreateMasterParticipant(
+                currentUserId,
+                ResolveDisplayName(createGameRequestDto.HostDisplayName, user.DisplayName))
+        ];
         
         await gameRepository.AddAsync(game);
         await gameRepository.SaveChangesAsync();
@@ -104,6 +111,12 @@ public class GameService(
                ?? throw new NotFoundException(nameof(Game), gameId);
     }
 
+    private async Task<User> GetCurrentUserOrThrowAsync(Guid currentUserId)
+    {
+        return await userRepository.GetByIdAsync(currentUserId)
+               ?? throw new NotFoundException(nameof(User), currentUserId);
+    }
+
     private async Task EnsureUniqueGameNameAsync(string gameName, Guid createdBy, Guid? excludedGameId = null)
     {
         var exists = excludedGameId.HasValue
@@ -114,6 +127,13 @@ public class GameService(
         {
             throw new ResourceAlreadyExistsException(nameof(Game), gameName);
         }
+    }
+
+    private static string ResolveDisplayName(string? requestedDisplayName, string defaultDisplayName)
+    {
+        return string.IsNullOrWhiteSpace(requestedDisplayName)
+            ? defaultDisplayName
+            : requestedDisplayName.Trim();
     }
 
     private static GameParticipant CreateMasterParticipant(Guid currentUserId, string displayName)

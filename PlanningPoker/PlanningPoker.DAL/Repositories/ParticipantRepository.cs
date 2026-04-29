@@ -46,6 +46,9 @@ internal class ParticipantRepository(AppDbContext context) : BaseRepository<Game
 
     public async Task<bool> ExistsByDisplayNameAsync(string displayName,  Guid gameId)
     {
-        return await _dbSet.AnyAsync(participant => participant.DisplayName == displayName && participant.GameId == gameId);
+        return await _dbSet.AnyAsync(participant =>
+            participant.DisplayName == displayName &&
+            participant.GameId == gameId &&
+            participant.RemovedAt == null);
     }
 }

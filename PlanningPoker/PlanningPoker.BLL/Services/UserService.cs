@@ -38,9 +38,9 @@ internal class UserService : IUserService
         var user = new User
         {
             Id = Guid.NewGuid(),
-            UserName = dto.Email,
+            UserName = dto.Email.Split('@')[0],
             Email = dto.Email,
-            DisplayName = dto.Email,
+            DisplayName = dto.Email.Split('@')[0],
             CreatedAt = DateTime.UtcNow,
             RefreshToken = string.Empty
         };

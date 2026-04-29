@@ -8,7 +8,9 @@ using PlanningPoker.Domain.Models;
 namespace PlanningPoker.BLL.Services;
 
 public class ParticipantService(
-    IParticipantRepository participantRepository, IGameRepository gameRepository,
+    IParticipantRepository participantRepository,
+    IGameRepository gameRepository,
+    IUserRepository userRepository,
     ICurrentUserService currentUserService) : IParticipantService
 {
     public async Task<IEnumerable<GameParticipantDto>> GetGameParticipantsAsync(Guid gameId)
@@ -17,15 +19,22 @@ public class ParticipantService(
         return (participants ?? []).Select(ParticipantMapper.ToGameParticipantDto);
     }
     
-    public async Task<GameDto> JoinGameByInviteCodeAsync(string inviteCode, string displayName)
+    public async Task<GameDto> JoinGameByInviteCodeAsync(string inviteCode, string? displayName)
     {
         var currentUserId = currentUserService.GetRequiredUserId();
+        var currentUser = await GetCurrentUserOrThrowAsync(currentUserId);
+        var resolvedDisplayName = ResolveDisplayName(displayName, currentUser.DisplayName);
         var game = await GetActiveGameByInviteCodeOrThrowAsync(inviteCode);
-        await EnsureDisplayNameIsAvailableAsync(displayName, game.Id);
 
         var activeParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, game.Id);
         if (activeParticipant is not null)
         {
+            if (!HasDisplayName(activeParticipant, resolvedDisplayName))
+            {
+                await EnsureDisplayNameIsAvailableAsync(resolvedDisplayName, game.Id);
+                activeParticipant.DisplayName = resolvedDisplayName;
+            }
+
             activeParticipant.IsConnected = true;
             activeParticipant.JoinedAt = DateTime.UtcNow;
             await participantRepository.SaveChangesAsync();
@@ -35,6 +44,12 @@ public class ParticipantService(
         var existingParticipant = await participantRepository.GetByUserIdAndGameIdIncludingRemovedAsync(currentUserId, game.Id);
         if (existingParticipant is not null)
         {
+            if (!HasDisplayName(existingParticipant, resolvedDisplayName))
+            {
+                await EnsureDisplayNameIsAvailableAsync(resolvedDisplayName, game.Id);
+            }
+
+            existingParticipant.DisplayName = resolvedDisplayName;
             existingParticipant.IsConnected = true;
             existingParticipant.JoinedAt = DateTime.UtcNow;
             existingParticipant.RemovedAt = null;
@@ -42,12 +57,13 @@ public class ParticipantService(
         }
         else
         {
+            await EnsureDisplayNameIsAvailableAsync(resolvedDisplayName, game.Id);
             await participantRepository.AddAsync(new GameParticipant
             {
                 Id = Guid.NewGuid(),
                 GameId = game.Id,
                 UserId = currentUserId,
-                DisplayName = displayName,
+                DisplayName = resolvedDisplayName,
                 Role = ParticipantRole.Player,
                 JoinedAt = DateTime.UtcNow,
                 IsConnected = true
@@ -87,14 +103,20 @@ public class ParticipantService(
         await participantRepository.SaveChangesAsync();
     }
 
-    public async Task<GameParticipantDto> UpdateDisplayNameAsync(Guid gameId, string displayName)
+    public async Task<GameParticipantDto> UpdateDisplayNameAsync(Guid gameId, string? displayName)
     {
         var currentUserId = currentUserService.GetRequiredUserId();
-        var game = await GetGameOrThrowAsync(gameId);
-        await EnsureDisplayNameIsAvailableAsync(displayName, game.Id);
-
+        var currentUser = await GetCurrentUserOrThrowAsync(currentUserId);
+        await GetGameOrThrowAsync(gameId);
         var currentUserParticipant = await GetCurrentUserParticipantOrThrowAsync(currentUserId, gameId);
-        currentUserParticipant.DisplayName = displayName;
+        var resolvedDisplayName = ResolveDisplayName(displayName, currentUser.DisplayName);
+
+        if (!HasDisplayName(currentUserParticipant, resolvedDisplayName))
+        {
+            await EnsureDisplayNameIsAvailableAsync(resolvedDisplayName, gameId);
+            currentUserParticipant.DisplayName = resolvedDisplayName;
+        }
+
         await participantRepository.SaveChangesAsync();
         return ParticipantMapper.ToGameParticipantDto(currentUserParticipant);
     }
@@ -118,6 +140,12 @@ public class ParticipantService(
                ?? throw new NotFoundException(nameof(Game), gameId);
     }
 
+    private async Task<User> GetCurrentUserOrThrowAsync(Guid currentUserId)
+    {
+        return await userRepository.GetByIdAsync(currentUserId)
+               ?? throw new NotFoundException(nameof(User), currentUserId);
+    }
+
     private async Task EnsureDisplayNameIsAvailableAsync(string displayName, Guid gameId)
     {
         var exists = await participantRepository.ExistsByDisplayNameAsync(displayName, gameId);
@@ -125,6 +153,18 @@ public class ParticipantService(
         {
             throw new ResourceAlreadyExistsException(nameof(GameParticipant), displayName); // TODO change exception
         }
+    }
+
+    private static string ResolveDisplayName(string? requestedDisplayName, string defaultDisplayName)
+    {
+        return string.IsNullOrWhiteSpace(requestedDisplayName)
+            ? defaultDisplayName
+            : requestedDisplayName.Trim();
+    }
+
+    private static bool HasDisplayName(GameParticipant participant, string displayName)
+    {
+        return string.Equals(participant.DisplayName, displayName, StringComparison.Ordinal);
     }
     
     private async Task EnsureCurrentUserIsGameMasterAsync(Guid currentUserId, Guid gameId)
