@@ -7,7 +7,7 @@ using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
-
+using PlanningPoker.API.Services;
 namespace PlanningPoker.API.Controllers;
 
 /// <summary>
@@ -19,15 +19,12 @@ namespace PlanningPoker.API.Controllers;
 public class IssuesController : ControllerBase
 {
     private readonly IIssueService _issueService;
+    private readonly ICurrentUserService _currentUser;
 
-    public IssuesController(IIssueService issueService)
+    public IssuesController(IIssueService issueService, ICurrentUserService currentUser)
     {
         _issueService = issueService;
-    }
-    
-    private Guid GetCurrentUserId()
-    {
-        return Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        _currentUser = currentUser;
     }
 
     /// <summary>
@@ -58,11 +55,10 @@ public class IssuesController : ControllerBase
     /// </summary>
     [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPost]
-    public async Task<IActionResult> CreateIssue(
-        [FromRoute] Guid gameId,
+    public async Task<IActionResult> CreateIssue([FromRoute] Guid gameId,
         [FromBody] CreateIssueDto dto)
     {
-        var issue = await _issueService.CreateIssueAsync(gameId, GetCurrentUserId(), dto);
+        var issue = await _issueService.CreateIssueAsync(gameId, _currentUser.GetRequiredUserId(), dto);
         return CreatedAtAction(
             nameof(GetIssueById),
             new { gameId, issueId = issue.Id },
@@ -92,7 +88,7 @@ public class IssuesController : ControllerBase
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId)
     {
-        await _issueService.DeleteIssueAsync(gameId, issueId, GetCurrentUserId());
+        await _issueService.DeleteIssueAsync(gameId, issueId, _currentUser.GetRequiredUserId());
         return NoContent();
     }
 
@@ -105,7 +101,7 @@ public class IssuesController : ControllerBase
         [FromRoute] Guid gameId,
         [FromBody] ReorderIssueDto dto)
     {
-        await _issueService.ReorderIssuesAsync(gameId, GetCurrentUserId(),dto);
+        await _issueService.ReorderIssuesAsync(gameId, _currentUser.GetRequiredUserId(),dto);
         return NoContent();
     }
 
@@ -118,7 +114,7 @@ public class IssuesController : ControllerBase
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId)
     {
-        var issue = await _issueService.SetIssueActiveAsync(gameId, issueId, GetCurrentUserId());
+        var issue = await _issueService.SetIssueActiveAsync(gameId, issueId, _currentUser.GetRequiredUserId());
         return Ok(issue);
     }
 
@@ -130,10 +126,8 @@ public class IssuesController : ControllerBase
     public async Task<IActionResult> ImportIssuesFromPlane(
     [FromRoute] Guid gameId,
     [FromBody] ImportPlaneIssuesDto dto)
-{
-    var issues = await _issueService.ImportIssueByPlaneAsync(gameId, GetCurrentUserId(), dto);
-    return Ok(issues);
+    {
+        var issues = await _issueService.ImportIssueByPlaneAsync(gameId, _currentUser.GetRequiredUserId(), dto);
+        return Ok(issues);
+    }
 }
-}
-
-
