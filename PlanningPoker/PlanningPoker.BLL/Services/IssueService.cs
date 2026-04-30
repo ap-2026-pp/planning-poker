@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Identity;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Exceptions;
@@ -9,7 +8,7 @@ using  PlanningPoker.Domain.Mappers;
 
 namespace PlanningPoker.BLL.Services;
 
-internal class IssueService : IIssueService
+public class IssueService : IIssueService
 {
     private readonly IIssueRepository _repoIssues;
     private readonly IParticipantRepository _repoParticipant;
@@ -28,8 +27,9 @@ internal class IssueService : IIssueService
     /// <summary>
     /// Повертає всі не видалені задачі конкретної гри
     /// </summary>
-    public async Task<IEnumerable<IssueDto>> GetIssuesByGameAsync(Guid gameId)
+    public async Task<IEnumerable<IssueDto>> GetIssuesByGameAsync(Guid gameId, Guid userId)
     {
+        await GetRequiredParticipantAsync(gameId, userId, "view", "issues");
         var issues = await _repoIssues.GetByGameIdAsync(gameId);
         return issues.Select(IssueMapper.ToDto);
     }
@@ -37,12 +37,13 @@ internal class IssueService : IIssueService
     /// <summary>
     /// Повертає детальну інформацію про одну задачу гри
     /// </summary>
-    public async Task<IssueDetailsDto> GetIssueByIdAsync(Guid gameId, Guid issueId)
+    public async Task<IssueDetailsDto> GetIssueByIdAsync(Guid gameId, Guid issueId, Guid userId)
     {
+        await GetRequiredParticipantAsync(gameId, userId, "view", "issue");
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
         if (issue is null)
-            throw new Exception("Issue not found.");
+            throw new NotFoundException(nameof(Issue), issueId);
 
         return IssueMapper.ToDetailsDto(issue);
     }
@@ -54,12 +55,7 @@ internal class IssueService : IIssueService
         Guid userId,
         CreateIssueDto dto)
     {
-        var participant = await _repoParticipant.GetByUserIdAndGameIdAsync(userId, gameId);
-        if(participant == null)
-            throw new NotFoundException(nameof(GameParticipant), userId);
-
-        if (participant.Role != ParticipantRole.Master)
-            throw new ForbiddenException("create", "issue");
+        var participant = await GetRequiredMasterParticipantAsync(gameId, userId, "create", "issue");
         var order = await _repoIssues.GetNextOrderAsync(gameId);
 
         var issue = new Issue
@@ -73,7 +69,7 @@ internal class IssueService : IIssueService
             IsCurrent = false,
             IsRemoved = false,
             CreatedAt = DateTime.UtcNow,
-            CreatedBy = userId
+            CreatedBy = participant.Id
         };
 
         await _repoIssues.AddAsync(issue);
@@ -86,8 +82,9 @@ internal class IssueService : IIssueService
     /// Оновлює основні дані задачі: назву, посилання та опис
     /// </summary>
     public async Task<IssueDto> UpdateIssueAsync(Guid gameId,
-        Guid issueId, UpdateIssueDto dto)
+        Guid issueId, Guid userId, UpdateIssueDto dto)
     {
+        await GetRequiredMasterParticipantAsync(gameId, userId, "update", "issue");
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
         if (issue is null)
@@ -108,6 +105,7 @@ internal class IssueService : IIssueService
     /// </summary>
     public async Task DeleteIssueAsync(Guid gameId, Guid issueId, Guid userId)
     {
+        await GetRequiredMasterParticipantAsync(gameId, userId, "delete", "issue");
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
         if (issue is null)
@@ -124,6 +122,7 @@ internal class IssueService : IIssueService
     /// </summary>
    public async Task ReorderIssuesAsync(Guid gameId, Guid userId, ReorderIssueDto dto)
     {
+        await GetRequiredMasterParticipantAsync(gameId, userId, "reorder", "issues");
         var issues = await _repoIssues.GetIssuesByIdsAsync(gameId, dto.IssuesIds);
         var issuesList = issues.ToList();
 
@@ -144,6 +143,7 @@ internal class IssueService : IIssueService
     /// </summary>
     public async Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId, Guid userId)
     {
+        await GetRequiredMasterParticipantAsync(gameId, userId, "set active", "issue");
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
         if (issue is null)
@@ -164,9 +164,10 @@ internal class IssueService : IIssueService
     /// </summary>
     public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(
     Guid gameId,
-    Guid createdByParticipantId,
+    Guid userId,
     ImportPlaneIssuesDto dto)
     {
+        var participant = await GetRequiredMasterParticipantAsync(gameId, userId, "import", "issues");
         var planeIssues = await _planeService.GetIssuesAsync(dto);
         var nextOrder = await _repoIssues.GetNextOrderAsync(gameId);
 
@@ -190,7 +191,7 @@ internal class IssueService : IIssueService
                 IsCurrent = false,
                 IsRemoved = false,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = createdByParticipantId
+                CreatedBy = participant.Id
             };
 
             await _repoIssues.AddAsync(issue);
@@ -215,5 +216,37 @@ internal class IssueService : IIssueService
         string planeIssueId)
     {
         return $"https://app.plane.so/{workspaceSlug}/projects/{projectId}/issues/{planeIssueId}";
+    }
+
+    private async Task<GameParticipant> GetRequiredMasterParticipantAsync(
+        Guid gameId,
+        Guid userId,
+        string action,
+        string resourceName)
+    {
+        var participant = await GetRequiredParticipantAsync(gameId, userId, action, resourceName);
+
+        if (participant.Role != ParticipantRole.Master)
+        {
+            throw new ForbiddenException(action, resourceName);
+        }
+
+        return participant;
+    }
+
+    private async Task<GameParticipant> GetRequiredParticipantAsync(
+        Guid gameId,
+        Guid userId,
+        string action,
+        string resourceName)
+    {
+        var participant = await _repoParticipant.GetByUserIdAndGameIdAsync(userId, gameId);
+
+        if (participant is null)
+        {
+            throw new ForbiddenException(action, resourceName);
+        }
+
+        return participant;
     }
 }

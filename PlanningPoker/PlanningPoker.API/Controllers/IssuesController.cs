@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
-using PlanningPoker.Domain.Models;
 namespace PlanningPoker.API.Controllers;
 
 /// <summary>
@@ -29,27 +28,25 @@ public class IssuesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetIssuesByGame([FromRoute] Guid gameId)
     {
-        var issues = await _issueService.GetIssuesByGameAsync(gameId);
+        var issues = await _issueService.GetIssuesByGameAsync(gameId, _currentUser.GetRequiredUserId());
         return Ok(issues);
     }
 
     /// <summary>
     /// Повертає детальну інформацію про задачу.
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpGet("{issueId:guid}")]
     public async Task<IActionResult> GetIssueById(
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId)
     {
-        var issue = await _issueService.GetIssueByIdAsync(gameId, issueId);
+        var issue = await _issueService.GetIssueByIdAsync(gameId, issueId, _currentUser.GetRequiredUserId());
         return Ok(issue);
     }
 
     /// <summary>
     /// Створює нову задачу в грі
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPost]
     public async Task<IActionResult> CreateIssue([FromRoute] Guid gameId,
         [FromBody] CreateIssueDto dto)
@@ -64,21 +61,19 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Оновлює дані задачі
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPut("{issueId:guid}")]
     public async Task<IActionResult> UpdateIssue(
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId,
         [FromBody] UpdateIssueDto dto)
     {
-        var issue = await _issueService.UpdateIssueAsync(gameId, issueId, dto);
+        var issue = await _issueService.UpdateIssueAsync(gameId, issueId, _currentUser.GetRequiredUserId(), dto);
         return Ok(issue);
     }
 
     /// <summary>
     /// Видаляє задачу з гри
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpDelete("{issueId:guid}")]
     public async Task<IActionResult> DeleteIssue(
         [FromRoute] Guid gameId,
@@ -91,7 +86,6 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Оновлює порядок задач у грі
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPatch("reorder")]
     public async Task<IActionResult> ReorderIssues(
         [FromRoute] Guid gameId,
@@ -104,7 +98,6 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Робить задачу поточною для голосування
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPatch("{issueId:guid}/set-active")]
     public async Task<IActionResult> SetActiveIssue(
         [FromRoute] Guid gameId,
@@ -117,7 +110,6 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Імпортує задачі з Plane
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPost("import-plane")]
     public async Task<IActionResult> ImportIssuesFromPlane(
     [FromRoute] Guid gameId,
