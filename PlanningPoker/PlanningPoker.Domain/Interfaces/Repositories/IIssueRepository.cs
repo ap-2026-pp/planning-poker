@@ -8,11 +8,7 @@ public interface IIssueRepository : IBaseRepository<Issue>
 
     Task<Issue?> GetByGameAndIssueAsync(Guid gameId, Guid issueId);
 
-    Task<Issue?> GetCurrentIssueAsync(Guid gameId);
-
     Task<int> GetNextOrderAsync(Guid gameId);
-
-    Task<int> GetNextIssueNumberAsync(Guid gameId);
 
     Task<IEnumerable<Issue>> GetIssuesByIdsAsync(Guid gameId, List<Guid> issueIds);
 
