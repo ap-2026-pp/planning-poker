@@ -131,17 +131,9 @@ app.Run();
 
 static async Task SeedDatabaseAsync(WebApplication app)
 {
-    try
-    {
-        using var scope = app.Services.CreateScope();
+    using var scope = app.Services.CreateScope();
 
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-        await DbInitializer.SeedDataAsync(context, userManager);
-
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"DB seed error: {ex.Message}");
-    }
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+    await DbInitializer.SeedDataAsync(context, userManager);
 }
