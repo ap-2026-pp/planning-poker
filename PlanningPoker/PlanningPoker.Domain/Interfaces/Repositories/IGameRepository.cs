@@ -6,4 +6,6 @@ public interface IGameRepository : IBaseRepository<Game>
 {
     Task<bool> ExistsByNameAsync(string name, Guid createdBy);
     Task<bool> ExistsByNameAsync(string name, Guid createdBy, Guid excludedGameId);
+    Task<bool> ExistsByInviteCodeAsync(string inviteCode);
+    Task<Game?> GetByInviteCodeAsync(string inviteCode);
 }

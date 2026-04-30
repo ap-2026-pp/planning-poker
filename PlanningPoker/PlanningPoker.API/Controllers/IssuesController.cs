@@ -1,13 +1,8 @@
-using System.Security.Claims;
-using System.Xml.Serialization;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
-using PlanningPoker.Domain.Models;
-using PlanningPoker.API.Services;
 namespace PlanningPoker.API.Controllers;
 
 /// <summary>
@@ -19,12 +14,10 @@ namespace PlanningPoker.API.Controllers;
 public class IssuesController : ControllerBase
 {
     private readonly IIssueService _issueService;
-    private readonly ICurrentUserService _currentUser;
 
-    public IssuesController(IIssueService issueService, ICurrentUserService currentUser)
+    public IssuesController(IIssueService issueService)
     {
         _issueService = issueService;
-        _currentUser = currentUser;
     }
 
     /// <summary>
@@ -40,7 +33,6 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Повертає детальну інформацію про задачу.
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpGet("{issueId:guid}")]
     public async Task<IActionResult> GetIssueById(
         [FromRoute] Guid gameId,
@@ -53,12 +45,11 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Створює нову задачу в грі
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPost]
     public async Task<IActionResult> CreateIssue([FromRoute] Guid gameId,
         [FromBody] CreateIssueDto dto)
     {
-        var issue = await _issueService.CreateIssueAsync(gameId, _currentUser.GetRequiredUserId(), dto);
+        var issue = await _issueService.CreateIssueAsync(gameId, dto);
         return CreatedAtAction(
             nameof(GetIssueById),
             new { gameId, issueId = issue.Id },
@@ -68,7 +59,6 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Оновлює дані задачі
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPut("{issueId:guid}")]
     public async Task<IActionResult> UpdateIssue(
         [FromRoute] Guid gameId,
@@ -82,52 +72,48 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Видаляє задачу з гри
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpDelete("{issueId:guid}")]
     public async Task<IActionResult> DeleteIssue(
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId)
     {
-        await _issueService.DeleteIssueAsync(gameId, issueId, _currentUser.GetRequiredUserId());
+        await _issueService.DeleteIssueAsync(gameId, issueId);
         return NoContent();
     }
 
     /// <summary>
     /// Оновлює порядок задач у грі
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPatch("reorder")]
     public async Task<IActionResult> ReorderIssues(
         [FromRoute] Guid gameId,
         [FromBody] ReorderIssueDto dto)
     {
-        await _issueService.ReorderIssuesAsync(gameId, _currentUser.GetRequiredUserId(),dto);
+        await _issueService.ReorderIssuesAsync(gameId, dto);
         return NoContent();
     }
 
     /// <summary>
     /// Робить задачу поточною для голосування
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPatch("{issueId:guid}/set-active")]
     public async Task<IActionResult> SetActiveIssue(
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId)
     {
-        var issue = await _issueService.SetIssueActiveAsync(gameId, issueId, _currentUser.GetRequiredUserId());
+        var issue = await _issueService.SetIssueActiveAsync(gameId, issueId);
         return Ok(issue);
     }
 
     /// <summary>
     /// Імпортує задачі з Plane
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPost("import-plane")]
     public async Task<IActionResult> ImportIssuesFromPlane(
     [FromRoute] Guid gameId,
     [FromBody] ImportPlaneIssuesDto dto)
     {
-        var issues = await _issueService.ImportIssueByPlaneAsync(gameId, _currentUser.GetRequiredUserId(), dto);
+        var issues = await _issueService.ImportIssueByPlaneAsync(gameId, dto);
         return Ok(issues);
     }
 }

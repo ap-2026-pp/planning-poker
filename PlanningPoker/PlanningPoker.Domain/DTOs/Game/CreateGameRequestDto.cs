@@ -8,6 +8,9 @@ public class CreateGameRequestDto
     [Required]
     [MaxLength(200)]
     public string Name { get; set; }
+    
+    [MaxLength(200)]
+    public string? HostDisplayName { get; set; }
     public VotingSystem VotingSystem { get; set; } = VotingSystem.Custom;
     public bool AutoRevealCards { get; set; } = true;
     public bool ShowAverage { get; set; } = true;

@@ -14,16 +14,16 @@ internal class UserService : IUserService
 {
     private readonly UserManager<User> _userManager;
     private readonly IJwtService _jwtService;
-    private readonly ICurrentUserService _currentUserService;
+    private readonly ICurrentUserContext _currentUserContext;
     
     public UserService(
         UserManager<User> userManager,
         IJwtService jwtService,
-        ICurrentUserService currentUserService)
+        ICurrentUserContext currentUserContext)
     {
         _userManager = userManager;
         _jwtService = jwtService;
-        _currentUserService = currentUserService;
+        _currentUserContext = currentUserContext;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
@@ -33,16 +33,16 @@ internal class UserService : IUserService
 
         var existingUser = await _userManager.FindByEmailAsync(dto.Email);
         if (existingUser is not null)
-            throw new InvalidOperationException("User with this email already exists.");
+            throw new ResourceAlreadyExistsException(nameof(User), "email", dto.Email);
 
         var user = new User
         {
             Id = Guid.NewGuid(),
-            UserName = dto.Email,
+            UserName = dto.Email.Split('@')[0],
             Email = dto.Email,
-            DisplayName = dto.Email,
+            DisplayName = dto.Email.Split('@')[0],
             CreatedAt = DateTime.UtcNow,
-            RefreshToken = string.Empty
+            RefreshToken = null
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -57,7 +57,7 @@ internal class UserService : IUserService
         await _userManager.UpdateAsync(user);
 
         var roles = await _userManager.GetRolesAsync(user);
-        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
 
         return AuthMapper.ToAuthResponseDto(
             accessToken,
@@ -81,7 +81,7 @@ internal class UserService : IUserService
             throw new UnauthorizedAccessException("Invalid credentials.");
 
         var roles = await _userManager.GetRolesAsync(user);
-        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
         var refreshToken = _jwtService.GenerateRefreshToken();
 
         user.RefreshToken = refreshToken;
@@ -119,7 +119,7 @@ internal class UserService : IUserService
             throw new SecurityTokenException("Refresh token expired.");
 
         var roles = await _userManager.GetRolesAsync(user);
-        var newAccessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
+        var newAccessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
         var newRefreshToken = _jwtService.GenerateRefreshToken();
 
         user.RefreshToken = newRefreshToken;
@@ -137,12 +137,9 @@ internal class UserService : IUserService
 
     public async Task RevokeTokenAsync()
     {
-        var userId = _currentUserService.GetRequiredUserId();
-        var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            throw new NotFoundException(nameof(User), userId.ToString());
+        var user = await _currentUserContext.GetRequiredUserAsync();
 
-        user.RefreshToken = string.Empty;
+        user.RefreshToken = null;
         user.RefreshTokenExpiryTime = null;
 
         await _userManager.UpdateAsync(user);
@@ -150,11 +147,14 @@ internal class UserService : IUserService
 
     public async Task<UserDto> GetCurrentUserAsync()
     {
-        var userId = _currentUserService.GetRequiredUserId();
-        var user = await _userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            throw new NotFoundException(nameof(User), userId.ToString());
+        var user = await _currentUserContext.GetRequiredUserAsync();
 
         return AuthMapper.ToUserDto(user);
+    }
+
+    private static string GetRequiredEmail(User user)
+    {
+        return user.Email
+            ?? throw new InvalidOperationException("User email is missing.");
     }
 }
