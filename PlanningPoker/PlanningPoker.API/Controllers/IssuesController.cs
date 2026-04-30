@@ -1,13 +1,9 @@
-using System.Security.Claims;
-using System.Xml.Serialization;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
-using PlanningPoker.API.Services;
 namespace PlanningPoker.API.Controllers;
 
 /// <summary>
@@ -19,9 +15,9 @@ namespace PlanningPoker.API.Controllers;
 public class IssuesController : ControllerBase
 {
     private readonly IIssueService _issueService;
-    private readonly ICurrentUserService _currentUser;
+    private readonly ICurrentUserAccessor _currentUser;
 
-    public IssuesController(IIssueService issueService, ICurrentUserService currentUser)
+    public IssuesController(IIssueService issueService, ICurrentUserAccessor currentUser)
     {
         _issueService = issueService;
         _currentUser = currentUser;

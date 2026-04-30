@@ -14,7 +14,9 @@ namespace PlanningPoker.Tests.Controllers;
 public class GameControllerTests
 {
     private readonly Mock<IGameService> _gameService = new();
+    private readonly Mock<ICurrentUserAccessor> _currentUserAccessor = new();
     private readonly GameController _controller;
+    private readonly Guid _userId = Guid.NewGuid();
 
     public GameControllerTests()
     {
@@ -25,7 +27,9 @@ public class GameControllerTests
             })
             .Build();
 
-        _controller = new GameController(_gameService.Object, new InviteLinkService(configuration))
+        _currentUserAccessor.Setup(accessor => accessor.GetRequiredUserId()).Returns(_userId);
+
+        _controller = new GameController(_gameService.Object, new InviteLinkService(configuration), _currentUserAccessor.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -40,7 +44,7 @@ public class GameControllerTests
         var request = CreateGameRequest("new-game", "ScrumMaster", VotingSystem.Custom, true);
         var expectedGame = CreateGameDto("new-game", VotingSystem.Custom, true);
 
-        _gameService.Setup(service => service.AddGameAsync(request)).ReturnsAsync(expectedGame);
+        _gameService.Setup(service => service.AddGameAsync(_userId, request)).ReturnsAsync(expectedGame);
 
         var result = await _controller.CreateGame(request);
 
@@ -48,7 +52,7 @@ public class GameControllerTests
         var gameDto = Assert.IsType<GameDto>(okResult.Value);
 
         Assert.Same(expectedGame, gameDto);
-        _gameService.Verify(service => service.AddGameAsync(request), Times.Once);
+        _gameService.Verify(service => service.AddGameAsync(_userId, request), Times.Once);
     }
 
     [Fact]
@@ -56,13 +60,13 @@ public class GameControllerTests
     {
         var request = CreateGameRequest("new-game", "ScrumMaster", VotingSystem.Custom, true);
         _gameService
-            .Setup(service => service.AddGameAsync(request))
+            .Setup(service => service.AddGameAsync(_userId, request))
             .ThrowsAsync(new ResourceAlreadyExistsException(nameof(Game), request.Name));
 
         var act = async () => await _controller.CreateGame(request);
 
         await Assert.ThrowsAsync<ResourceAlreadyExistsException>(act);
-        _gameService.Verify(service => service.AddGameAsync(request), Times.Once);
+        _gameService.Verify(service => service.AddGameAsync(_userId, request), Times.Once);
     }
 
     [Fact]
@@ -95,7 +99,7 @@ public class GameControllerTests
 
         _controller.Request.Scheme = "https";
         _controller.Request.Host = new HostString("api.example.com");
-        _gameService.Setup(service => service.GetGameInviteAsync(gameId)).ReturnsAsync(game);
+        _gameService.Setup(service => service.GetGameInviteAsync(gameId, _userId)).ReturnsAsync(game);
 
         var result = await _controller.GetGameInvite(gameId);
 
@@ -106,7 +110,7 @@ public class GameControllerTests
         Assert.Equal("INVITE-CODE-123", inviteDto.InviteCode);
         Assert.Equal("https://planning-poker.app/INVITE-CODE-123/", inviteDto.InviteUrl);
         Assert.False(string.IsNullOrWhiteSpace(inviteDto.QrCodeBase64));
-        _gameService.Verify(service => service.GetGameInviteAsync(gameId), Times.Once);
+        _gameService.Verify(service => service.GetGameInviteAsync(gameId, _userId), Times.Once);
     }
 
     [Fact]
@@ -122,7 +126,7 @@ public class GameControllerTests
             request.ShowCountdownAnimation,
             request.IsActive);
 
-        _gameService.Setup(service => service.UpdateGameAsync(gameId, request)).ReturnsAsync(expectedGame);
+        _gameService.Setup(service => service.UpdateGameAsync(gameId, _userId, request)).ReturnsAsync(expectedGame);
 
         var result = await _controller.UpdateGame(gameId, request);
 
@@ -130,7 +134,7 @@ public class GameControllerTests
         var gameDto = Assert.IsType<GameDto>(okResult.Value);
 
         Assert.Same(expectedGame, gameDto);
-        _gameService.Verify(service => service.UpdateGameAsync(gameId, request), Times.Once);
+        _gameService.Verify(service => service.UpdateGameAsync(gameId, _userId, request), Times.Once);
     }
 
     [Fact]
@@ -139,13 +143,13 @@ public class GameControllerTests
         var gameId = Guid.NewGuid();
         var request = CreateUpdatedGameRequest("updated-game", VotingSystem.PowersOfTwo, false);
         _gameService
-            .Setup(service => service.UpdateGameAsync(gameId, request))
+            .Setup(service => service.UpdateGameAsync(gameId, _userId, request))
             .ThrowsAsync(new ForbiddenException("update", "game"));
 
         var act = async () => await _controller.UpdateGame(gameId, request);
 
         await Assert.ThrowsAsync<ForbiddenException>(act);
-        _gameService.Verify(service => service.UpdateGameAsync(gameId, request), Times.Once);
+        _gameService.Verify(service => service.UpdateGameAsync(gameId, _userId, request), Times.Once);
     }
 
     [Fact]
@@ -156,7 +160,7 @@ public class GameControllerTests
         var result = await _controller.DeleteGame(gameId);
 
         Assert.IsType<NoContentResult>(result);
-        _gameService.Verify(service => service.DeleteGameAsync(gameId), Times.Once);
+        _gameService.Verify(service => service.DeleteGameAsync(gameId, _userId), Times.Once);
     }
 
     private static CreateGameRequestDto CreateGameRequest(

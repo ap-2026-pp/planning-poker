@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
+using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
@@ -53,12 +54,12 @@ internal class IssueService : IIssueService
         Guid userId,
         CreateIssueDto dto)
     {
-        var participant = await _repoParticipant.GetByGameAndUserAsync(gameId, userId);
+        var participant = await _repoParticipant.GetByUserIdAndGameIdAsync(userId, gameId);
         if(participant == null)
-            throw new Exception("User isn't participant of this game");
+            throw new NotFoundException(nameof(GameParticipant), userId);
 
-        if(participant.Role != ParticipantRole.Master)
-            throw new Exception("Only master can create issues");
+        if (participant.Role != ParticipantRole.Master)
+            throw new ForbiddenException("create", "issue");
         var order = await _repoIssues.GetNextOrderAsync(gameId);
 
         var issue = new Issue
@@ -90,7 +91,7 @@ internal class IssueService : IIssueService
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
         if (issue is null)
-            throw new Exception("Issue not found");
+            throw new NotFoundException(nameof(Issue), issueId);
 
         issue.Url = dto.Url ?? string.Empty;
         issue.Title = dto.Title;
@@ -110,7 +111,7 @@ internal class IssueService : IIssueService
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
         if (issue is null)
-            throw new Exception("Issue not found.");
+            throw new NotFoundException(nameof(Issue), issueId);
 
         issue.IsRemoved = true;
 
@@ -146,7 +147,7 @@ internal class IssueService : IIssueService
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
         if (issue is null)
-            throw new Exception("Issue not found.");
+            throw new NotFoundException(nameof(Issue), issueId);
 
         await _repoIssues.ClearCurrentIssueAsync(gameId);
 

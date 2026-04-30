@@ -14,16 +14,13 @@ internal class UserService : IUserService
 {
     private readonly UserManager<User> _userManager;
     private readonly IJwtService _jwtService;
-    private readonly ICurrentUserContext _currentUserContext;
     
     public UserService(
         UserManager<User> userManager,
-        IJwtService jwtService,
-        ICurrentUserContext currentUserContext)
+        IJwtService jwtService)
     {
         _userManager = userManager;
         _jwtService = jwtService;
-        _currentUserContext = currentUserContext;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
@@ -42,7 +39,7 @@ internal class UserService : IUserService
             Email = dto.Email,
             DisplayName = dto.Email.Split('@')[0],
             CreatedAt = DateTime.UtcNow,
-            RefreshToken = null
+            RefreshToken = string.Empty
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -57,7 +54,7 @@ internal class UserService : IUserService
         await _userManager.UpdateAsync(user);
 
         var roles = await _userManager.GetRolesAsync(user);
-        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
 
         return AuthMapper.ToAuthResponseDto(
             accessToken,
@@ -81,7 +78,7 @@ internal class UserService : IUserService
             throw new UnauthorizedAccessException("Invalid credentials.");
 
         var roles = await _userManager.GetRolesAsync(user);
-        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
         var refreshToken = _jwtService.GenerateRefreshToken();
 
         user.RefreshToken = refreshToken;
@@ -119,7 +116,7 @@ internal class UserService : IUserService
             throw new SecurityTokenException("Refresh token expired.");
 
         var roles = await _userManager.GetRolesAsync(user);
-        var newAccessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
+        var newAccessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
         var newRefreshToken = _jwtService.GenerateRefreshToken();
 
         user.RefreshToken = newRefreshToken;
@@ -135,20 +132,28 @@ internal class UserService : IUserService
         );
     }
 
-    public async Task RevokeTokenAsync()
+    public async Task RevokeTokenAsync(Guid userId)
     {
-        var user = await _currentUserContext.GetRequiredUserAsync();
+        var user = await _userManager.FindByIdAsync(userId.ToString())
+                   ?? throw new NotFoundException(nameof(User), userId);
 
-        user.RefreshToken = null;
+        user.RefreshToken = string.Empty;
         user.RefreshTokenExpiryTime = null;
 
         await _userManager.UpdateAsync(user);
     }
 
-    public async Task<UserDto> GetCurrentUserAsync()
+    public async Task<UserDto> GetCurrentUserAsync(Guid userId)
     {
-        var user = await _currentUserContext.GetRequiredUserAsync();
+        var user = await _userManager.FindByIdAsync(userId.ToString())
+                   ?? throw new NotFoundException(nameof(User), userId);
 
         return AuthMapper.ToUserDto(user);
+    }
+
+    private static string GetRequiredEmail(User user)
+    {
+        return user.Email
+            ?? throw new InvalidOperationException("User email is missing.");
     }
 }

@@ -12,11 +12,14 @@ namespace PlanningPoker.Tests.Controllers;
 public class GameParticipantControllerTests
 {
     private readonly Mock<IParticipantService> _participantService = new();
+    private readonly Mock<ICurrentUserAccessor> _currentUserAccessor = new();
     private readonly GameParticipantController _controller;
+    private readonly Guid _userId = Guid.NewGuid();
 
     public GameParticipantControllerTests()
     {
-        _controller = new GameParticipantController(_participantService.Object);
+        _currentUserAccessor.Setup(accessor => accessor.GetRequiredUserId()).Returns(_userId);
+        _controller = new GameParticipantController(_participantService.Object, _currentUserAccessor.Object);
     }
 
     [Fact]
@@ -51,7 +54,7 @@ public class GameParticipantControllerTests
         var game = CreateGameDto("Demo Game");
 
         _participantService
-            .Setup(service => service.JoinGameByInviteCodeAsync(inviteCode, request.DisplayName))
+            .Setup(service => service.JoinGameByInviteCodeAsync(_userId, inviteCode, request.DisplayName))
             .ReturnsAsync(game);
 
         var result = await _controller.JoinGameByInviteCode(inviteCode, request);
@@ -60,7 +63,7 @@ public class GameParticipantControllerTests
         var payload = Assert.IsType<GameDto>(okResult.Value);
 
         Assert.Same(game, payload);
-        _participantService.Verify(service => service.JoinGameByInviteCodeAsync(inviteCode, request.DisplayName), Times.Once);
+        _participantService.Verify(service => service.JoinGameByInviteCodeAsync(_userId, inviteCode, request.DisplayName), Times.Once);
     }
 
     [Fact]
@@ -71,7 +74,7 @@ public class GameParticipantControllerTests
         var result = await _controller.LeaveGame(gameId);
 
         Assert.IsType<NoContentResult>(result);
-        _participantService.Verify(service => service.LeaveGameAsync(gameId), Times.Once);
+        _participantService.Verify(service => service.LeaveGameAsync(gameId, _userId), Times.Once);
     }
 
     [Fact]
@@ -82,7 +85,7 @@ public class GameParticipantControllerTests
         var participant = CreateParticipantDto(request.DisplayName, ParticipantRole.Player);
 
         _participantService
-            .Setup(service => service.UpdateDisplayNameAsync(gameId, request.DisplayName))
+            .Setup(service => service.UpdateDisplayNameAsync(gameId, _userId, request.DisplayName))
             .ReturnsAsync(participant);
 
         var result = await _controller.ChangeDisplayName(gameId, request);
@@ -91,7 +94,7 @@ public class GameParticipantControllerTests
         var payload = Assert.IsType<GameParticipantDto>(okResult.Value);
 
         Assert.Same(participant, payload);
-        _participantService.Verify(service => service.UpdateDisplayNameAsync(gameId, request.DisplayName), Times.Once);
+        _participantService.Verify(service => service.UpdateDisplayNameAsync(gameId, _userId, request.DisplayName), Times.Once);
     }
 
     [Fact]
@@ -103,7 +106,7 @@ public class GameParticipantControllerTests
         var result = await _controller.DeleteGameParticipant(gameId, participantId);
 
         Assert.IsType<NoContentResult>(result);
-        _participantService.Verify(service => service.DeleteGameParticipantAsync(gameId, participantId), Times.Once);
+        _participantService.Verify(service => service.DeleteGameParticipantAsync(gameId, _userId, participantId), Times.Once);
     }
 
     [Fact]
@@ -113,13 +116,13 @@ public class GameParticipantControllerTests
         var participantId = Guid.NewGuid();
 
         _participantService
-            .Setup(service => service.DeleteGameParticipantAsync(gameId, participantId))
+            .Setup(service => service.DeleteGameParticipantAsync(gameId, _userId, participantId))
             .ThrowsAsync(new ForbiddenException("delete", "participant"));
 
         var act = async () => await _controller.DeleteGameParticipant(gameId, participantId);
 
         await Assert.ThrowsAsync<ForbiddenException>(act);
-        _participantService.Verify(service => service.DeleteGameParticipantAsync(gameId, participantId), Times.Once);
+        _participantService.Verify(service => service.DeleteGameParticipantAsync(gameId, _userId, participantId), Times.Once);
     }
 
     private static GameParticipantDto CreateParticipantDto(string displayName, ParticipantRole role)
