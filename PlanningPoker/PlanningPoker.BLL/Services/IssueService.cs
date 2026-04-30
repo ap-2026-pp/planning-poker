@@ -13,22 +13,26 @@ public class IssueService : IIssueService
     private readonly IIssueRepository _repoIssues;
     private readonly IParticipantRepository _repoParticipant;
     private readonly IPlaneService _planeService;
+    private readonly ICurrentUserContext _currentUserContext;
 
     public IssueService(
         IIssueRepository repoIssues,
         IPlaneService planeService,
-        IParticipantRepository repoParticipant)
+        IParticipantRepository repoParticipant,
+        ICurrentUserContext currentUserContext)
     {
         _repoIssues = repoIssues;
         _planeService = planeService;
         _repoParticipant = repoParticipant;
+        _currentUserContext = currentUserContext;
     }
 
     /// <summary>
     /// Повертає всі не видалені задачі конкретної гри
     /// </summary>
-    public async Task<IEnumerable<IssueDto>> GetIssuesByGameAsync(Guid gameId, Guid userId)
+    public async Task<IEnumerable<IssueDto>> GetIssuesByGameAsync(Guid gameId)
     {
+        var userId = _currentUserContext.GetRequiredUserId();
         await GetRequiredParticipantAsync(gameId, userId, "view", "issues");
         var issues = await _repoIssues.GetByGameIdAsync(gameId);
         return issues.Select(IssueMapper.ToDto);
@@ -37,8 +41,9 @@ public class IssueService : IIssueService
     /// <summary>
     /// Повертає детальну інформацію про одну задачу гри
     /// </summary>
-    public async Task<IssueDetailsDto> GetIssueByIdAsync(Guid gameId, Guid issueId, Guid userId)
+    public async Task<IssueDetailsDto> GetIssueByIdAsync(Guid gameId, Guid issueId)
     {
+        var userId = _currentUserContext.GetRequiredUserId();
         await GetRequiredParticipantAsync(gameId, userId, "view", "issue");
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
@@ -51,10 +56,9 @@ public class IssueService : IIssueService
     /// <summary>
     /// Створює нову задачу в грі від імені учасника
     /// </summary>
-    public async Task<IssueDto> CreateIssueAsync(Guid gameId,
-        Guid userId,
-        CreateIssueDto dto)
+    public async Task<IssueDto> CreateIssueAsync(Guid gameId, CreateIssueDto dto)
     {
+        var userId = _currentUserContext.GetRequiredUserId();
         var participant = await GetRequiredMasterParticipantAsync(gameId, userId, "create", "issue");
         var order = await _repoIssues.GetNextOrderAsync(gameId);
 
@@ -81,9 +85,9 @@ public class IssueService : IIssueService
     /// <summary>
     /// Оновлює основні дані задачі: назву, посилання та опис
     /// </summary>
-    public async Task<IssueDto> UpdateIssueAsync(Guid gameId,
-        Guid issueId, Guid userId, UpdateIssueDto dto)
+    public async Task<IssueDto> UpdateIssueAsync(Guid gameId, Guid issueId, UpdateIssueDto dto)
     {
+        var userId = _currentUserContext.GetRequiredUserId();
         await GetRequiredMasterParticipantAsync(gameId, userId, "update", "issue");
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
@@ -103,8 +107,9 @@ public class IssueService : IIssueService
     /// <summary>
     /// Позначає задачу як видалену 
     /// </summary>
-    public async Task DeleteIssueAsync(Guid gameId, Guid issueId, Guid userId)
+    public async Task DeleteIssueAsync(Guid gameId, Guid issueId)
     {
+        var userId = _currentUserContext.GetRequiredUserId();
         await GetRequiredMasterParticipantAsync(gameId, userId, "delete", "issue");
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
@@ -120,8 +125,9 @@ public class IssueService : IIssueService
     /// <summary>
     /// Оновлює порядок задач у списку після перетягування
     /// </summary>
-   public async Task ReorderIssuesAsync(Guid gameId, Guid userId, ReorderIssueDto dto)
+   public async Task ReorderIssuesAsync(Guid gameId, ReorderIssueDto dto)
     {
+        var userId = _currentUserContext.GetRequiredUserId();
         await GetRequiredMasterParticipantAsync(gameId, userId, "reorder", "issues");
         var issues = await _repoIssues.GetIssuesByIdsAsync(gameId, dto.IssuesIds);
         var issuesList = issues.ToList();
@@ -141,8 +147,9 @@ public class IssueService : IIssueService
     /// <summary>
     /// Робить задачу поточною для голосування в межах гри
     /// </summary>
-    public async Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId, Guid userId)
+    public async Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId)
     {
+        var userId = _currentUserContext.GetRequiredUserId();
         await GetRequiredMasterParticipantAsync(gameId, userId, "set active", "issue");
         var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
 
@@ -162,11 +169,9 @@ public class IssueService : IIssueService
     /// <summary>
     /// Імпортує задачі з Plane та додає їх до списку задач гри
     /// </summary>
-    public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(
-    Guid gameId,
-    Guid userId,
-    ImportPlaneIssuesDto dto)
+    public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto)
     {
+        var userId = _currentUserContext.GetRequiredUserId();
         var participant = await GetRequiredMasterParticipantAsync(gameId, userId, "import", "issues");
         var planeIssues = await _planeService.GetIssuesAsync(dto);
         var nextOrder = await _repoIssues.GetNextOrderAsync(gameId);

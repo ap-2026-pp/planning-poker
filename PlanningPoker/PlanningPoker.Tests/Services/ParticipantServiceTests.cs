@@ -11,7 +11,7 @@ public class ParticipantServiceTests
 {
     private readonly Mock<IParticipantRepository> _participantRepository = new();
     private readonly Mock<IGameRepository> _gameRepository = new();
-    private readonly Mock<IUserRepository> _userRepository = new();
+    private readonly Mock<ICurrentUserContext> _currentUserContext = new();
     private readonly IParticipantService _participantService;
     private readonly Guid _masterId = Guid.NewGuid();
     private readonly Guid _playerId = Guid.NewGuid();
@@ -22,7 +22,7 @@ public class ParticipantServiceTests
         _participantService = new ParticipantService(
             _participantRepository.Object,
             _gameRepository.Object,
-            _userRepository.Object);
+            _currentUserContext.Object);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class ParticipantServiceTests
             .ReturnsAsync((GameParticipant?)null);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
 
-        var result = await _participantService.JoinGameByInviteCodeAsync(_playerId, inviteCode, displayName);
+        var result = await _participantService.JoinGameByInviteCodeAsync(inviteCode, displayName);
 
         Assert.Equal(game.Id, result.Id);
         _participantRepository.Verify(repository => repository.AddAsync(It.Is<GameParticipant>(participant =>
@@ -92,7 +92,7 @@ public class ParticipantServiceTests
             .ReturnsAsync((GameParticipant?)null);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
 
-        await _participantService.JoinGameByInviteCodeAsync(_playerId, inviteCode, null);
+        await _participantService.JoinGameByInviteCodeAsync(inviteCode, null);
 
         _participantRepository.Verify(repository => repository.AddAsync(It.Is<GameParticipant>(participant =>
             participant.DisplayName == "Default From Db")), Times.Once);
@@ -117,7 +117,7 @@ public class ParticipantServiceTests
             .ReturnsAsync(removedParticipant);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
 
-        await _participantService.JoinGameByInviteCodeAsync(_playerId, inviteCode, displayName);
+        await _participantService.JoinGameByInviteCodeAsync(inviteCode, displayName);
 
         Assert.True(removedParticipant.IsConnected);
         Assert.Null(removedParticipant.RemovedAt);
@@ -136,7 +136,7 @@ public class ParticipantServiceTests
         _gameRepository.Setup(repository => repository.GetByInviteCodeAsync(inviteCode)).ReturnsAsync(game);
         _participantRepository.Setup(repository => repository.ExistsByDisplayNameAsync(displayName, game.Id)).ReturnsAsync(true);
 
-        var act = async () => await _participantService.JoinGameByInviteCodeAsync(_playerId, inviteCode, displayName);
+        var act = async () => await _participantService.JoinGameByInviteCodeAsync(inviteCode, displayName);
 
         await Assert.ThrowsAsync<ResourceAlreadyExistsException>(act);
         _participantRepository.Verify(repository => repository.AddAsync(It.IsAny<GameParticipant>()), Times.Never);
@@ -159,7 +159,7 @@ public class ParticipantServiceTests
             .ReturnsAsync(removedMaster);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
 
-        var result = await _participantService.JoinGameByInviteCodeAsync(_masterId, inviteCode, "Master");
+        var result = await _participantService.JoinGameByInviteCodeAsync(inviteCode, "Master");
 
         Assert.Equal(game.Id, result.Id);
         Assert.True(game.IsActive);
@@ -183,7 +183,7 @@ public class ParticipantServiceTests
             .Setup(repository => repository.GetByUserIdAndGameIdIncludingRemovedAsync(_playerId, game.Id))
             .ReturnsAsync((GameParticipant?)null);
 
-        var act = async () => await _participantService.JoinGameByInviteCodeAsync(_playerId, inviteCode, "Player");
+        var act = async () => await _participantService.JoinGameByInviteCodeAsync(inviteCode, "Player");
 
         await Assert.ThrowsAsync<ForbiddenException>(act);
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
@@ -199,9 +199,10 @@ public class ParticipantServiceTests
         game.Participants.Add(masterParticipant);
         game.Participants.Add(playerParticipant);
 
+        SetupCurrentUserId(_masterId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(game);
 
-        await _participantService.LeaveGameAsync(_gameId, _masterId);
+        await _participantService.LeaveGameAsync(_gameId);
 
         Assert.False(game.IsActive);
         _gameRepository.Verify(repository => repository.Update(game), Times.Once);
@@ -217,9 +218,10 @@ public class ParticipantServiceTests
         var game = CreateGame("invite-code", isActive: true, gameId: _gameId);
         game.Participants.Add(masterParticipant);
 
+        SetupCurrentUserId(_masterId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(game);
 
-        await _participantService.LeaveGameAsync(_gameId, _masterId);
+        await _participantService.LeaveGameAsync(_gameId);
 
         Assert.False(game.IsActive);
         _gameRepository.Verify(repository => repository.Update(game), Times.Once);
@@ -235,9 +237,10 @@ public class ParticipantServiceTests
         game.Participants.Add(CreateParticipant(_masterId, _gameId, ParticipantRole.Master, "Master"));
         game.Participants.Add(playerParticipant);
 
+        SetupCurrentUserId(_playerId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(game);
 
-        await _participantService.LeaveGameAsync(_gameId, _playerId);
+        await _participantService.LeaveGameAsync(_gameId);
 
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(playerParticipant), Times.Once);
         _participantRepository.Verify(repository => repository.SaveChangesAsync(), Times.Once);
@@ -248,9 +251,10 @@ public class ParticipantServiceTests
     {
         var participantId = Guid.NewGuid();
 
+        SetupCurrentUserId(_masterId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync((Game?)null);
 
-        var act = async () => await _participantService.DeleteGameParticipantAsync(_gameId, _masterId, participantId);
+        var act = async () => await _participantService.DeleteGameParticipantAsync(_gameId, participantId);
 
         await Assert.ThrowsAsync<NotFoundException>(act);
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(It.IsAny<GameParticipant>()), Times.Never);
@@ -259,12 +263,13 @@ public class ParticipantServiceTests
     [Fact]
     public async Task DeleteGameParticipantAsync_WhenCurrentUserIsNotMaster_ThrowsForbiddenException()
     {
+        SetupCurrentUserId(_playerId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(CreateGame("invite-code", isActive: true));
         _participantRepository
             .Setup(repository => repository.GetByUserIdAndGameIdAsync(_playerId, _gameId))
             .ReturnsAsync(CreateParticipant(_playerId, _gameId, ParticipantRole.Player, "Player"));
 
-        var act = async () => await _participantService.DeleteGameParticipantAsync(_gameId, _playerId, Guid.NewGuid());
+        var act = async () => await _participantService.DeleteGameParticipantAsync(_gameId, Guid.NewGuid());
 
         await Assert.ThrowsAsync<ForbiddenException>(act);
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(It.IsAny<GameParticipant>()), Times.Never);
@@ -277,6 +282,7 @@ public class ParticipantServiceTests
         var participantId = Guid.NewGuid();
         var participant = CreateParticipant(_playerId, _gameId, ParticipantRole.Player, "Player", participantId);
 
+        SetupCurrentUserId(_masterId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(CreateGame("invite-code", isActive: true));
         _participantRepository
             .Setup(repository => repository.GetByUserIdAndGameIdAsync(_masterId, _gameId))
@@ -285,7 +291,7 @@ public class ParticipantServiceTests
             .Setup(repository => repository.GetActiveByIdAsync(participantId))
             .ReturnsAsync(participant);
 
-        await _participantService.DeleteGameParticipantAsync(_gameId, _masterId, participantId);
+        await _participantService.DeleteGameParticipantAsync(_gameId, participantId);
 
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(participant), Times.Once);
         _participantRepository.Verify(repository => repository.SaveChangesAsync(), Times.Once);
@@ -305,7 +311,7 @@ public class ParticipantServiceTests
             .Setup(repository => repository.GetByUserIdAndGameIdAsync(_playerId, _gameId))
             .ReturnsAsync(participant);
 
-        var result = await _participantService.UpdateDisplayNameAsync(_gameId, _playerId, newDisplayName);
+        var result = await _participantService.UpdateDisplayNameAsync(_gameId, newDisplayName);
 
         Assert.Equal(newDisplayName, result.DisplayName);
         Assert.Equal(newDisplayName, participant.DisplayName);
@@ -325,7 +331,7 @@ public class ParticipantServiceTests
             .Setup(repository => repository.GetByUserIdAndGameIdAsync(_playerId, _gameId))
             .ReturnsAsync(participant);
 
-        var result = await _participantService.UpdateDisplayNameAsync(_gameId, _playerId, null);
+        var result = await _participantService.UpdateDisplayNameAsync(_gameId, null);
 
         Assert.Equal("Default From Db", result.DisplayName);
         Assert.Equal("Default From Db", participant.DisplayName);
@@ -345,7 +351,7 @@ public class ParticipantServiceTests
             .Setup(repository => repository.GetByUserIdAndGameIdAsync(_playerId, _gameId))
             .ReturnsAsync(participant);
 
-        var act = async () => await _participantService.UpdateDisplayNameAsync(_gameId, _playerId, newDisplayName);
+        var act = async () => await _participantService.UpdateDisplayNameAsync(_gameId, newDisplayName);
 
         await Assert.ThrowsAsync<ResourceAlreadyExistsException>(act);
         _participantRepository.Verify(repository => repository.SaveChangesAsync(), Times.Never);
@@ -353,7 +359,13 @@ public class ParticipantServiceTests
 
     private void SetupCurrentUser(User user)
     {
-        _userRepository.Setup(repository => repository.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _currentUserContext.Setup(context => context.GetRequiredUserAsync()).ReturnsAsync(user);
+        _currentUserContext.Setup(context => context.GetRequiredUserId()).Returns(user.Id);
+    }
+
+    private void SetupCurrentUserId(Guid userId)
+    {
+        _currentUserContext.Setup(context => context.GetRequiredUserId()).Returns(userId);
     }
 
     private static User CreateUser(Guid userId, string displayName)

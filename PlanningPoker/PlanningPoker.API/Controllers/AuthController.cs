@@ -7,9 +7,7 @@ namespace PlanningPoker.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class AuthController(
-        IUserService userService,
-        ICurrentUserAccessor currentUserAccessor) : ControllerBase
+    public class AuthController(IUserService userService) : ControllerBase
     {
         [AllowAnonymous]
         [HttpPost("register")]
@@ -31,7 +29,7 @@ namespace PlanningPoker.API.Controllers
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
-            await userService.RevokeTokenAsync(currentUserAccessor.GetRequiredUserId());
+            await userService.RevokeTokenAsync();
             return NoContent();
         }
 
@@ -47,7 +45,7 @@ namespace PlanningPoker.API.Controllers
         [HttpGet("me")]
         public async Task<IActionResult> GetCurrentUser()
         {
-            var result = await userService.GetCurrentUserAsync(currentUserAccessor.GetRequiredUserId());
+            var result = await userService.GetCurrentUserAsync();
             return Ok(result);
         }
     }

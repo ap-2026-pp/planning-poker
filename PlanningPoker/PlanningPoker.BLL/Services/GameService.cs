@@ -10,7 +10,7 @@ namespace PlanningPoker.BLL.Services;
 
 public class GameService(
     IGameRepository gameRepository,
-    IUserRepository userRepository) : IGameService
+    ICurrentUserContext currentUserContext) : IGameService
 {
     private const int InviteCodeLength = 20;
     private const string InviteCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -19,16 +19,14 @@ public class GameService(
     /// Створює нову ігрову сесію та автоматично додає поточного користувача
     /// як першого учасника з роллю Master.
     /// </summary>
-    /// <param name="userId">Ідентифікатор поточного користувача.</param>
     /// <param name="createGameRequestDto">Дані для створення гри.</param>
     /// <returns>Створену гру у вигляді <see cref="GameDto"/></returns>
     /// <exception cref="ResourceAlreadyExistsException">
     /// Виникає, якщо в поточного користувача вже існує гра з такою ж назвою.
     /// </exception>
-    public async Task<GameDto> AddGameAsync(Guid userId, CreateGameRequestDto createGameRequestDto)
+    public async Task<GameDto> AddGameAsync(CreateGameRequestDto createGameRequestDto)
     {
-        var currentUser = await userRepository.GetByIdAsync(userId)
-                          ?? throw new NotFoundException(nameof(User), userId);
+        var currentUser = await currentUserContext.GetRequiredUserAsync();
         var game = GameMapper.ToGame(createGameRequestDto);
         await EnsureUniqueGameNameAsync(game.Name, currentUser.Id);
 
@@ -76,7 +74,6 @@ public class GameService(
     /// Операція доступна лише користувачу з роллю Master у цій грі.
     /// </summary>
     /// <param name="gameId">Унікальний ідентифікатор гри.</param>
-    /// <param name="userId">Ідентифікатор поточного користувача.</param>
     /// <param name="updateGameRequestDto">DTO з новими параметрами гри.</param>
     /// <returns>Оновлену гру у вигляді <see cref="GameDto"/>.</returns>
     /// <exception cref="NotFoundException">
@@ -88,8 +85,9 @@ public class GameService(
     /// <exception cref="ResourceAlreadyExistsException">
     /// Виникає, якщо нова назва гри вже використовується поточним власником в іншій грі.
     /// </exception>
-    public async Task<GameDto> UpdateGameAsync(Guid gameId, Guid userId, UpdateGameRequestDto updateGameRequestDto)
+    public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto updateGameRequestDto)
     {
+        var userId = currentUserContext.GetRequiredUserId();
         var existingGame = await GetGameOrThrowAsync(gameId);
         EnsureUserIsGameMaster(existingGame, userId, "update");
 
@@ -114,13 +112,13 @@ public class GameService(
     /// Операція доступна лише Master учаснику.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
-    /// <param name="userId">Ідентифікатор поточного користувача.</param>
     /// <returns>Асинхронна операція без повернення значення.</returns>
     /// <exception cref="ForbiddenException">
     /// Виникає, якщо поточний користувач не є Master цієї гри.
     /// </exception>
-    public async Task DeleteGameAsync(Guid gameId, Guid userId)
+    public async Task DeleteGameAsync(Guid gameId)
     {
+        var userId = currentUserContext.GetRequiredUserId();
         var game = await gameRepository.GetByIdAsync(gameId);
         
         if (game is null)
@@ -139,7 +137,6 @@ public class GameService(
     /// Повертає гру для формування інвайт-посилання, якщо поточний користувач є її учасником.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
-    /// <param name="userId">Ідентифікатор поточного користувача.</param>
     /// <returns>Сутність гри з даними для запрошення.</returns>
     /// <exception cref="NotFoundException">
     /// Виникає, якщо гру не знайдено.
@@ -147,8 +144,9 @@ public class GameService(
     /// <exception cref="ForbiddenException">
     /// Виникає, якщо поточний користувач не є учасником цієї гри.
     /// </exception>
-    public async Task<Game> GetGameInviteAsync(Guid gameId, Guid userId)
+    public async Task<Game> GetGameInviteAsync(Guid gameId)
     {
+        var userId = currentUserContext.GetRequiredUserId();
         var game = await GetGameOrThrowAsync(gameId);
         EnsureUserIsParticipant(game, userId, "view", "game invite");
 

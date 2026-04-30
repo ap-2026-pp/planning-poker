@@ -10,8 +10,7 @@ namespace PlanningPoker.API.Controllers;
 [Authorize]
 [Route("api/games")]
 public class GameParticipantController(
-    IParticipantService participantService,
-    ICurrentUserAccessor currentUserAccessor) : ControllerBase
+    IParticipantService participantService) : ControllerBase
 {
     [HttpGet("{gameId:guid}/participants")]
     public async Task<ActionResult<IEnumerable<GameParticipantDto>>> GetGameParticipants(Guid gameId)
@@ -22,7 +21,7 @@ public class GameParticipantController(
     [HttpDelete("{gameId:guid}/participants/{participantId:guid}")]
     public async Task<ActionResult> DeleteGameParticipant(Guid gameId, Guid participantId)
     {
-        await participantService.DeleteGameParticipantAsync(gameId, currentUserAccessor.GetRequiredUserId(), participantId);
+        await participantService.DeleteGameParticipantAsync(gameId, participantId);
         return NoContent();
     }
 
@@ -31,17 +30,14 @@ public class GameParticipantController(
         string inviteCode,
         [FromBody] JoinGameRequestDto joinGameRequestDto)
     {
-        var game = await participantService.JoinGameByInviteCodeAsync(
-            currentUserAccessor.GetRequiredUserId(),
-            inviteCode,
-            joinGameRequestDto.DisplayName);
+        var game = await participantService.JoinGameByInviteCodeAsync(inviteCode, joinGameRequestDto.DisplayName);
         return Ok(game);
     }
 
     [HttpDelete("{gameId:guid}/participants/me")]
     public async Task<ActionResult> LeaveGame(Guid gameId)
     {
-        await participantService.LeaveGameAsync(gameId, currentUserAccessor.GetRequiredUserId());
+        await participantService.LeaveGameAsync(gameId);
         return NoContent();
     }
 
@@ -50,10 +46,7 @@ public class GameParticipantController(
         Guid gameId,
         [FromBody] UpdateDisplayNameDto updateDisplayNameDto)
     {
-        var updatedParticipant = await participantService.UpdateDisplayNameAsync(
-            gameId,
-            currentUserAccessor.GetRequiredUserId(),
-            updateDisplayNameDto.DisplayName);
+        var updatedParticipant = await participantService.UpdateDisplayNameAsync(gameId, updateDisplayNameDto.DisplayName);
         return Ok(updatedParticipant);
     }
 }

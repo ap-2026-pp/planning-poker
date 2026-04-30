@@ -7,6 +7,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddBllServices(this IServiceCollection services)
     {
+        services.AddScoped<ICurrentUserContext, CurrentUserContext>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IGameService, GameService>();
         services.AddScoped<IParticipantService, ParticipantService>();

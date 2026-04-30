@@ -14,13 +14,16 @@ internal class UserService : IUserService
 {
     private readonly UserManager<User> _userManager;
     private readonly IJwtService _jwtService;
+    private readonly ICurrentUserContext _currentUserContext;
     
     public UserService(
         UserManager<User> userManager,
-        IJwtService jwtService)
+        IJwtService jwtService,
+        ICurrentUserContext currentUserContext)
     {
         _userManager = userManager;
         _jwtService = jwtService;
+        _currentUserContext = currentUserContext;
     }
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
@@ -39,7 +42,7 @@ internal class UserService : IUserService
             Email = dto.Email,
             DisplayName = dto.Email.Split('@')[0],
             CreatedAt = DateTime.UtcNow,
-            RefreshToken = string.Empty
+            RefreshToken = null
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -132,21 +135,19 @@ internal class UserService : IUserService
         );
     }
 
-    public async Task RevokeTokenAsync(Guid userId)
+    public async Task RevokeTokenAsync()
     {
-        var user = await _userManager.FindByIdAsync(userId.ToString())
-                   ?? throw new NotFoundException(nameof(User), userId);
+        var user = await _currentUserContext.GetRequiredUserAsync();
 
-        user.RefreshToken = string.Empty;
+        user.RefreshToken = null;
         user.RefreshTokenExpiryTime = null;
 
         await _userManager.UpdateAsync(user);
     }
 
-    public async Task<UserDto> GetCurrentUserAsync(Guid userId)
+    public async Task<UserDto> GetCurrentUserAsync()
     {
-        var user = await _userManager.FindByIdAsync(userId.ToString())
-                   ?? throw new NotFoundException(nameof(User), userId);
+        var user = await _currentUserContext.GetRequiredUserAsync();
 
         return AuthMapper.ToUserDto(user);
     }

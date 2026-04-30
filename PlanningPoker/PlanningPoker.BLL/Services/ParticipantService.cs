@@ -10,7 +10,7 @@ namespace PlanningPoker.BLL.Services;
 public class ParticipantService(
     IParticipantRepository participantRepository,
     IGameRepository gameRepository,
-    IUserRepository userRepository) : IParticipantService
+    ICurrentUserContext currentUserContext) : IParticipantService
 {
     
     /// <summary>
@@ -30,7 +30,6 @@ public class ParticipantService(
     /// Якщо користувач раніше був видалений з гри, відновлює його участь.
     /// Якщо гра неактивна, реактивувати її може лише master, який уже був учасником цієї гри.
     /// </summary>
-    /// <param name="userId">Ідентифікатор поточного користувача.</param>
     /// <param name="inviteCode">Код запрошення до гри.</param>
     /// <param name="displayName">Бажане display name учасника в межах гри.
     /// Якщо значення не задане або порожнє, використовується display name користувача з профілю.
@@ -45,10 +44,10 @@ public class ParticipantService(
     /// <exception cref="ResourceAlreadyExistsException">
     /// Виникає, якщо обране display name уже використовується іншим активним учасником цієї гри.
     /// </exception>
-    public async Task<GameDto> JoinGameByInviteCodeAsync(Guid userId, string inviteCode, string? displayName)
+    public async Task<GameDto> JoinGameByInviteCodeAsync(string inviteCode, string? displayName)
     {
-        var currentUser = await userRepository.GetByIdAsync(userId)
-                          ?? throw new NotFoundException(nameof(User), userId);
+        var currentUser = await currentUserContext.GetRequiredUserAsync();
+        var userId = currentUser.Id;
         var game = await gameRepository.GetByInviteCodeAsync(inviteCode)
                    ?? throw new NotFoundException(nameof(Game), nameof(Game.InviteCode), inviteCode);
         var resolvedDisplayName = string.IsNullOrWhiteSpace(displayName)
@@ -124,13 +123,13 @@ public class ParticipantService(
     /// Якщо гру залишає master, сесія завершується для всіх активних учасників, а сама гра позначається як неактивна.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
-    /// <param name="userId">Ідентифікатор поточного користувача.</param>
     /// <returns>Асинхронна операція без повернення значення.</returns>
     /// <exception cref="NotFoundException">
     /// Виникає, якщо гру або поточного учасника в межах цієї гри не знайдено.
     /// </exception>
-    public async Task LeaveGameAsync(Guid gameId, Guid userId)
+    public async Task LeaveGameAsync(Guid gameId)
     {
+        var userId = currentUserContext.GetRequiredUserId();
         var game = await GetGameOrThrowAsync(gameId);
         
         var participant = game.Participants.SingleOrDefault(currentParticipant => currentParticipant.UserId == userId);
@@ -160,7 +159,6 @@ public class ParticipantService(
     /// Видаляє активного учасника з гри. Операція доступна лише Master у межах цієї гри.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
-    /// <param name="userId">Ідентифікатор поточного користувача.</param>
     /// <param name="participantId">Ідентифікатор учасника, якого потрібно видалити.</param>
     /// <returns>Асинхронна операція без повернення значення.</returns>
     /// <exception cref="NotFoundException">
@@ -169,8 +167,9 @@ public class ParticipantService(
     /// <exception cref="ForbiddenException">
     /// Виникає, якщо поточний користувач не є master цієї гри.
     /// </exception>
-    public async Task DeleteGameParticipantAsync(Guid gameId, Guid userId, Guid participantId)
+    public async Task DeleteGameParticipantAsync(Guid gameId, Guid participantId)
     {
+        var userId = currentUserContext.GetRequiredUserId();
         await GetGameOrThrowAsync(gameId);
 
         var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(userId, gameId);
@@ -194,7 +193,6 @@ public class ParticipantService(
     /// Якщо нове display name не задане, використовується display name користувача з профілю.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
-    /// <param name="userId">Ідентифікатор поточного користувача.</param>
     /// <param name="displayName">Нове display name учасника.
     /// Якщо значення порожнє або складається лише з пробілів, використовується display name користувача з профілю.
     /// </param>
@@ -205,10 +203,10 @@ public class ParticipantService(
     /// <exception cref="ResourceAlreadyExistsException">
     /// Виникає, якщо нове display name уже використовується іншим активним учасником цієї гри.
     /// </exception>
-    public async Task<GameParticipantDto> UpdateDisplayNameAsync(Guid gameId, Guid userId, string? displayName)
+    public async Task<GameParticipantDto> UpdateDisplayNameAsync(Guid gameId, string? displayName)
     {
-        var currentUser = await userRepository.GetByIdAsync(userId)
-                          ?? throw new NotFoundException(nameof(User), userId);
+        var currentUser = await currentUserContext.GetRequiredUserAsync();
+        var userId = currentUser.Id;
         await GetGameOrThrowAsync(gameId);
         
         var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(userId, gameId)

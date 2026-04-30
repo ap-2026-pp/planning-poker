@@ -11,14 +11,13 @@ namespace PlanningPoker.API.Controllers;
 [Route("api/[controller]")]
 public class GameController(
     IGameService gameService,
-    InviteLinkService inviteLinkService,
-    ICurrentUserAccessor currentUserAccessor) : ControllerBase
+    InviteLinkService inviteLinkService) : ControllerBase
 {
    
     [HttpPost]
     public async Task<ActionResult<GameDto>> CreateGame([FromBody] CreateGameRequestDto createGameRequestDto)
     {
-        var createdGame = await gameService.AddGameAsync(currentUserAccessor.GetRequiredUserId(), createGameRequestDto);
+        var createdGame = await gameService.AddGameAsync(createGameRequestDto);
         return Ok(createdGame);
     }
 
@@ -32,21 +31,21 @@ public class GameController(
     [HttpGet("{gameId:guid}/invite")]
     public async Task<ActionResult<GameInviteDto>> GetGameInvite(Guid gameId)
     {
-        var game = await gameService.GetGameInviteAsync(gameId, currentUserAccessor.GetRequiredUserId());
+        var game = await gameService.GetGameInviteAsync(gameId);
         return Ok(inviteLinkService.BuildInviteDto(game.Id, game.InviteCode, Request));
     }
 
     [HttpPut("{gameId:guid}")]
     public async Task<ActionResult<GameDto>> UpdateGame(Guid gameId, [FromBody] UpdateGameRequestDto updateGameRequestDto)
     {
-        var updatedGame = await gameService.UpdateGameAsync(gameId, currentUserAccessor.GetRequiredUserId(), updateGameRequestDto);
+        var updatedGame = await gameService.UpdateGameAsync(gameId, updateGameRequestDto);
         return Ok(updatedGame);
     }
 
     [HttpDelete("{gameId:guid}")]
     public async Task<ActionResult> DeleteGame(Guid gameId)
     {
-        await gameService.DeleteGameAsync(gameId, currentUserAccessor.GetRequiredUserId());
+        await gameService.DeleteGameAsync(gameId);
         return NoContent();
     }
 }

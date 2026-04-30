@@ -14,12 +14,10 @@ namespace PlanningPoker.API.Controllers;
 public class IssuesController : ControllerBase
 {
     private readonly IIssueService _issueService;
-    private readonly ICurrentUserAccessor _currentUser;
 
-    public IssuesController(IIssueService issueService, ICurrentUserAccessor currentUser)
+    public IssuesController(IIssueService issueService)
     {
         _issueService = issueService;
-        _currentUser = currentUser;
     }
 
     /// <summary>
@@ -28,7 +26,7 @@ public class IssuesController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetIssuesByGame([FromRoute] Guid gameId)
     {
-        var issues = await _issueService.GetIssuesByGameAsync(gameId, _currentUser.GetRequiredUserId());
+        var issues = await _issueService.GetIssuesByGameAsync(gameId);
         return Ok(issues);
     }
 
@@ -40,7 +38,7 @@ public class IssuesController : ControllerBase
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId)
     {
-        var issue = await _issueService.GetIssueByIdAsync(gameId, issueId, _currentUser.GetRequiredUserId());
+        var issue = await _issueService.GetIssueByIdAsync(gameId, issueId);
         return Ok(issue);
     }
 
@@ -51,7 +49,7 @@ public class IssuesController : ControllerBase
     public async Task<IActionResult> CreateIssue([FromRoute] Guid gameId,
         [FromBody] CreateIssueDto dto)
     {
-        var issue = await _issueService.CreateIssueAsync(gameId, _currentUser.GetRequiredUserId(), dto);
+        var issue = await _issueService.CreateIssueAsync(gameId, dto);
         return CreatedAtAction(
             nameof(GetIssueById),
             new { gameId, issueId = issue.Id },
@@ -67,7 +65,7 @@ public class IssuesController : ControllerBase
         [FromRoute] Guid issueId,
         [FromBody] UpdateIssueDto dto)
     {
-        var issue = await _issueService.UpdateIssueAsync(gameId, issueId, _currentUser.GetRequiredUserId(), dto);
+        var issue = await _issueService.UpdateIssueAsync(gameId, issueId, dto);
         return Ok(issue);
     }
 
@@ -79,7 +77,7 @@ public class IssuesController : ControllerBase
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId)
     {
-        await _issueService.DeleteIssueAsync(gameId, issueId, _currentUser.GetRequiredUserId());
+        await _issueService.DeleteIssueAsync(gameId, issueId);
         return NoContent();
     }
 
@@ -91,7 +89,7 @@ public class IssuesController : ControllerBase
         [FromRoute] Guid gameId,
         [FromBody] ReorderIssueDto dto)
     {
-        await _issueService.ReorderIssuesAsync(gameId, _currentUser.GetRequiredUserId(),dto);
+        await _issueService.ReorderIssuesAsync(gameId, dto);
         return NoContent();
     }
 
@@ -103,7 +101,7 @@ public class IssuesController : ControllerBase
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId)
     {
-        var issue = await _issueService.SetIssueActiveAsync(gameId, issueId, _currentUser.GetRequiredUserId());
+        var issue = await _issueService.SetIssueActiveAsync(gameId, issueId);
         return Ok(issue);
     }
 
@@ -115,7 +113,7 @@ public class IssuesController : ControllerBase
     [FromRoute] Guid gameId,
     [FromBody] ImportPlaneIssuesDto dto)
     {
-        var issues = await _issueService.ImportIssueByPlaneAsync(gameId, _currentUser.GetRequiredUserId(), dto);
+        var issues = await _issueService.ImportIssueByPlaneAsync(gameId, dto);
         return Ok(issues);
     }
 }

@@ -11,14 +11,14 @@ namespace PlanningPoker.Tests.Services;
 public class GameServiceTests
 {
     private readonly Mock<IGameRepository> _gameRepository = new();
-    private readonly Mock<IUserRepository> _userRepository = new();
+    private readonly Mock<ICurrentUserContext> _currentUserContext = new();
     private readonly GameService _gameService;
     private readonly Guid _playerId = Guid.NewGuid();
     private readonly Guid _masterId = Guid.NewGuid();
 
     public GameServiceTests()
     {
-        _gameService = new GameService(_gameRepository.Object, _userRepository.Object);
+        _gameService = new GameService(_gameRepository.Object, _currentUserContext.Object);
     }
 
     [Fact]
@@ -31,13 +31,14 @@ public class GameServiceTests
         _gameRepository.Setup(repository => repository.ExistsByNameAsync(request.Name, _masterId)).ReturnsAsync(false);
         _gameRepository.Setup(repository => repository.ExistsByInviteCodeAsync(It.IsAny<string>())).ReturnsAsync(false);
 
-        var result = await _gameService.AddGameAsync(_masterId, request);
+        var result = await _gameService.AddGameAsync(request);
 
         Assert.Equal(request.Name, result.Name);
         Assert.Equal(request.VotingSystem, result.VotingSystem);
         Assert.Equal(request.AutoRevealCards, result.AutoRevealCards);
         Assert.Equal(_masterId, result.CreatedBy);
         Assert.True(result.IsActive);
+        Assert.NotNull(result.InviteCode);
         Assert.Equal(20, result.InviteCode.Length);
         Assert.Single(result.Participants);
 
@@ -58,7 +59,7 @@ public class GameServiceTests
             game.InviteCode.Length == 20 &&
             game.Participants.Count == 1 &&
             game.Participants.Single().UserId == _masterId &&
-            game.Participants.Single().DisplayName == request.HostDisplayName &&
+            game.Participants.Single().DisplayName == "ScrumMaster" &&
             game.Participants.Single().Role == ParticipantRole.Master &&
             game.Participants.Single().IsConnected)), Times.Once);
         _gameRepository.Verify(repository => repository.SaveChangesAsync(), Times.Once);
@@ -74,7 +75,7 @@ public class GameServiceTests
         _gameRepository.Setup(repository => repository.ExistsByNameAsync(request.Name, _masterId)).ReturnsAsync(false);
         _gameRepository.Setup(repository => repository.ExistsByInviteCodeAsync(It.IsAny<string>())).ReturnsAsync(false);
 
-        var result = await _gameService.AddGameAsync(_masterId, request);
+        var result = await _gameService.AddGameAsync(request);
 
         var participant = Assert.Single(result.Participants);
         Assert.Equal("Default From Db", participant.DisplayName);
@@ -85,11 +86,11 @@ public class GameServiceTests
     {
         var request = CreateGameRequest("newGame", null, VotingSystem.Custom, true);
 
-        _userRepository
-            .Setup(repository => repository.GetByIdAsync(_masterId))
-            .ReturnsAsync((User?)null);
+        _currentUserContext
+            .Setup(context => context.GetRequiredUserAsync())
+            .ThrowsAsync(new NotFoundException(nameof(User), _masterId));
 
-        var act = async () => await _gameService.AddGameAsync(_masterId, request);
+        var act = async () => await _gameService.AddGameAsync(request);
 
         await Assert.ThrowsAsync<NotFoundException>(act);
         _gameRepository.Verify(repository => repository.AddAsync(It.IsAny<Game>()), Times.Never);
@@ -104,7 +105,7 @@ public class GameServiceTests
         SetupCurrentUser(CreateUser(_masterId, "Default From Db"));
         _gameRepository.Setup(repository => repository.ExistsByNameAsync(request.Name, _masterId)).ReturnsAsync(true);
 
-        var act = async () => await _gameService.AddGameAsync(_masterId, request);
+        var act = async () => await _gameService.AddGameAsync(request);
 
         await Assert.ThrowsAsync<ResourceAlreadyExistsException>(act);
         _gameRepository.Verify(repository => repository.AddAsync(It.IsAny<Game>()), Times.Never);
@@ -142,9 +143,10 @@ public class GameServiceTests
         var game = CreateGame("newGame", VotingSystem.Custom, true);
         game.Participants.Add(CreateParticipant(_masterId, ParticipantRole.Master));
 
+        SetupCurrentUserId(_masterId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
 
-        var result = await _gameService.GetGameInviteAsync(game.Id, _masterId);
+        var result = await _gameService.GetGameInviteAsync(game.Id);
 
         Assert.Same(game, result);
     }
@@ -155,9 +157,10 @@ public class GameServiceTests
         var game = CreateGame("newGame", VotingSystem.Custom, true);
         game.Participants.Add(CreateParticipant(_masterId, ParticipantRole.Master));
 
+        SetupCurrentUserId(_playerId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
 
-        var act = async () => await _gameService.GetGameInviteAsync(game.Id, _playerId);
+        var act = async () => await _gameService.GetGameInviteAsync(game.Id);
 
         await Assert.ThrowsAsync<ForbiddenException>(act);
     }
@@ -171,12 +174,13 @@ public class GameServiceTests
 
         var updatedGame = CreateUpdatedGameRequest("updatedGame", VotingSystem.Fibonacci, false, false, false, false);
 
+        SetupCurrentUserId(_masterId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
         _gameRepository
             .Setup(repository => repository.ExistsByNameAsync(updatedGame.Name, game.CreatedBy, game.Id))
             .ReturnsAsync(false);
 
-        var result = await _gameService.UpdateGameAsync(game.Id, _masterId, updatedGame);
+        var result = await _gameService.UpdateGameAsync(game.Id, updatedGame);
 
         Assert.Equal(updatedGame.Name, result.Name);
         Assert.Equal(updatedGame.VotingSystem, result.VotingSystem);
@@ -197,12 +201,13 @@ public class GameServiceTests
         game.Participants.Add(CreateParticipant(_masterId, ParticipantRole.Master));
 
         var updatedGame = CreateUpdatedGameRequest("updatedGame", VotingSystem.Custom, true);
+        SetupCurrentUserId(_masterId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
         _gameRepository
             .Setup(repository => repository.ExistsByNameAsync(updatedGame.Name, game.CreatedBy, game.Id))
             .ReturnsAsync(true);
 
-        var act = async () => await _gameService.UpdateGameAsync(game.Id, _masterId, updatedGame);
+        var act = async () => await _gameService.UpdateGameAsync(game.Id, updatedGame);
 
         await Assert.ThrowsAsync<ResourceAlreadyExistsException>(act);
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
@@ -216,9 +221,10 @@ public class GameServiceTests
         game.Participants.Add(CreateParticipant(_playerId, ParticipantRole.Player));
 
         var updatedGame = CreateUpdatedGameRequest("updatedGame", VotingSystem.Custom, true);
+        SetupCurrentUserId(_playerId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
 
-        var act = async () => await _gameService.UpdateGameAsync(game.Id, _playerId, updatedGame);
+        var act = async () => await _gameService.UpdateGameAsync(game.Id, updatedGame);
 
         await Assert.ThrowsAsync<ForbiddenException>(act);
         _gameRepository.Verify(
@@ -231,9 +237,10 @@ public class GameServiceTests
     {
         var game = CreateGame("newGame", VotingSystem.Custom, true);
         game.Participants.Add(CreateParticipant(_masterId, ParticipantRole.Master));
+        SetupCurrentUserId(_masterId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
 
-        await _gameService.DeleteGameAsync(game.Id, _masterId);
+        await _gameService.DeleteGameAsync(game.Id);
 
         Assert.True(game.IsDeleted);
         Assert.False(game.IsActive);
@@ -245,9 +252,10 @@ public class GameServiceTests
     public async Task DeleteGameAsync_WhenGameDoesNotExist_ReturnsWithoutSaving()
     {
         var gameId = Guid.NewGuid();
+        SetupCurrentUserId(_masterId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(gameId)).ReturnsAsync((Game?)null);
 
-        await _gameService.DeleteGameAsync(gameId, _masterId);
+        await _gameService.DeleteGameAsync(gameId);
 
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
         _gameRepository.Verify(repository => repository.SaveChangesAsync(), Times.Never);
@@ -258,9 +266,10 @@ public class GameServiceTests
     {
         var game = CreateGame("newGame", VotingSystem.Custom, true);
         game.Participants.Add(CreateParticipant(_playerId, ParticipantRole.Player));
+        SetupCurrentUserId(_playerId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
 
-        var act = async () => await _gameService.DeleteGameAsync(game.Id, _playerId);
+        var act = async () => await _gameService.DeleteGameAsync(game.Id);
 
         await Assert.ThrowsAsync<ForbiddenException>(act);
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
@@ -269,7 +278,13 @@ public class GameServiceTests
 
     private void SetupCurrentUser(User user)
     {
-        _userRepository.Setup(repository => repository.GetByIdAsync(user.Id)).ReturnsAsync(user);
+        _currentUserContext.Setup(context => context.GetRequiredUserAsync()).ReturnsAsync(user);
+        _currentUserContext.Setup(context => context.GetRequiredUserId()).Returns(user.Id);
+    }
+
+    private void SetupCurrentUserId(Guid userId)
+    {
+        _currentUserContext.Setup(context => context.GetRequiredUserId()).Returns(userId);
     }
 
     private static User CreateUser(Guid userId, string displayName)
