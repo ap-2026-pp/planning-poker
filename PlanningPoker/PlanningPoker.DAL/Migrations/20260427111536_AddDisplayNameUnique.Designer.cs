@@ -214,7 +214,8 @@ namespace PlanningPoker.DAL.Migrations
                     b.HasIndex("UserId");
 
                     b.HasIndex("GameId", "DisplayName")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"RemovedAt\" IS NULL");
 
                     b.ToTable("GameParticipants", (string)null);
                 });

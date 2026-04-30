@@ -18,7 +18,8 @@ namespace PlanningPoker.DAL.Migrations
                 name: "IX_GameParticipants_GameId_DisplayName",
                 table: "GameParticipants",
                 columns: new[] { "GameId", "DisplayName" },
-                unique: true);
+                unique: true,
+                filter: "\"RemovedAt\" IS NULL");
         }
 
         /// <inheritdoc />
