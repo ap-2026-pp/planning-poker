@@ -5,9 +5,9 @@ namespace PlanningPoker.Domain.DTOs.Game;
 public class GameDto
 {
     public Guid Id { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public string? Name { get; set; }
     public VotingSystem VotingSystem { get; set; }
-    public string InviteCode { get; set; } = string.Empty;
+    public string? InviteCode { get; set; }
     public bool AutoRevealCards { get; set; }
     public bool ShowAverage { get; set; }
     public bool ShowCountdownAnimation { get; set; }

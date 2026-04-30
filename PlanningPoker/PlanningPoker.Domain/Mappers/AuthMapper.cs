@@ -8,7 +8,7 @@ public static class AuthMapper
     public static UserDto ToUserDto(User user) =>
         new(
             user.Id,
-            user.Email ?? string.Empty
+            user.Email!
         );
 
     public static AuthResponseDto ToAuthResponseDto(
@@ -20,6 +20,6 @@ public static class AuthMapper
             accessToken,
             refreshToken,
             expiration,
-            user.Email ?? string.Empty
+            user.Email!
         );
 }

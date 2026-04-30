@@ -42,7 +42,7 @@ internal class UserService : IUserService
             Email = dto.Email,
             DisplayName = dto.Email.Split('@')[0],
             CreatedAt = DateTime.UtcNow,
-            RefreshToken = string.Empty
+            RefreshToken = null
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -139,7 +139,7 @@ internal class UserService : IUserService
     {
         var user = await _currentUserContext.GetRequiredUserAsync();
 
-        user.RefreshToken = string.Empty;
+        user.RefreshToken = null;
         user.RefreshTokenExpiryTime = null;
 
         await _userManager.UpdateAsync(user);
