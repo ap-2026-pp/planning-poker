@@ -12,34 +12,33 @@ public static class DbInitializer
     {
         await context.Database.MigrateAsync();
 
-        var masterUser = await EnsureUserAsync(userManager, "master@test.com", "Master123!", "Master");
-        var playerUser = await EnsureUserAsync(userManager, "player@test.com", "Player123!", "Player");
-        var spectatorUser = await EnsureUserAsync(userManager, "spectator@test.com", "Spectator123!", "Spectator");
+        var masterUser = await EnsureUserAsync(
+            userManager,
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            "master@test.com",
+            "Master123!",
+            "Master");
 
+        var playerUser = await EnsureUserAsync(
+            userManager,
+            Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            "player@test.com",
+            "Player123!",
+            "Player");
+
+        var spectatorUser = await EnsureUserAsync(
+            userManager,
+            Guid.Parse("33333333-3333-3333-3333-333333333333"),
+            "spectator@test.com",
+            "Spectator123!",
+            "Spectator");
 
         await SeedGameAsync(context, masterUser, playerUser, spectatorUser);
-    }
-  
-    private static async Task EnsureRoleAsync(RoleManager<Role> roleManager, string roleName)
-    {
-        if (await roleManager.RoleExistsAsync(roleName))
-            return;
-
-        var result = await roleManager.CreateAsync(new Role
-        {
-            Name = roleName,
-            NormalizedName = roleName.ToUpperInvariant()
-        });
-
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException(
-                $"Failed to create role '{roleName}': {string.Join("; ", result.Errors.Select(e => e.Description))}");
-        }
     }
 
     private static async Task<User> EnsureUserAsync(
         UserManager<User> userManager,
+        Guid userId,
         string email,
         string password,
         string displayName)
@@ -51,7 +50,7 @@ public static class DbInitializer
 
         user = new User
         {
-            Id = Guid.NewGuid(),
+            Id = userId,
             UserName = email,
             Email = email,
             EmailConfirmed = true,
@@ -79,14 +78,15 @@ public static class DbInitializer
     {
         var existingGame = await context.Games
             .Include(g => g.Participants)
-            .FirstOrDefaultAsync(g => g.Name == "Demo Planning Poker");
+            .Include(g => g.Issues)
+            .FirstOrDefaultAsync(g => g.Id == Guid.Parse("44444444-4444-4444-4444-444444444444"));
 
         if (existingGame is not null)
             return;
 
         var game = new Game
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.Parse("44444444-4444-4444-4444-444444444444"),
             Name = "Demo Planning Poker",
             VotingSystem = VotingSystem.Fibonacci,
             InviteCode = "DEMO123",
@@ -97,40 +97,87 @@ public static class DbInitializer
             IsActive = true,
             IsDeleted = false,
             CreatedBy = masterUser.Id,
-            Participants = new List<GameParticipant>()
+            Participants = new List<GameParticipant>(),
+            Issues = new List<Issue>()
         };
 
-        game.Participants.Add(new GameParticipant
+        var masterParticipant = new GameParticipant
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.Parse("55555555-5555-5555-5555-555555555555"),
             GameId = game.Id,
             UserId = masterUser.Id,
             DisplayName = masterUser.DisplayName,
             Role = ParticipantRole.Master,
             JoinedAt = DateTime.UtcNow,
             IsConnected = true
-        });
+        };
 
-        game.Participants.Add(new GameParticipant
+        var playerParticipant = new GameParticipant
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.Parse("66666666-6666-6666-6666-666666666666"),
             GameId = game.Id,
             UserId = playerUser.Id,
             DisplayName = playerUser.DisplayName,
             Role = ParticipantRole.Player,
             JoinedAt = DateTime.UtcNow,
             IsConnected = true
-        });
+        };
 
-        game.Participants.Add(new GameParticipant
+        var spectatorParticipant = new GameParticipant
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.Parse("77777777-7777-7777-7777-777777777777"),
             GameId = game.Id,
             UserId = spectatorUser.Id,
             DisplayName = spectatorUser.DisplayName,
             Role = ParticipantRole.Spectator,
             JoinedAt = DateTime.UtcNow,
             IsConnected = true
+        };
+
+        game.Participants.Add(masterParticipant);
+        game.Participants.Add(playerParticipant);
+        game.Participants.Add(spectatorParticipant);
+
+        game.Issues.Add(new Issue
+        {
+            Id = Guid.Parse("88888888-8888-8888-8888-888888888888"),
+            GameId = game.Id,
+            Url = "https://app.plane.so/demo/projects/demo/issues/first",
+            Title = "First issue",
+            Description = "Add registration, login and JWT authentication.",
+            Order = 1,
+            IsCurrent = true,
+            IsRemoved = false,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = masterParticipant.Id
+        });
+
+        game.Issues.Add(new Issue
+        {
+            Id = Guid.Parse("99999999-9999-9999-9999-999999999999"),
+            GameId = game.Id,
+            Url = "https://app.plane.so/demo/projects/demo/issues/second",
+            Title = "Second issue",
+            Description = "Create issues sidebar and basic issue actions.",
+            Order = 2,
+            IsCurrent = false,
+            IsRemoved = false,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = masterParticipant.Id
+        });
+
+        game.Issues.Add(new Issue
+        {
+            Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+            GameId = game.Id,
+            Url = "https://app.plane.so/demo/projects/demo/issues/third",
+            Title = "Third issue",
+            Description = "Implement voting flow and active issue selection.",
+            Order = 3,
+            IsCurrent = false,
+            IsRemoved = false,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = masterParticipant.Id
         });
 
         await context.Games.AddAsync(game);

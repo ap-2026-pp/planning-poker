@@ -17,8 +17,8 @@ public static class DependencyInjection
         services.AddScoped(typeof(IBaseRepository<>), typeof(BaseRepository<>));
         services.AddScoped<IGameRepository, GameRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IIssueRepository, IssueRepository>();
         services.AddScoped<IParticipantRepository, ParticipantRepository>();
-
         return services;
     }
 }

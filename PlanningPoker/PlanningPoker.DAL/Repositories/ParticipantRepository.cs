@@ -36,4 +36,9 @@ internal class ParticipantRepository(AppDbContext context) : BaseRepository<Game
         participant.RemovedAt = DateTime.UtcNow;
         _dbSet.Update(participant);
     } 
+
+    public async Task<GameParticipant?> GetByGameAndUserAsync(Guid gameId, Guid userId)
+    {
+        return _dbSet.FirstOrDefault(x => x.GameId == gameId && x.UserId == userId);
+    }
 }
