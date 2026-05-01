@@ -1,133 +1,139 @@
-using Microsoft.AspNetCore.Identity;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
+using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
+using PlanningPoker.Domain.Mappers;
 using PlanningPoker.Domain.Models;
-using  PlanningPoker.Domain.Mappers;
 
 namespace PlanningPoker.BLL.Services;
 
-internal class IssueService : IIssueService
+/// <summary>
+/// Сервіс для управління задачами (Issues) у межах ігрової сесії.
+/// </summary>
+public class IssueService(
+    IIssueRepository repoIssues,
+    IPlaneService planeService,
+    IGameAccessService gameAccessService) : IIssueService
 {
-    private readonly IIssueRepository _repoIssues;
-    private readonly IParticipantRepository _repoParticipant;
-    private readonly IPlaneService _planeService;
-
-    public IssueService(
-        IIssueRepository repoIssues,
-        IPlaneService planeService,
-        IParticipantRepository repoParticipant)
-    {
-        _repoIssues = repoIssues;
-        _planeService = planeService;
-        _repoParticipant = repoParticipant;
-    }
-
     /// <summary>
-    /// Повертає всі не видалені задачі конкретної гри
+    /// Отримує список усіх активних задач для конкретної гри.
     /// </summary>
     public async Task<IEnumerable<IssueDto>> GetIssuesByGameAsync(Guid gameId)
     {
-        var issues = await _repoIssues.GetByGameIdAsync(gameId);
+        await gameAccessService.GetRequiredParticipantAsync(gameId);
+
+        var issues = await repoIssues.GetByGameIdAsync(gameId);
         return issues.Select(IssueMapper.ToDto);
     }
 
     /// <summary>
-    /// Повертає детальну інформацію про одну задачу гри
+    /// Отримує детальну інформацію про конкретну задачу.
     /// </summary>
     public async Task<IssueDetailsDto> GetIssueByIdAsync(Guid gameId, Guid issueId)
     {
-        var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
+        await gameAccessService.GetRequiredParticipantAsync(gameId);
 
-        if (issue is null)
-            throw new Exception("Issue not found.");
+        var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
+                    ?? throw new NotFoundException(nameof(Issue), issueId);
 
         return IssueMapper.ToDetailsDto(issue);
     }
 
     /// <summary>
-    /// Створює нову задачу в грі від імені учасника
+    /// Створює нову задачу в грі, доступно лише Майстру.
     /// </summary>
-    public async Task<IssueDto> CreateIssueAsync(Guid gameId,
-        Guid userId,
-        CreateIssueDto dto)
+    public async Task<IssueDto> CreateIssueAsync(Guid gameId, CreateIssueDto dto)
     {
-        var participant = await _repoParticipant.GetByGameAndUserAsync(gameId, userId);
-        if(participant == null)
-            throw new Exception("User isn't participant of this game");
-
-        if(participant.Role != ParticipantRole.Master)
-            throw new Exception("Only master can create issues");
-        var order = await _repoIssues.GetNextOrderAsync(gameId);
+        var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+        var order = await repoIssues.GetNextOrderAsync(gameId);
 
         var issue = new Issue
         {
             Id = Guid.NewGuid(),
             GameId = gameId,
             Url = string.Empty,
-            Title = dto.Title,
+            Title = dto.Title.Trim(),
             Description = string.Empty,
             Order = order,
             IsCurrent = false,
             IsRemoved = false,
             CreatedAt = DateTime.UtcNow,
-            CreatedBy = userId
+            CreatedBy = participant.UserId 
         };
 
-        await _repoIssues.AddAsync(issue);
-        await _repoIssues.SaveChangesAsync();
+        await repoIssues.AddAsync(issue);
+        await repoIssues.SaveChangesAsync();
 
         return IssueMapper.ToDto(issue);
     }
 
     /// <summary>
-    /// Оновлює основні дані задачі: назву, посилання та опис
+    /// Оновлює дані існуючої задачі. Забороняє зміну заголовка для задач із Plane.
+    /// Перевіряємо, чи користувач намагається змінити заголовок,
+    /// для локальних задач дозволено все
     /// </summary>
-    public async Task<IssueDto> UpdateIssueAsync(Guid gameId,
-        Guid issueId, UpdateIssueDto dto)
+    public async Task<IssueDto> UpdateIssueAsync(Guid gameId, Guid issueId, UpdateIssueDto dto)
     {
-        var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
+        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
 
-        if (issue is null)
-            throw new Exception("Issue not found");
+        var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
+                    ?? throw new NotFoundException(nameof(Issue), issueId);
 
-        issue.Url = dto.Url ?? string.Empty;
-        issue.Title = dto.Title;
-        issue.Description = dto.Description ?? string.Empty;
+        bool isImportedFromPlane = !string.IsNullOrWhiteSpace(issue.Url);
 
-        _repoIssues.Update(issue);
-        await _repoIssues.SaveChangesAsync();
+        if (isImportedFromPlane)
+        {
+            if (issue.Title != dto.Title.Trim())
+            {
+                throw new ForbiddenException("Ви не маєте права змінювати заголовок задачі, що була імпортована з Plane.");
+            }
+            issue.Description = dto.Description?.Trim() ?? string.Empty;
+        }
+        else
+        {
+            issue.Title = dto.Title.Trim();
+            issue.Description = dto.Description?.Trim() ?? string.Empty;
+            issue.Url = dto.Url?.Trim() ?? string.Empty;
+        }
+        
+        repoIssues.Update(issue);
+        await repoIssues.SaveChangesAsync();
 
         return IssueMapper.ToDto(issue);
     }
 
     /// <summary>
-    /// Позначає задачу як видалену 
+    /// Позначає задачу як видалену (Soft delete),
+    /// якщо видаляємо поточну активну задачу — скидаємо статус
     /// </summary>
-    public async Task DeleteIssueAsync(Guid gameId, Guid issueId, Guid userId)
+    public async Task DeleteIssueAsync(Guid gameId, Guid issueId)
     {
-        var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
+        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
 
-        if (issue is null)
-            throw new Exception("Issue not found.");
+        var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
+                    ?? throw new NotFoundException(nameof(Issue), issueId);
 
         issue.IsRemoved = true;
+        
+        if (issue.IsCurrent) issue.IsCurrent = false;
 
-        _repoIssues.Update(issue);
-        await _repoIssues.SaveChangesAsync();
+        repoIssues.Update(issue);
+        await repoIssues.SaveChangesAsync();
     }
 
     /// <summary>
-    /// Оновлює порядок задач у списку після перетягування
+    /// Змінює порядок задач у списку.
     /// </summary>
-   public async Task ReorderIssuesAsync(Guid gameId, Guid userId, ReorderIssueDto dto)
+    public async Task ReorderIssuesAsync(Guid gameId, ReorderIssueDto dto)
     {
-        var issues = await _repoIssues.GetIssuesByIdsAsync(gameId, dto.IssuesIds);
+        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+
+        var issues = await repoIssues.GetIssuesByIdsAsync(gameId, dto.IssuesIds);
         var issuesList = issues.ToList();
 
         if (issuesList.Count != dto.IssuesIds.Count)
-            throw new Exception("Invalid issues list.");
+            throw new InvalidOperationException("Список задач невалідний або містить задачі з іншої гри");
 
         for (var i = 0; i < dto.IssuesIds.Count; i++)
         {
@@ -135,39 +141,37 @@ internal class IssueService : IIssueService
             issue.Order = i + 1;
         }
 
-        await _repoIssues.SaveChangesAsync();
+        await repoIssues.SaveChangesAsync();
     }
 
     /// <summary>
-    /// Робить задачу поточною для голосування в межах гри
+    /// Встановлює задачу як активну для поточного голосування.
     /// </summary>
-    public async Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId, Guid userId)
+    public async Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId)
     {
-        var issue = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId);
+        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
 
-        if (issue is null)
-            throw new Exception("Issue not found.");
+        var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
+                    ?? throw new NotFoundException(nameof(Issue), issueId);
 
-        await _repoIssues.ClearCurrentIssueAsync(gameId);
+        await repoIssues.ClearCurrentIssueAsync(gameId);
 
         issue.IsCurrent = true;
 
-        _repoIssues.Update(issue);
-        await _repoIssues.SaveChangesAsync();
+        repoIssues.Update(issue);
+        await repoIssues.SaveChangesAsync();
 
         return IssueMapper.ToDto(issue);
     }
-    
+
     /// <summary>
-    /// Імпортує задачі з Plane та додає їх до списку задач гри
+    /// Імпортує задачі із зовнішньої системи Plane.
     /// </summary>
-    public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(
-    Guid gameId,
-    Guid createdByParticipantId,
-    ImportPlaneIssuesDto dto)
+    public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto)
     {
-        var planeIssues = await _planeService.GetIssuesAsync(dto);
-        var nextOrder = await _repoIssues.GetNextOrderAsync(gameId);
+        var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+        var planeIssues = await planeService.GetIssuesAsync(dto);
+        var nextOrder = await repoIssues.GetNextOrderAsync(gameId);
 
         var newlyImported = false;
 
@@ -175,7 +179,7 @@ internal class IssueService : IIssueService
         {
             var planeUrl = BuildPlaneIssueUrl(dto.WorkspaceSlug, dto.ProjectId, planeIssue.Id);
 
-            var alreadyExists = await _repoIssues.ExistsByUrlAsync(gameId, planeUrl);
+            var alreadyExists = await repoIssues.ExistsByUrlAsync(gameId, planeUrl);
             if (alreadyExists) continue;
 
             var issue = new Issue
@@ -189,29 +193,21 @@ internal class IssueService : IIssueService
                 IsCurrent = false,
                 IsRemoved = false,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = createdByParticipantId
+                CreatedBy = participant.UserId
             };
 
-            await _repoIssues.AddAsync(issue);
-            newlyImported = true; 
+            await repoIssues.AddAsync(issue);
+            newlyImported = true;
         }
 
         if (newlyImported)
-        {
-            await _repoIssues.SaveChangesAsync();
-        }
+            await repoIssues.SaveChangesAsync();
 
-        var allIssues = await _repoIssues.GetByGameIdAsync(gameId);
+        var allIssues = await repoIssues.GetByGameIdAsync(gameId);
         return allIssues.Select(IssueMapper.ToDto);
     }
 
-    /// <summary>
-    /// Формує посилання на задачу в Plane
-    /// </summary>
-    private static string BuildPlaneIssueUrl(
-        string workspaceSlug,
-        string projectId,
-        string planeIssueId)
+    private static string BuildPlaneIssueUrl(string workspaceSlug, string projectId, string planeIssueId)
     {
         return $"https://app.plane.so/{workspaceSlug}/projects/{projectId}/issues/{planeIssueId}";
     }

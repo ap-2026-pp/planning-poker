@@ -7,12 +7,14 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddBllServices(this IServiceCollection services)
     {
+        services.AddScoped<ICurrentUserContext, CurrentUserContext>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IGameService, GameService>();
         services.AddScoped<IParticipantService, ParticipantService>();
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IIssueService, IssueService>();
-
+        services.AddScoped<IGameAccessService, GameAccessService>();
+        
         services.AddHttpClient<IPlaneService,PlaneService>(client =>
         {
            client.BaseAddress = new Uri("https://api.plane.so");
