@@ -3,7 +3,7 @@ using PlanningPoker.Domain.Interfaces.Services;
 
 namespace PlanningPoker.API.Services;
 
-public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICurrentUserService
+internal class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICurrentUserService
 {
     public Guid GetRequiredUserId()
     {
