@@ -29,6 +29,7 @@ internal class GameRepository(AppDbContext context) : BaseRepository<Game>(conte
     {
         return await _dbSet
             .Include(g => g.Participants.Where(participant => participant.RemovedAt == null))
+            .Include(g => g.Issues.Where(issue => !issue.IsRemoved))
             .FirstOrDefaultAsync(g => g.Id == id);
     }
 
@@ -36,6 +37,7 @@ internal class GameRepository(AppDbContext context) : BaseRepository<Game>(conte
     {
         return await _dbSet
             .Include(g => g.Participants.Where(participant => participant.RemovedAt == null))
+            .Include(g => g.Issues.Where(issue => !issue.IsRemoved))
             .FirstOrDefaultAsync(g => g.InviteCode == inviteCode && !g.IsDeleted);
     }
 }

@@ -127,6 +127,23 @@ public class GameServiceTests
     }
 
     [Fact]
+    public async Task GetGameByIdAsync_WhenGameCollectionsAreNull_ReturnsEmptyCollections()
+    {
+        var game = CreateGame("newGame", VotingSystem.Custom, true);
+        game.Participants = null!;
+        game.Issues = null!;
+
+        _gameRepository.Setup(repository => repository.GetByIdAsync(game.Id)).ReturnsAsync(game);
+
+        var result = await _gameService.GetGameByIdAsync(game.Id);
+
+        Assert.NotNull(result.Participants);
+        Assert.NotNull(result.Issues);
+        Assert.Empty(result.Participants);
+        Assert.Empty(result.Issues);
+    }
+
+    [Fact]
     public async Task GetGameByIdAsync_WhenGameDoesNotExist_ThrowsNotFoundException()
     {
         var gameId = Guid.NewGuid();
