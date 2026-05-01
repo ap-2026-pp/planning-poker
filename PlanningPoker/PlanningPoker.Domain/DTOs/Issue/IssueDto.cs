@@ -6,7 +6,7 @@ namespace PlanningPoker.BLL.DTOs.Issue;
 public class IssueDto
 {
     /// <summary>
-    /// Індифікатор задачі
+    /// Ідентифікатор задачі
     /// </summary>
     public Guid Id { get; set; }
 

@@ -28,15 +28,6 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
                 !i.IsRemoved);
     }
 
-    public async Task<Issue?> GetCurrentIssueAsync(Guid gameId)
-    {
-        return await _dbSet
-            .FirstOrDefaultAsync(i =>
-                i.GameId == gameId &&
-                i.IsCurrent &&
-                !i.IsRemoved);
-    }
-
     public async Task<int> GetNextOrderAsync(Guid gameId)
     {
         var maxOrder = await _dbSet
@@ -45,12 +36,6 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
             .MaxAsync();
 
         return (maxOrder ?? 0) + 1;
-    }
-
-    public async Task<int> GetNextIssueNumberAsync(Guid gameId)
-    {
-        return await _dbSet
-            .CountAsync(i => i.GameId == gameId && !i.IsRemoved) + 1;
     }
 
     public async Task<IEnumerable<Issue>> GetIssuesByIdsAsync(Guid gameId, List<Guid> issueIds)
@@ -65,14 +50,13 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
 
     public async Task ClearCurrentIssueAsync(Guid gameId)
     {
-        var issues = await _dbSet
-            .Where(i =>
+        var issue = await _dbSet
+            .FirstOrDefaultAsync(i =>
                 i.GameId == gameId &&
                 i.IsCurrent &&
-                !i.IsRemoved)
-            .ToListAsync();
+                !i.IsRemoved);
 
-        foreach (var issue in issues)
+        if (issue != null)
         {
             issue.IsCurrent = false;
         }

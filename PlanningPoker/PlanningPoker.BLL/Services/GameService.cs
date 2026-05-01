@@ -31,7 +31,7 @@ public class GameService(
         
         game.CreatedBy = currentUserId;
         game.IsActive = true;
-        game.InviteCode = "123"; //TODO autogeneration etc
+        game.InviteCode = "123"; 
         game.Participants = new List<GameParticipant>
         {
             new()

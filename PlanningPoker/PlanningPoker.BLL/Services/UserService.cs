@@ -157,4 +157,10 @@ internal class UserService : IUserService
 
         return AuthMapper.ToUserDto(user);
     }
+
+    public async Task<Guid> GetCurrentUserIdAsync()
+    {
+        return _currentUserService.GetRequiredUserId();
+
+    }
 }
