@@ -1,3 +1,4 @@
+using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.Domain.DTOs.Game;
@@ -14,5 +15,6 @@ public class GameDto
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public Guid? CreatedBy { get; set; }
-    public ICollection<GameParticipantDto> Participants { get; set; } = [];
+    public ICollection<GameParticipantDto>? Participants { get; set; }
+    public ICollection<IssueDto>? Issues { get; set; }
 }
