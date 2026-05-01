@@ -2,6 +2,7 @@ namespace PlanningPoker.Domain.Interfaces.Services;
 
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
+using PlanningPoker.BLL.DTOs.Issue.Export;
 
 public interface IIssueService
 {
@@ -10,7 +11,9 @@ public interface IIssueService
     Task<IssueDto> CreateIssueAsync(Guid gameId, CreateIssueDto dto);
     Task<IssueDto> UpdateIssueAsync(Guid gameId, Guid issueId, UpdateIssueDto dto);
     Task DeleteIssueAsync(Guid gameId, Guid issueId);
+    Task DeleteAllIssuesAsync(Guid gameId);
     Task ReorderIssuesAsync(Guid gameId, ReorderIssueDto dto);
     Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto);
     Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId);
+    Task<ExportIssuesFileDto> ExportToCsvAsync(Guid gameId, ExportIssuesRequestDto dto);
 }

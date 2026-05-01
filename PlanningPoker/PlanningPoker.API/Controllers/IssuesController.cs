@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.BLL.DTOs.Issue;
+using PlanningPoker.BLL.DTOs.Issue.Export;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
 
@@ -118,5 +119,22 @@ public class IssuesController : ControllerBase
     {
         var issues = await _issueService.ImportIssueByPlaneAsync(gameId, dto);
         return Ok(issues);
+    }
+
+    [HttpPost("export-csv")]
+    public async Task<IActionResult> ExportIssues(
+        [FromRoute] Guid gameId,
+        [FromBody] ExportIssuesRequestDto dto)
+    {
+        var fileResult = await _issueService.ExportToCsvAsync(gameId, dto);
+
+        return File(fileResult.Content, "text/csv", fileResult.FileName);
+    }
+
+    [HttpDelete]
+    public async Task<IActionResult> DeleteAllIssuesAsync([FromRoute] Guid gameId)
+    {
+        await _issueService.DeleteAllIssuesAsync(gameId);
+        return NoContent();
     }
 }

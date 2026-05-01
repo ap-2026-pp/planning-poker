@@ -1,11 +1,12 @@
 using PlanningPoker.BLL.DTOs.Issue;
+using PlanningPoker.BLL.DTOs.Issue.Export;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Mappers;
 using PlanningPoker.Domain.Models;
-
+using System.Text;
 namespace PlanningPoker.BLL.Services;
 
 /// <summary>
@@ -47,19 +48,21 @@ public class IssueService(
     {
         var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId);
         var order = await repoIssues.GetNextOrderAsync(gameId);
+        var code = await repoIssues.GenerateIssueCodeAsync(gameId);
 
         var issue = new Issue
         {
             Id = Guid.NewGuid(),
             GameId = gameId,
             Url = string.Empty,
+            Code = code,
             Title = dto.Title.Trim(),
             Description = string.Empty,
             Order = order,
             IsCurrent = false,
             IsRemoved = false,
             CreatedAt = DateTime.UtcNow,
-            CreatedBy = participant.UserId 
+            CreatedBy = participant.UserId
         };
 
         await repoIssues.AddAsync(issue);
@@ -68,6 +71,27 @@ public class IssueService(
         return IssueMapper.ToDto(issue);
     }
 
+    /// <summary>
+    /// Генерує наступний код задачі на основі існуючих у грі.
+    /// </summary>
+    private async Task<string> GenerateIssueCodeAsync(Guid gameId)
+    {
+        var lastIssue = await repoIssues.GetLastCreatedIssueAsync(gameId);
+        var prefix = "PP";
+        if (lastIssue == null || string.IsNullOrWhiteSpace(lastIssue.Code))
+        {
+            return $"{prefix}-1";
+        }
+
+        var parts = lastIssue.Code.Split('-');
+        if (parts.Length == 2 && int.TryParse(parts[1], out int lastNumber))
+        {
+            return $"{prefix}-{lastNumber + 1}";
+        }
+
+        return $"{prefix}-1";
+    }
+    
     /// <summary>
     /// Оновлює дані існуючої задачі. Забороняє зміну заголовка для задач із Plane.
     /// Перевіряємо, чи користувач намагається змінити заголовок,
@@ -97,6 +121,8 @@ public class IssueService(
             issue.Url = dto.Url?.Trim() ?? string.Empty;
         }
         
+        issue.Code = dto.Code?.Trim() ?? issue.Code;
+
         repoIssues.Update(issue);
         await repoIssues.SaveChangesAsync();
 
@@ -119,6 +145,24 @@ public class IssueService(
         if (issue.IsCurrent) issue.IsCurrent = false;
 
         repoIssues.Update(issue);
+        await repoIssues.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// видаляємо всі задачі до однієї гри
+    /// </summary>
+    public async Task DeleteAllIssuesAsync(Guid gameId)
+    {
+        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+
+        var issues = await repoIssues.GetByGameIdAsync(gameId);
+
+        foreach (var issue in issues)
+        {
+            issue.IsRemoved = true;
+            issue.IsCurrent = false;
+        }
+
         await repoIssues.SaveChangesAsync();
     }
 
@@ -167,7 +211,7 @@ public class IssueService(
     /// <summary>
     /// Імпортує задачі із зовнішньої системи Plane.
     /// </summary>
-    public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto)
+   public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto)
     {
         var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId);
         var planeIssues = await planeService.GetIssuesAsync(dto);
@@ -180,15 +224,27 @@ public class IssueService(
             var planeUrl = BuildPlaneIssueUrl(dto.WorkspaceSlug, dto.ProjectId, planeIssue.Id);
 
             var alreadyExists = await repoIssues.ExistsByUrlAsync(gameId, planeUrl);
-            if (alreadyExists) continue;
+            if (alreadyExists)
+            {
+                continue;
+            }
+
+            var lastIssue = await repoIssues.GetLastCreatedIssueAsync(gameId);
+
+            var nextNumber = lastIssue == null
+                ? 1
+                : int.Parse(lastIssue.Code.Replace("PP-", "")) + 1;
+
+            var code = $"PP-{nextNumber}";
 
             var issue = new Issue
             {
                 Id = Guid.NewGuid(),
                 GameId = gameId,
                 Url = planeUrl,
-                Title = planeIssue.Name,
-                Description = planeIssue.DescriptionHtml ?? string.Empty,
+                Code = code,
+                Title = planeIssue.Name.Trim(),
+                Description = planeIssue.DescriptionHtml?.Trim() ?? string.Empty,
                 Order = nextOrder++,
                 IsCurrent = false,
                 IsRemoved = false,
@@ -201,14 +257,72 @@ public class IssueService(
         }
 
         if (newlyImported)
+        {
             await repoIssues.SaveChangesAsync();
+        }
 
         var allIssues = await repoIssues.GetByGameIdAsync(gameId);
         return allIssues.Select(IssueMapper.ToDto);
     }
-
     private static string BuildPlaneIssueUrl(string workspaceSlug, string projectId, string planeIssueId)
     {
         return $"https://app.plane.so/{workspaceSlug}/projects/{projectId}/issues/{planeIssueId}";
+    }
+ 
+
+    /// <summary>
+    /// Eкспортуємо задачі у CSV формат
+    /// </summary>
+    public async Task<ExportIssuesFileDto> ExportToCsvAsync(Guid gameId, ExportIssuesRequestDto dto)
+    {
+        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+
+        var issues = await repoIssues.GetByGameIdWithVotingResultsAsync(gameId);
+
+        var builder = new StringBuilder();
+
+        builder.AppendLine(string.Join(",",
+            EscapeCsv(dto.SummaryColumnName),
+            EscapeCsv(dto.KeyColumnName),
+            EscapeCsv(dto.DescriptionColumnName),
+            EscapeCsv(dto.LinkColumnName),
+            EscapeCsv(dto.EstimateColumnName)));
+
+        foreach (var issue in issues)
+        {
+            var votingResult = issue.VotingResults
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefault();
+
+            builder.AppendLine(string.Join(",",
+                EscapeCsv(issue.Title),
+                EscapeCsv(issue.Code),
+                EscapeCsv(issue.Description),
+                EscapeCsv(issue.Url),
+                EscapeCsv(votingResult?.FinalEstimate)));
+        }
+
+        return new ExportIssuesFileDto
+        {
+            Content = Encoding.UTF8.GetBytes(builder.ToString()),
+            FileName = $"issues-{gameId}.csv"
+        };
+    }
+
+    private static string EscapeCsv(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var escaped = value.Replace("\"", "\"\"");
+
+        if (escaped.Contains(',') || escaped.Contains('\n') || escaped.Contains('\r'))
+        {
+            return $"\"{escaped}\"";
+        }
+
+        return escaped;
     }
 }

@@ -1,29 +1,34 @@
 namespace PlanningPoker.BLL.DTOs.Issue;
 
 /// <summary>
-/// Задача у списку задач гри 
+/// Задача у списку задач гри
 /// </summary>
 public class IssueDto
 {
     /// <summary>
-    /// Індифікатор задачі
+    /// Ідентифікатор задачі
     /// </summary>
     public Guid Id { get; set; }
 
     /// <summary>
     /// Код задачі
     /// </summary>
-    public string Code {get; set;} 
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Посилання на задачу
+    /// </summary>
+    public string Url { get; set; } = string.Empty;
 
     /// <summary>
     /// Назва задачі
     /// </summary>
-    public string Title { get; set; }
+    public string Title { get; set; } = string.Empty;
 
     /// <summary>
-    /// Опис заадачи
+    /// Опис задачі
     /// </summary>
-    public string Description { get; set; }
+    public string Description { get; set; } = string.Empty;
 
     /// <summary>
     /// Позиція задачі у списку
@@ -31,17 +36,12 @@ public class IssueDto
     public int Order { get; set; }
 
     /// <summary>
-    /// Визначає, чи заадча є поточною для голосування
+    /// Визначає, чи задача є поточною для голосування
     /// </summary>
     public bool IsCurrent { get; set; }
 
     /// <summary>
     /// Фінальна оцінка задачі
     /// </summary>
-    public string? FinalEstimate { get; set; } 
+    public string? FinalEstimate { get; set; }
 }
-
-
-
-
-
