@@ -177,6 +177,11 @@ public class ParticipantService(
         {
             throw new ForbiddenException("delete", "participant");
         }
+
+        if (currentUserParticipant.Id == participantId)
+        {
+            throw new InvalidOperationException("You cannot delete yourself.");
+        }
         
         var participant = await participantRepository.GetActiveByIdAsync(participantId);
         if (participant is null || participant.GameId != gameId)
@@ -254,5 +259,36 @@ public class ParticipantService(
         {
             throw new ResourceAlreadyExistsException(nameof(GameParticipant), displayName); // TODO change exception
         }
+    }
+
+    public async Task TransferMasterAsync(Guid gameId, Guid participantId)
+    {
+        var currentUserId = currentUserContext.GetRequiredUserId();
+        await GetGameOrThrowAsync(gameId);
+
+        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
+        if (currentUserParticipant is null || currentUserParticipant.Role != ParticipantRole.Master)
+        {
+            throw new ForbiddenException("transfer master to", "participant");
+        }
+        
+        var participant = await participantRepository.GetActiveByIdAsync(participantId);
+        if (participant is null || participant.GameId != gameId)
+        {
+            throw new NotFoundException(nameof(GameParticipant), participantId);
+        }
+
+        if (currentUserParticipant.Id == participantId)
+        {
+            throw new InvalidOperationException("You cannot transfer master role to yourself.");
+        }
+        
+        currentUserParticipant.Role = ParticipantRole.Player;
+        participantRepository.Update(currentUserParticipant);
+        
+        participant.Role = ParticipantRole.Master;
+        participantRepository.Update(participant);
+        
+        await participantRepository.SaveChangesAsync();
     }
 }

@@ -10,4 +10,5 @@ public interface IParticipantService
     public Task LeaveGameAsync(Guid gameId);
     public Task DeleteGameParticipantAsync(Guid gameId, Guid participantId);
     public Task<GameParticipantDto> UpdateDisplayNameAsync(Guid gameId, string? displayName);
+    public Task TransferMasterAsync(Guid gameId, Guid participantId);
 }
