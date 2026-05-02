@@ -8,7 +8,8 @@ using PlanningPoker.Domain.Interfaces.Services;
 namespace PlanningPoker.API.Controllers;
 
 /// <summary>
-/// Керує задачами в межах конкретної гри.
+/// Контролер для управління задачами (issues) в межах конкретної гри.
+/// Всі операції прив’язані до gameId.
 /// </summary>
 [ApiController]
 [Route("api/games/{gameId:guid}/issues")]
@@ -23,7 +24,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Повертає список задач гри.
+    /// Отримати всі задачі гри.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetIssuesByGame([FromRoute] Guid gameId)
@@ -33,7 +34,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Повертає детальну інформацію про задачу.
+    /// Отримати задачу за Id.
     /// </summary>
     [HttpGet("{issueId:guid}")]
     public async Task<IActionResult> GetIssueById(
@@ -45,7 +46,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Створює нову задачу в грі
+    /// Створити нову задачу в межах гри.
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> CreateIssue(
@@ -61,7 +62,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Оновлює дані задачі
+    /// Оновити задачу.
     /// </summary>
     [HttpPut("{issueId:guid}")]
     public async Task<IActionResult> UpdateIssue(
@@ -74,7 +75,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Видаляє задачу з гри
+    /// Видалити задачу.
     /// </summary>
     [HttpDelete("{issueId:guid}")]
     public async Task<IActionResult> DeleteIssue(
@@ -86,7 +87,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Оновлює порядок задач у грі
+    /// Перевпорядкувати задачі.
     /// </summary>
     [HttpPatch("reorder")]
     public async Task<IActionResult> ReorderIssues(
@@ -98,7 +99,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Робить задачу поточною для голосування
+    /// Зробити задачу активною для голосування.
     /// </summary>
     [HttpPatch("{issueId:guid}/set-active")]
     public async Task<IActionResult> SetActiveIssue(
@@ -110,7 +111,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Імпортує задачі з Plane
+    /// Імпорт задач із Plane.
     /// </summary>
     [HttpPost("import-plane")]
     public async Task<IActionResult> ImportIssuesFromPlane(
@@ -121,6 +122,9 @@ public class IssuesController : ControllerBase
         return Ok(issues);
     }
 
+    /// <summary>
+    /// Експорт задач у CSV файл.
+    /// </summary>
     [HttpPost("export-csv")]
     public async Task<IActionResult> ExportIssues(
         [FromRoute] Guid gameId,
@@ -131,6 +135,9 @@ public class IssuesController : ControllerBase
         return File(fileResult.Content, "text/csv", fileResult.FileName);
     }
 
+    /// <summary>
+    /// Видалити всі задачі гри.
+    /// </summary>
     [HttpDelete]
     public async Task<IActionResult> DeleteAllIssuesAsync([FromRoute] Guid gameId)
     {

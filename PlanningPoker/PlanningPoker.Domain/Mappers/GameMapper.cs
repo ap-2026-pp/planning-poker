@@ -42,9 +42,13 @@ public static class GameMapper
             IsActive = game.IsActive,
             CreatedAt =  game.CreatedAt,
             CreatedBy = game.CreatedBy,
-            Participants = game.Participants
+            Participants = (game.Participants ?? [])
                 .Where(participant => participant.RemovedAt == null)
                 .Select(ParticipantMapper.ToGameParticipantDto)
+                .ToList(),
+            Issues = (game.Issues ?? [])
+                .Where(issue => !issue.IsRemoved)
+                .Select(IssueMapper.ToDto)
                 .ToList()
         };
 }

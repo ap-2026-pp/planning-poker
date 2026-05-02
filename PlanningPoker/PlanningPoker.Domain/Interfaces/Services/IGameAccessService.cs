@@ -8,5 +8,4 @@ public interface IGameAccessService
     Task<GameParticipant> EnsureCanManageIssuesAsync(Guid gameId);
     Task<GameParticipant> EnsureCanRevealCardsAsync(Guid gameId);
     Task<GameParticipant> EnsureCanVoteAsync(Guid gameId);
-    Task TransferMasterRoleAsync(Guid gameId, Guid newMasterParticipantId);
 }
