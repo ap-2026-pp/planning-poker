@@ -24,7 +24,7 @@ internal class ParticipantRepository(AppDbContext context) : BaseRepository<Game
 
     public async Task<GameParticipant?> GetByUserIdAndGameIdAsync(Guid userId, Guid gameId)
     {
-        return await _dbSet.FirstOrDefaultAsync(participant =>
+        return await _dbSet.Include(p => p.Game).FirstOrDefaultAsync(participant =>
             participant.UserId == userId &&
             participant.GameId == gameId &&
             participant.RemovedAt == null);

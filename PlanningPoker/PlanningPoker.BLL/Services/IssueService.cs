@@ -47,8 +47,12 @@ public class IssueService(
     public async Task<IssueDto> CreateIssueAsync(Guid gameId, CreateIssueDto dto)
     {
         var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+
+        if (dto == null || string.IsNullOrWhiteSpace(dto.Title))
+            throw new Exception("Title is required");
+
         var order = await repoIssues.GetNextOrderAsync(gameId);
-        var code = await repoIssues.GenerateIssueCodeAsync(gameId);
+        var code = await GenerateIssueCodeAsync(gameId);
 
         var issue = new Issue
         {
@@ -62,7 +66,7 @@ public class IssueService(
             IsCurrent = false,
             IsRemoved = false,
             CreatedAt = DateTime.UtcNow,
-            CreatedBy = participant.UserId
+            CreatedBy = participant.Id
         };
 
         await repoIssues.AddAsync(issue);
@@ -78,12 +82,14 @@ public class IssueService(
     {
         var lastIssue = await repoIssues.GetLastCreatedIssueAsync(gameId);
         var prefix = "PP";
+
         if (lastIssue == null || string.IsNullOrWhiteSpace(lastIssue.Code))
         {
             return $"{prefix}-1";
         }
 
         var parts = lastIssue.Code.Split('-');
+
         if (parts.Length == 2 && int.TryParse(parts[1], out int lastNumber))
         {
             return $"{prefix}-{lastNumber + 1}";
@@ -91,7 +97,7 @@ public class IssueService(
 
         return $"{prefix}-1";
     }
-    
+
     /// <summary>
     /// Оновлює дані існуючої задачі. Забороняє зміну заголовка для задач із Plane.
     /// Перевіряємо, чи користувач намагається змінити заголовок,

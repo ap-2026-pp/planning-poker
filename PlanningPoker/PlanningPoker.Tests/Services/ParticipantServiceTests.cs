@@ -226,37 +226,36 @@ public class ParticipantServiceTests
         _participantRepository.Verify(r => r.SaveChangesAsync(), Times.Once);
     }
 
-    [Fact]
-    public async Task LeaveGameAsync_WhenMasterIsTheOnlyParticipant_ClosesSessionAndRemovesMaster()
-    {
-        var masterParticipant = CreateParticipant(_masterId, _gameId, ParticipantRole.Master, "Master");
+   [Fact]
+public async Task LeaveGameAsync_WhenMasterIsTheOnlyParticipant_ClosesSessionAndRemovesMaster()
+{
+    var masterParticipant = CreateParticipant(_masterId, _gameId, ParticipantRole.Master, "Master");
 
-        var game = CreateGame("invite-code", isActive: true, gameId: _gameId);
-        game.Participants.Add(masterParticipant);
+    var game = CreateGame("invite-code", isActive: true, _gameId);
+    game.Participants = new List<GameParticipant> { masterParticipant };
 
-        SetupCurrentUserId(_masterId);
+    SetupCurrentUserId(_masterId);
 
-        _gameRepository
-            .Setup(repository => repository.GetByIdAsync(_gameId))
-            .ReturnsAsync(game);
+    _gameRepository
+        .Setup(r => r.GetByIdAsync(_gameId))
+        .ReturnsAsync(game);
 
-        _gameAccessService
-            .Setup(x => x.GetRequiredMasterAsync(_gameId))
-            .ReturnsAsync(masterParticipant);
+    _gameAccessService
+        .Setup(x => x.GetRequiredParticipantAsync(_gameId))
+        .ReturnsAsync(masterParticipant);
 
-        _gameAccessService
-            .Setup(x => x.GetRequiredParticipantAsync(_gameId))
-            .ReturnsAsync(masterParticipant);
+    _gameAccessService
+        .Setup(x => x.GetRequiredMasterAsync(_gameId))
+        .ReturnsAsync(masterParticipant);
 
-        await _participantService.LeaveGameAsync(_gameId);
+    await _participantService.LeaveGameAsync(_gameId);
 
-        Assert.False(game.IsActive);
+    Assert.False(game.IsActive);
 
-        _gameRepository.Verify(repository => repository.Update(game), Times.Once);
-
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(masterParticipant), Times.Once);
-        _participantRepository.Verify(repository => repository.SaveChangesAsync(), Times.Once);
-    }
+    _gameRepository.Verify(r => r.Update(game), Times.Once);
+    _participantRepository.Verify(r => r.RemoveGameParticipant(masterParticipant), Times.Once);
+    _participantRepository.Verify(r => r.SaveChangesAsync(), Times.Once);
+}
 
     [Fact]
     public async Task DeleteGameParticipantAsync_WhenGameDoesNotExist_ThrowsNotFoundException()
@@ -425,24 +424,35 @@ public class ParticipantServiceTests
         _participantRepository.Verify(repository => repository.SaveChangesAsync(), Times.Never);
     }
 
-    [Fact]
+     [Fact]
     public async Task TransferMasterAsync_WhenCurrentUserIsNotMaster_ThrowsForbiddenException()
     {
         var participantId = Guid.NewGuid();
 
         SetupCurrentUserId(_playerId);
-        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(CreateGame("invite-code", isActive: true, _gameId));
-        _participantRepository
-            .Setup(repository => repository.GetByUserIdAndGameIdAsync(_playerId, _gameId))
-            .ReturnsAsync(CreateParticipant(_playerId, _gameId, ParticipantRole.Player, "Player"));
 
-        var act = async () => await _participantService.TransferMasterAsync(_gameId, participantId);
+        _gameRepository
+            .Setup(r => r.GetByIdAsync(_gameId))
+            .ReturnsAsync(CreateGame("invite-code", true, _gameId));
+
+        _gameAccessService
+            .Setup(x => x.GetRequiredMasterAsync(_gameId))
+            .ThrowsAsync(new ForbiddenException("manage", "game"));
+
+        var targetParticipant = CreateParticipant(_playerId, _gameId, ParticipantRole.Player, "Player");
+
+        _participantRepository
+            .Setup(r => r.GetActiveByIdAsync(participantId))
+            .ReturnsAsync(targetParticipant);
+
+        var act = async () =>
+            await _participantService.TransferMasterAsync(_gameId, participantId);
 
         await Assert.ThrowsAsync<ForbiddenException>(act);
-        _participantRepository.Verify(repository => repository.Update(It.IsAny<GameParticipant>()), Times.Never);
-        _participantRepository.Verify(repository => repository.SaveChangesAsync(), Times.Never);
-    }
 
+        _participantRepository.Verify(r => r.Update(It.IsAny<GameParticipant>()), Times.Never);
+        _participantRepository.Verify(r => r.SaveChangesAsync(), Times.Never);
+    }
     [Fact]
     public async Task TransferMasterAsync_WhenParticipantDoesNotExist_ThrowsNotFoundException()
     {
@@ -465,61 +475,70 @@ public class ParticipantServiceTests
     }
 
     [Fact]
-public async Task TransferMasterAsync_WhenTargetIsCurrentUser_ThrowsInvalidOperationException()
-{
-    var masterParticipant = CreateParticipant(_masterId, _gameId, ParticipantRole.Master, "Master");
+    public async Task TransferMasterAsync_WhenTargetIsCurrentUser_ThrowsInvalidOperationException()
+    {
+        var masterParticipant = CreateParticipant(_masterId, _gameId, ParticipantRole.Master, "Master");
 
-    var game = CreateGame("invite-code", true, _gameId);
-    game.Participants = new List<GameParticipant> { masterParticipant };
+        var game = CreateGame("invite-code", true, _gameId);
+        game.Participants = new List<GameParticipant> { masterParticipant };
 
-    SetupCurrentUserId(_masterId);
+        SetupCurrentUserId(_masterId);
 
-    _gameRepository
-        .Setup(r => r.GetByIdAsync(_gameId))
-        .ReturnsAsync(game);
+        _gameRepository
+            .Setup(r => r.GetByIdAsync(_gameId))
+            .ReturnsAsync(game);
 
-    _participantRepository
-        .Setup(r => r.GetByUserIdAndGameIdAsync(_masterId, _gameId))
-        .ReturnsAsync(masterParticipant);
+        _participantRepository
+            .Setup(r => r.GetByUserIdAndGameIdAsync(_masterId, _gameId))
+            .ReturnsAsync(masterParticipant);
 
-    _participantRepository
-        .Setup(r => r.GetActiveByIdAsync(masterParticipant.Id))
-        .ReturnsAsync(masterParticipant);
+        _participantRepository
+            .Setup(r => r.GetActiveByIdAsync(masterParticipant.Id))
+            .ReturnsAsync(masterParticipant);
 
-    _gameAccessService
-        .Setup(x => x.GetRequiredMasterAsync(_gameId))
-        .ReturnsAsync(masterParticipant);
+        _gameAccessService
+            .Setup(x => x.GetRequiredMasterAsync(_gameId))
+            .ReturnsAsync(masterParticipant);
 
-    var act = async () =>
-        await _participantService.TransferMasterAsync(_gameId, masterParticipant.Id);
+        var act = async () =>
+            await _participantService.TransferMasterAsync(_gameId, masterParticipant.Id);
 
-    await Assert.ThrowsAsync<InvalidOperationException>(act);
+        await Assert.ThrowsAsync<InvalidOperationException>(act);
 
-    _participantRepository.Verify(r => r.Update(It.IsAny<GameParticipant>()), Times.Never);
-    _participantRepository.Verify(r => r.SaveChangesAsync(), Times.Never);
-}
-    [Fact]
+        _participantRepository.Verify(r => r.Update(It.IsAny<GameParticipant>()), Times.Never);
+        _participantRepository.Verify(r => r.SaveChangesAsync(), Times.Never);
+    }
+
+   [Fact]
     public async Task TransferMasterAsync_WhenCurrentUserIsMaster_TransfersRightsAndSavesChanges()
     {
         var masterParticipant = CreateParticipant(_masterId, _gameId, ParticipantRole.Master, "Master");
         var playerParticipant = CreateParticipant(_playerId, _gameId, ParticipantRole.Player, "Player");
 
+        var game = CreateGame("invite-code", true, _gameId);
+
         SetupCurrentUserId(_masterId);
-        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(CreateGame("invite-code", isActive: true, _gameId));
-        _participantRepository
-            .Setup(repository => repository.GetByUserIdAndGameIdAsync(_masterId, _gameId))
+
+        _gameRepository
+            .Setup(r => r.GetByIdAsync(_gameId))
+            .ReturnsAsync(game);
+
+        _gameAccessService
+            .Setup(x => x.GetRequiredMasterAsync(_gameId))
             .ReturnsAsync(masterParticipant);
+
         _participantRepository
-            .Setup(repository => repository.GetActiveByIdAsync(playerParticipant.Id))
+            .Setup(r => r.GetActiveByIdAsync(playerParticipant.Id))
             .ReturnsAsync(playerParticipant);
 
         await _participantService.TransferMasterAsync(_gameId, playerParticipant.Id);
 
         Assert.Equal(ParticipantRole.Player, masterParticipant.Role);
         Assert.Equal(ParticipantRole.Master, playerParticipant.Role);
-        _participantRepository.Verify(repository => repository.Update(masterParticipant), Times.Once);
-        _participantRepository.Verify(repository => repository.Update(playerParticipant), Times.Once);
-        _participantRepository.Verify(repository => repository.SaveChangesAsync(), Times.Once);
+
+        _participantRepository.Verify(r => r.Update(masterParticipant), Times.Once);
+        _participantRepository.Verify(r => r.Update(playerParticipant), Times.Once);
+        _participantRepository.Verify(r => r.SaveChangesAsync(), Times.Once);
     }
 
     private void SetupCurrentUser(User user)
