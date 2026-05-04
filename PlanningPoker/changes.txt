@@ -1,0 +1,10 @@
+Виправлено неузгодженість Issue DTO та додано перевірки в Plane.
+
+Також створено GameAccessService, який реалізує рольову модель доступу в грі (Master / Player / Spectator).
+
+Додано правила:
+- голосування (Spectator не бере участі)
+- розкриття карт (RevealPolicy)
+- керування задачами (IssuesPolicy)
+- spectator mode (перемикання ролі)
+- передача ролі Master
