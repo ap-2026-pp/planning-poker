@@ -122,6 +122,34 @@ public class GameParticipantControllerTests
         _participantService.Verify(service => service.DeleteGameParticipantAsync(gameId, participantId), Times.Once);
     }
 
+    [Fact]
+    public async Task TransferMaster_WhenServiceSucceeds_ReturnsNoContent()
+    {
+        var gameId = Guid.NewGuid();
+        var participantId = Guid.NewGuid();
+
+        var result = await _controller.TransferMaster(gameId, participantId);
+
+        Assert.IsType<NoContentResult>(result);
+        _participantService.Verify(service => service.TransferMasterAsync(gameId, participantId), Times.Once);
+    }
+
+    [Fact]
+    public async Task TransferMaster_WhenUserDoesNotHaveRights_ThrowsException()
+    {
+        var gameId = Guid.NewGuid();
+        var participantId = Guid.NewGuid();
+
+        _participantService
+            .Setup(service => service.TransferMasterAsync(gameId, participantId))
+            .ThrowsAsync(new ForbiddenException("transfer master to", "participant"));
+
+        var act = async () => await _controller.TransferMaster(gameId, participantId);
+
+        await Assert.ThrowsAsync<ForbiddenException>(act);
+        _participantService.Verify(service => service.TransferMasterAsync(gameId, participantId), Times.Once);
+    }
+
     private static GameParticipantDto CreateParticipantDto(string displayName, ParticipantRole role)
     {
         return new GameParticipantDto

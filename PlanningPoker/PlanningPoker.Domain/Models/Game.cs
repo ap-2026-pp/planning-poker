@@ -18,7 +18,7 @@ public class Game
     public Guid CreatedBy { get; set; }
     public User CreatedByUser { get; set; } = null!;
     public ICollection<GameParticipant> Participants { get; set; } = new List<GameParticipant>();
-    public ICollection<Issue> Issues { get; set; } = null!;
+    public ICollection<Issue> Issues { get; set; } = new List<Issue>();
     public ICollection<Vote> Votes { get; set; } = new List<Vote>(); 
 }
 
