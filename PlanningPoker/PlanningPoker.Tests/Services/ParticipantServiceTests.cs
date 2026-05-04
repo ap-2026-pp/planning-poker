@@ -488,7 +488,7 @@ public async Task TransferMasterAsync_WhenTargetIsCurrentUser_ThrowsInvalidOpera
 
     _gameAccessService
         .Setup(x => x.GetRequiredMasterAsync(_gameId))
-        .ReturnsAsync(masterParticipant); // 🔥 FIX
+        .ReturnsAsync(masterParticipant);
 
     var act = async () =>
         await _participantService.TransferMasterAsync(_gameId, masterParticipant.Id);
