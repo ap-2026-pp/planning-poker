@@ -49,4 +49,18 @@ public class GameParticipantController(
         var updatedParticipant = await participantService.UpdateDisplayNameAsync(gameId, updateDisplayNameDto.DisplayName);
         return Ok(updatedParticipant);
     }
+
+    [HttpPatch("{gameId:guid}/participants/me/spectator")]
+    public async Task<ActionResult> SetSpectatorMode(Guid gameId, [FromBody] bool isSpectator)
+    {
+        await participantService.SetSpectatorModeAsync(gameId, isSpectator);
+        return NoContent();
+    }
+    
+    [HttpPatch("{gameId:guid}/participants/{participantId:guid}/transfer-master")]
+    public async Task<ActionResult> TransferMaster(Guid gameId, Guid participantId)
+    { 
+        await participantService.TransferMasterAsync(gameId, participantId);
+        return NoContent();
+    }
 }

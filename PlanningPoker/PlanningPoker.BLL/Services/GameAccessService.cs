@@ -23,7 +23,7 @@ public class GameAccessService(
         var userId = currentUserContext.GetRequiredUserId();
         var participant = await participantRepository.GetByUserIdAndGameIdAsync(userId, gameId);
 
-        if (participant is null || participant.RemovedAt.HasValue)
+        if (participant is null || participant.RemovedAt is not null)
             throw new ForbiddenException("view", "game");
 
         return participant;
@@ -46,14 +46,27 @@ public class GameAccessService(
     }
 
     /// <summary>
-    /// Перевіряє можливість розкриття карт у грі. 
-    /// Наразі ця дія дозволена лише для Майстра гри.
+    /// Перевіряє, чи дозволено Майстру гри ініціювати розкриття карт.
     /// </summary>
-    /// <param name="gameId">Унікальний ідентифікатор гри.</param>
-    /// <returns>Учасник, який ініціював розкриття.</returns>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <returns>Учасник, який ініціює дію.</returns>
+    /// <exception cref="ForbiddenException">
+    /// Виникає, якщо користувач не є Master.
+    /// </exception>
     public async Task<GameParticipant> EnsureCanRevealCardsAsync(Guid gameId)
     {
-        return await GetRequiredMasterAsync(gameId);
+        var participant = await GetRequiredParticipantAsync(gameId);
+        
+
+        if ( participant.Game.RevealPolicy == RevealPolicy.Everyone)
+        {
+            return participant;
+        }
+
+        if (participant.Role != ParticipantRole.Master)
+            throw new ForbiddenException("reveal cards", "game");
+
+        return participant;
     }
 
     /// <summary>
@@ -81,28 +94,89 @@ public class GameAccessService(
     /// <returns>Майстер гри, який виконує управління.</returns>
     public async Task<GameParticipant> EnsureCanManageIssuesAsync(Guid gameId)
     {
-        return await GetRequiredMasterAsync(gameId);
+        var participant = await GetRequiredParticipantAsync(gameId);
+        var game = participant.Game;
+
+        if (participant.Role == ParticipantRole.Spectator)
+        throw new ForbiddenException("manage issues", "spectator cannot do this");
+        
+        if(game.IssuesPolicy == IssuesPolicy.MasterOnly)
+        {
+            if(participant.Role != ParticipantRole.Master)
+                throw new ForbiddenException("manage issues", "game");
+        }
+        return participant;
     }
 
     /// <summary>
-    /// Передає повноваження Майстра гри іншому учаснику.
+    /// Передає роль Master іншому учаснику гри.
     /// </summary>
-    /// <param name="gameId">Ідентифікатор гри, у якій відбувається передача прав.</param>
-    /// <param name="newMasterParticipantId">Ідентифікатор учасника, який стане новим Майстром.</param>
-    /// <returns>Асинхронна операція.</returns>
-    /// <exception cref="NotFoundException">Виникає, якщо нового учасника не знайдено в базі або він не належить до цієї гри.</exception>
-    /// <exception cref="ForbiddenException">Виникає, якщо дію намагається виконати не поточний Майстер.</exception>
-    public async Task TransferMasterRoleAsync(Guid gameId, Guid newMasterParticipantId)
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="newMasterParticipantId">Ідентифікатор нового майстра.</param>
+    /// <exception cref="NotFoundException">
+    /// Виникає, якщо нового учасника не знайдено або він не належить до гри.
+    /// </exception>
+    /// <exception cref="ForbiddenException">
+    /// Виникає, якщо користувач не має права передавати роль.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Виникає при спробі передати роль самому собі.
+    /// </exception>
+   public async Task TransferMasterRoleAsync(Guid gameId, Guid newMasterParticipantId)
     {
         var currentMaster = await GetRequiredMasterAsync(gameId);
         var newMaster = await participantRepository.GetByIdAsync(newMasterParticipantId);
 
-        if (newMaster == null || newMaster.GameId != gameId || newMaster.RemovedAt.HasValue)
-            throw new NotFoundException("Participant", newMasterParticipantId);
+        if (newMaster is null || newMaster.GameId != gameId || newMaster.RemovedAt.HasValue)
+            throw new NotFoundException(nameof(GameParticipant), newMasterParticipantId);
+
+        if (currentMaster.Id == newMaster.Id)
+            throw new InvalidOperationException("Cannot transfer master to yourself!");
+        
+        if (newMaster.Role == ParticipantRole.Spectator)
+        {
+            throw new InvalidOperationException("Spectator cannot be promoted to Master.");
+        }
 
         currentMaster.Role = ParticipantRole.Player;
         newMaster.Role = ParticipantRole.Master;
 
+        participantRepository.Update(currentMaster);
+        participantRepository.Update(newMaster);
+
+        await participantRepository.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Перемикає учасника між режимами Player і Spectator.
+    /// Spectator не бере участі в голосуванні.
+    /// </summary>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="isSpectator">true — зробити глядачем, false — повернути в Player.</param>
+    public async Task SetSpectatorModeAsync(Guid gameId, bool isSpectator)
+    {
+        var participant = await GetRequiredParticipantAsync(gameId);
+        var newRole = isSpectator ? ParticipantRole.Spectator : ParticipantRole.Player;
+
+        if (participant.Role == newRole)
+        {
+            return;
+        }
+
+        if (isSpectator)
+        {
+            if (participant.Role == ParticipantRole.Master)
+                throw new ForbiddenException("become spectator", "game");
+
+            participant.Role = ParticipantRole.Spectator;
+        }
+        else
+        {
+            if (participant.Role == ParticipantRole.Spectator)
+                participant.Role = ParticipantRole.Player;
+        }
+
+        participantRepository.Update(participant);
         await participantRepository.SaveChangesAsync();
     }
 } 

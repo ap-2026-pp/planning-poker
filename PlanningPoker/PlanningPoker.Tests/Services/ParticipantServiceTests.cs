@@ -465,26 +465,39 @@ public class ParticipantServiceTests
     }
 
     [Fact]
-    public async Task TransferMasterAsync_WhenTargetIsCurrentUser_ThrowsInvalidOperationException()
-    {
-        var masterParticipant = CreateParticipant(_masterId, _gameId, ParticipantRole.Master, "Master");
+public async Task TransferMasterAsync_WhenTargetIsCurrentUser_ThrowsInvalidOperationException()
+{
+    var masterParticipant = CreateParticipant(_masterId, _gameId, ParticipantRole.Master, "Master");
 
-        SetupCurrentUserId(_masterId);
-        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(CreateGame("invite-code", isActive: true, _gameId));
-        _participantRepository
-            .Setup(repository => repository.GetByUserIdAndGameIdAsync(_masterId, _gameId))
-            .ReturnsAsync(masterParticipant);
-        _participantRepository
-            .Setup(repository => repository.GetActiveByIdAsync(masterParticipant.Id))
-            .ReturnsAsync(masterParticipant);
+    var game = CreateGame("invite-code", true, _gameId);
+    game.Participants = new List<GameParticipant> { masterParticipant };
 
-        var act = async () => await _participantService.TransferMasterAsync(_gameId, masterParticipant.Id);
+    SetupCurrentUserId(_masterId);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(act);
-        _participantRepository.Verify(repository => repository.Update(It.IsAny<GameParticipant>()), Times.Never);
-        _participantRepository.Verify(repository => repository.SaveChangesAsync(), Times.Never);
-    }
+    _gameRepository
+        .Setup(r => r.GetByIdAsync(_gameId))
+        .ReturnsAsync(game);
 
+    _participantRepository
+        .Setup(r => r.GetByUserIdAndGameIdAsync(_masterId, _gameId))
+        .ReturnsAsync(masterParticipant);
+
+    _participantRepository
+        .Setup(r => r.GetActiveByIdAsync(masterParticipant.Id))
+        .ReturnsAsync(masterParticipant);
+
+    _gameAccessService
+        .Setup(x => x.GetRequiredMasterAsync(_gameId))
+        .ReturnsAsync(masterParticipant); // 🔥 FIX
+
+    var act = async () =>
+        await _participantService.TransferMasterAsync(_gameId, masterParticipant.Id);
+
+    await Assert.ThrowsAsync<InvalidOperationException>(act);
+
+    _participantRepository.Verify(r => r.Update(It.IsAny<GameParticipant>()), Times.Never);
+    _participantRepository.Verify(r => r.SaveChangesAsync(), Times.Never);
+}
     [Fact]
     public async Task TransferMasterAsync_WhenCurrentUserIsMaster_TransfersRightsAndSavesChanges()
     {

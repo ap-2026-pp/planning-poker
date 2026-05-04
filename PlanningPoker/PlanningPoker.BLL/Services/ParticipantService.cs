@@ -175,6 +175,11 @@ public class ParticipantService(
             throw new NotFoundException(nameof(GameParticipant), participantId);
         }
 
+        if (participant.Role == ParticipantRole.Master)
+        {
+            throw new InvalidOperationException("Master cannot be removed. Use LeaveGame instead.");
+        }
+
         participantRepository.RemoveGameParticipant(participant);
         await participantRepository.SaveChangesAsync();
     }
@@ -208,9 +213,9 @@ public class ParticipantService(
         {
             await EnsureDisplayNameIsAvailableAsync(resolvedDisplayName, gameId);
             currentUserParticipant.DisplayName = resolvedDisplayName;
+            await participantRepository.SaveChangesAsync();
         }
 
-        await participantRepository.SaveChangesAsync();
         return ParticipantMapper.ToGameParticipantDto(currentUserParticipant);
     }
 
@@ -233,31 +238,25 @@ public class ParticipantService(
     /// </exception>
     public async Task TransferMasterAsync(Guid gameId, Guid participantId)
     {
-        var currentUserId = currentUserContext.GetRequiredUserId();
-        await GetGameOrThrowAsync(gameId);
+        var currentMaster = await gameAccessService.GetRequiredMasterAsync(gameId);
 
-        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
-        if (currentUserParticipant is null || currentUserParticipant.Role != ParticipantRole.Master)
-        {
-            throw new ForbiddenException("transfer master to", "participant");
-        }
-        
-        var participant = await participantRepository.GetActiveByIdAsync(participantId);
-        if (participant is null || participant.GameId != gameId)
+        var newMaster = await participantRepository.GetActiveByIdAsync(participantId);
+
+        if (newMaster is null || newMaster.GameId != gameId)
         {
             throw new NotFoundException(nameof(GameParticipant), participantId);
         }
 
-        if (currentUserParticipant.Id == participantId)
+        if (currentMaster.Id == participantId)
         {
             throw new InvalidOperationException("You cannot transfer master role to yourself.");
         }
-        
-        currentUserParticipant.Role = ParticipantRole.Player;
-        participantRepository.Update(currentUserParticipant);
-        
-        participant.Role = ParticipantRole.Master;
-        participantRepository.Update(participant);
+
+        currentMaster.Role = ParticipantRole.Player;
+        newMaster.Role = ParticipantRole.Master;
+
+        participantRepository.Update(currentMaster);
+        participantRepository.Update(newMaster);
         
         await participantRepository.SaveChangesAsync();
     }
@@ -292,5 +291,29 @@ public class ParticipantService(
         {
             throw new ResourceAlreadyExistsException(nameof(GameParticipant), displayName); // TODO change exception
         }
+    }
+
+
+   /// <summary>
+    /// Перемикає режим учасника між Player та Spectator.
+    /// Master не може стати Spectator, оскільки він повинен керувати грою.
+    /// </summary>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="isSpectator">True — увімкнути режим глядача, False — повернутися до ролі гравця.</param>
+   public async Task SetSpectatorModeAsync(Guid gameId, bool isSpectator)
+    {
+        var participant = await gameAccessService.GetRequiredParticipantAsync(gameId);
+        var newRole = isSpectator ? ParticipantRole.Spectator : ParticipantRole.Player;
+
+        if (participant.Role == newRole)
+            return;
+
+        if (isSpectator && participant.Role == ParticipantRole.Master)
+            throw new ForbiddenException("become spectator", "game");
+
+        participant.Role = newRole;
+
+        participantRepository.Update(participant);
+        await participantRepository.SaveChangesAsync();
     }
 }

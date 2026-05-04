@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Moq;
 using PlanningPoker.BLL.Services;
 using PlanningPoker.Domain.Exceptions;
@@ -129,35 +130,15 @@ public class GameAccessServiceTests
             _service.EnsureCanVoteAsync(_gameId));
     }
 
-    /// Сценарій: майстер може керувати задачами
-    [Fact]
-    public async Task EnsureCanManageIssues_Master_Allows()
-    {
-        SetupUser();
-        SetupParticipant(CreateParticipant(ParticipantRole.Master));
-
-        var result = await _service.EnsureCanManageIssuesAsync(_gameId);
-
-        Assert.Equal(ParticipantRole.Master, result.Role);
-    }
-
-    /// Сценарій: Гравець не може керувати задачами
-    [Fact]
-    public async Task EnsureCanManageIssues_Player_ThrowsForbidden()
-    {
-        SetupUser();
-        SetupParticipant(CreateParticipant(ParticipantRole.Player));
-
-        await Assert.ThrowsAsync<ForbiddenException>(() =>
-            _service.EnsureCanManageIssuesAsync(_gameId));
-    }
-
     /// Сценарій: Майстер може відкривати карти
-    [Fact]
+   [Fact]
     public async Task EnsureCanRevealCards_Master_Allows()
     {
         SetupUser();
-        SetupParticipant(CreateParticipant(ParticipantRole.Master));
+
+        SetupParticipant(CreateParticipant(
+            ParticipantRole.Master,
+            game: CreateGame(revealPolicy: RevealPolicy.MasterOnly)));
 
         var result = await _service.EnsureCanRevealCardsAsync(_gameId);
 
@@ -169,10 +150,57 @@ public class GameAccessServiceTests
     public async Task EnsureCanRevealCards_Player_ThrowsForbidden()
     {
         SetupUser();
-        SetupParticipant(CreateParticipant(ParticipantRole.Player));
+
+        SetupParticipant(CreateParticipant(
+            ParticipantRole.Player,
+            game: CreateGame(revealPolicy: RevealPolicy.MasterOnly)));
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>
             _service.EnsureCanRevealCardsAsync(_gameId));
+    }
+
+    /// Перевіряє, що Master має право керувати задачами, якщо політика гри = MasterOnly.
+    [Fact]
+    public async Task EnsureCanManageIssues_MasterOnly_Master_Allows()
+    {
+        var participant = CreateParticipant(ParticipantRole.Master);
+        participant.Game = CreateGame(issuesPolicy: IssuesPolicy.MasterOnly);
+
+        SetupUser();
+        SetupParticipant(participant);
+
+        var result = await _service.EnsureCanManageIssuesAsync(_gameId);
+
+        Assert.Equal(ParticipantRole.Master, result.Role);
+    }
+
+    /// Перевіряє, що Player отримує заборону на керування задачами при політиці MasterOnly.
+    [Fact]
+    public async Task EnsureCanManageIssues_MasterOnly_Player_ThrowsForbidden()
+    {
+        var participant = CreateParticipant(ParticipantRole.Player);
+        participant.Game = CreateGame(issuesPolicy: IssuesPolicy.MasterOnly);
+
+        SetupUser();
+        SetupParticipant(participant);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            _service.EnsureCanManageIssuesAsync(_gameId));
+    }
+
+    /// Перевіряє, що Player може керувати задачами, якщо політика дозволяє всім.
+    [Fact]
+    public async Task EnsureCanManageIssues_Everyone_Player_Allows()
+    {
+        var participant = CreateParticipant(ParticipantRole.Player);
+        participant.Game = CreateGame(issuesPolicy: IssuesPolicy.Everyone);
+
+        SetupUser();
+        SetupParticipant(participant);
+
+        var result = await _service.EnsureCanManageIssuesAsync(_gameId);
+
+        Assert.Equal(ParticipantRole.Player, result.Role);
     }
 
     private void SetupUser()
@@ -195,17 +223,46 @@ public class GameAccessServiceTests
             .ReturnsAsync((GameParticipant?)null);
     }
 
-    private GameParticipant CreateParticipant(ParticipantRole role)
+    private GameParticipant CreateParticipant(
+        ParticipantRole role,
+        Guid? userId = null,
+        Guid? gameId = null,
+        Game? game = null)
     {
+        var participantGameId = gameId ?? _gameId;
+
         return new GameParticipant
         {
             Id = Guid.NewGuid(),
-            UserId = _userId,
-            GameId = _gameId,
+            UserId = userId ?? _userId,
+            GameId = participantGameId,
+            Game = game,
             Role = role,
             DisplayName = "test",
             IsConnected = true,
             JoinedAt = DateTime.UtcNow
+        };
+    }
+
+    
+    private Game CreateGame(
+    Guid? id = null,
+    IssuesPolicy issuesPolicy = IssuesPolicy.Everyone,
+    RevealPolicy revealPolicy = RevealPolicy.MasterOnly,
+    bool isActive = true)
+    {
+        return new Game
+        {
+            Id = id ?? _gameId,
+            Name = "Test Game",
+            InviteCode = "TEST-CODE-123",
+            IsActive = isActive,
+            CreatedAt = DateTime.UtcNow,
+
+            Participants = new List<GameParticipant>(),
+
+            IssuesPolicy = issuesPolicy,
+            RevealPolicy = revealPolicy 
         };
     }
 }

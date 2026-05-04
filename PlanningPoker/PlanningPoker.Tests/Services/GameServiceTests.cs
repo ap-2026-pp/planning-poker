@@ -10,7 +10,6 @@ namespace PlanningPoker.Tests.Services;
 
 public class GameServiceTests
 {
-    private readonly Mock<IParticipantRepository> _participantRepository = new();
     private readonly Mock<IGameRepository> _gameRepository = new();
     private readonly Mock<ICurrentUserContext> _currentUserContext = new();
     private readonly Mock<IGameAccessService> _gameAccessService = new();
