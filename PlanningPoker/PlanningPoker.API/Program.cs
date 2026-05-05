@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -8,6 +9,7 @@ using PlanningPoker.API.Services;
 using PlanningPoker.BLL;
 using PlanningPoker.DAL;
 using PlanningPoker.DAL.Data;
+using PlanningPoker.Domain.Constants;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
 using Serilog;
@@ -64,6 +66,40 @@ builder.Services
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtKey))
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var tokenType = context.Principal?.FindFirstValue(GuestSessionDefaults.TokenTypeClaimType);
+                if (!string.Equals(tokenType, GuestSessionDefaults.GuestAccessTokenType, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                const string bearerPrefix = "Bearer ";
+                var authorizationHeader = context.Request.Headers.Authorization.ToString();
+                if (!authorizationHeader.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Fail("Guest access token is missing.");
+                    return;
+                }
+
+                var accessToken = authorizationHeader[bearerPrefix.Length..].Trim();
+                if (string.IsNullOrWhiteSpace(accessToken))
+                {
+                    context.Fail("Guest access token is missing.");
+                    return;
+                }
+
+                var guestSessionService = context.HttpContext.RequestServices.GetRequiredService<IGuestSessionService>();
+                var isActive = await guestSessionService.IsGuestAccessTokenActiveAsync(accessToken);
+                if (!isActive)
+                {
+                    context.Fail("Guest access token is invalid or expired.");
+                }
+            }
         };
     });
 

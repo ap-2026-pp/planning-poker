@@ -8,6 +8,10 @@ using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.BLL.Services;
 
+/// <summary>
+/// Керує життєвим циклом ігрових сесій:
+/// створенням, переглядом, оновленням, видаленням та запрошеннями.
+/// </summary>
 public class GameService(
     IGameRepository gameRepository,
     ICurrentUserContext currentUserContext,
@@ -64,10 +68,13 @@ public class GameService(
     /// <exception cref="NotFoundException">
     /// Виникає, якщо гру з вказаним ідентифікатором не знайдено.
     /// </exception>
+    /// <exception cref="ForbiddenException">
+    /// Виникає, якщо поточний користувач не є учасником гри.
+    /// </exception>
     public async Task<GameDto> GetGameByIdAsync(Guid gameId)
     {
-        await gameAccessService.GetRequiredParticipantAsync(gameId);
         var game = await GetGameOrThrowAsync(gameId);
+        await gameAccessService.GetRequiredParticipantAsync(gameId, "view", "game");
         return GameMapper.ToGameDto(game);
     }
 
@@ -89,8 +96,8 @@ public class GameService(
     /// </exception>
     public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto updateGameRequestDto)
     {
-        await gameAccessService.GetRequiredMasterAsync(gameId);
         var existingGame = await GetGameOrThrowAsync(gameId);
+        await gameAccessService.GetRequiredMasterAsync(gameId, "update", "game");
 
         var updatedGame = GameMapper.ToGame(updateGameRequestDto);
         await EnsureUniqueGameNameAsync(updatedGame.Name, existingGame.CreatedBy, gameId);
@@ -98,9 +105,12 @@ public class GameService(
         existingGame.Name = updatedGame.Name;
         existingGame.AutoRevealCards = updatedGame.AutoRevealCards;
         existingGame.IsActive = updatedGame.IsActive;
+        existingGame.RevealPolicy = updatedGame.RevealPolicy;
+        existingGame.IssuesPolicy = updatedGame.IssuesPolicy;
         existingGame.ShowAverage = updatedGame.ShowAverage;
         existingGame.VotingSystem = updatedGame.VotingSystem;
         existingGame.ShowCountdownAnimation = updatedGame.ShowCountdownAnimation;
+        existingGame.EnableFunFeatures = updatedGame.EnableFunFeatures;
         
         gameRepository.Update(existingGame);
         await gameRepository.SaveChangesAsync();
@@ -119,10 +129,14 @@ public class GameService(
     /// </exception>
     public async Task DeleteGameAsync(Guid gameId)
     {
-        await gameAccessService.GetRequiredMasterAsync(gameId);
         var game = await gameRepository.GetByIdAsync(gameId);
         
-        if (game is null) return;
+        if (game is null)
+        {
+            return;
+        }
+
+        await gameAccessService.GetRequiredMasterAsync(gameId, "delete", "game");
         
         game.IsActive = false;
         game.IsDeleted = true;
@@ -143,13 +157,16 @@ public class GameService(
     /// </exception>
     public async Task<Game> GetGameInviteAsync(Guid gameId)
     {
-        await gameAccessService.GetRequiredParticipantAsync(gameId);
+        await gameAccessService.GetRequiredParticipantAsync(gameId, "view", "game");
         return await GetGameOrThrowAsync(gameId);
     }
     
     /// <summary>
     /// Генерує унікальний інвайт-код для гри.
+    /// Код формується випадково на основі дозволеного набору символів
+    /// і перевіряється на унікальність.
     /// </summary>
+    /// <returns>Унікальний інвайт-код.</returns>
     private async Task<string> GenerateInviteCodeAsync()
     {
         var inviteCodeBuffer = new char[InviteCodeLength];
@@ -171,6 +188,11 @@ public class GameService(
     /// <summary>
     /// Повертає гру за ідентифікатором або викидає виняток, якщо гру не знайдено.
     /// </summary>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <returns>Сутність гри.</returns>
+    /// <exception cref="NotFoundException">
+    /// Виникає, якщо гру не знайдено.
+    /// </exception>
     private async Task<Game> GetGameOrThrowAsync(Guid gameId)
     {
         return await gameRepository.GetByIdAsync(gameId)
@@ -179,7 +201,18 @@ public class GameService(
 
     /// <summary>
     /// Перевіряє, чи не існує в користувача іншої гри з такою ж назвою.
+    /// Під час оновлення поточну гру можна виключити з перевірки.
     /// </summary>
+    /// <param name="gameName">Назва гри для перевірки.</param>
+    /// <param name="createdBy">Ідентифікатор користувача-власника гри.</param>
+    /// <param name="excludedGameId">
+    /// Ідентифікатор гри, яку потрібно виключити з перевірки
+    /// (використовується при оновленні).
+    /// </param>
+    /// <returns>Асинхронна операція без повернення значення.</returns>
+    /// <exception cref="ResourceAlreadyExistsException">
+    /// Виникає, якщо назва вже використовується.
+    /// </exception>
     private async Task EnsureUniqueGameNameAsync(string gameName, Guid createdBy, Guid? excludedGameId = null)
     {
         var exists = excludedGameId.HasValue

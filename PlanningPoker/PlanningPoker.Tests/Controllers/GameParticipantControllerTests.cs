@@ -48,19 +48,24 @@ public class GameParticipantControllerTests
     {
         const string inviteCode = "invite-code";
         var request = new JoinGameRequestDto { DisplayName = "Player" };
-        var game = CreateGameDto("Demo Game");
+        var response = new JoinGameResponseDto
+        {
+            Game = CreateGameDto("Demo Game"),
+            CurrentParticipantId = Guid.NewGuid(),
+            GuestAccessToken = "guest-access-token"
+        };
 
         _participantService
-            .Setup(service => service.JoinGameByInviteCodeAsync(inviteCode, request.DisplayName))
-            .ReturnsAsync(game);
+            .Setup(service => service.JoinGameByInviteCodeAsync(inviteCode, request))
+            .ReturnsAsync(response);
 
         var result = await _controller.JoinGameByInviteCode(inviteCode, request);
 
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
-        var payload = Assert.IsType<GameDto>(okResult.Value);
+        var payload = Assert.IsType<JoinGameResponseDto>(okResult.Value);
 
-        Assert.Same(game, payload);
-        _participantService.Verify(service => service.JoinGameByInviteCodeAsync(inviteCode, request.DisplayName), Times.Once);
+        Assert.Same(response, payload);
+        _participantService.Verify(service => service.JoinGameByInviteCodeAsync(inviteCode, request), Times.Once);
     }
 
     [Fact]

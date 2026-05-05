@@ -12,9 +12,12 @@ public static class DependencyInjection
         services.AddScoped<IGameService, GameService>();
         services.AddScoped<IParticipantService, ParticipantService>();
         services.AddScoped<IJwtService, JwtService>();
+        services.AddScoped<IGuestSessionService, GuestSessionService>();
         services.AddScoped<IIssueService, IssueService>();
         services.AddScoped<IGameAccessService, GameAccessService>();
         
+        services.AddScoped<IGuestAccountLinkService, GuestAccountLinkService>();
+
         services.AddHttpClient<IPlaneService,PlaneService>(client =>
         {
            client.BaseAddress = new Uri("https://api.plane.so");
