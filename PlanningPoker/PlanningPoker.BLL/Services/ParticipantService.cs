@@ -165,11 +165,12 @@ public class ParticipantService(
     /// </exception>
     public async Task DeleteGameParticipantAsync(Guid gameId, Guid participantId)
     {
-        // Використовуємо сервіс доступу для перевірки прав Master
         await gameAccessService.GetRequiredMasterAsync(gameId);
         await GetGameOrThrowAsync(gameId);
 
-        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(userId, gameId);
+        var currentUserId = currentUserContext.GetRequiredUserId();
+
+        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
         if (currentUserParticipant is null || currentUserParticipant.Role != ParticipantRole.Master)
         {
             throw new ForbiddenException("delete", "participant");
@@ -230,54 +231,6 @@ public class ParticipantService(
         return ParticipantMapper.ToGameParticipantDto(currentUserParticipant);
     }
     
-      /// <summary>
-    /// Передає роль Master іншому активному учаснику в межах конкретної гри.
-    /// Операцію може виконати лише поточний Master цієї гри.
-    /// Після успішної передачі поточний Master отримує роль Player, а вибраний учасник стає новим Master.
-    /// </summary>
-    /// <param name="gameId">Ідентифікатор гри.</param>
-    /// <param name="participantId">Ідентифікатор учасника, якому потрібно передати роль Master.</param>
-    /// <returns>Асинхронна операція без повернення значення.</returns>
-    /// <exception cref="NotFoundException">
-    /// Виникає, якщо гру або вказаного учасника не знайдено.
-    /// </exception>
-    /// <exception cref="ForbiddenException">
-    /// Виникає, якщо поточний користувач не є Master цієї гри.
-    /// </exception>
-    /// <exception cref="InvalidOperationException">
-    /// Виникає, якщо користувач намагається передати роль Master самому собі.
-    /// </exception>
-    public async Task TransferMasterAsync(Guid gameId, Guid participantId)
-    {
-        var currentUserId = currentUserContext.GetRequiredUserId();
-        await GetGameOrThrowAsync(gameId);
-
-        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
-        if (currentUserParticipant is null || currentUserParticipant.Role != ParticipantRole.Master)
-        {
-            throw new ForbiddenException("transfer master to", "participant");
-        }
-        
-        var participant = await participantRepository.GetActiveByIdAsync(participantId);
-        if (participant is null || participant.GameId != gameId)
-        {
-            throw new NotFoundException(nameof(GameParticipant), participantId);
-        }
-
-        if (currentUserParticipant.Id == participantId)
-        {
-            throw new InvalidOperationException("You cannot transfer master role to yourself.");
-        }
-        
-        currentUserParticipant.Role = ParticipantRole.Player;
-        participantRepository.Update(currentUserParticipant);
-        
-        participant.Role = ParticipantRole.Master;
-        participantRepository.Update(participant);
-        
-        await participantRepository.SaveChangesAsync();
-    }
-
     /// <summary>
     /// Передає роль Master іншому активному учаснику в межах конкретної гри.
     /// Операцію може виконати лише поточний Master цієї гри.
