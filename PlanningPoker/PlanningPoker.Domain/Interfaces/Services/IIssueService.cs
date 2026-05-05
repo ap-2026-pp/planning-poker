@@ -1,8 +1,8 @@
-namespace PlanningPoker.Domain.Interfaces.Services;
-
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.BLL.DTOs.Issue.Export;
+
+namespace PlanningPoker.Domain.Interfaces.Services;
 
 public interface IIssueService
 {

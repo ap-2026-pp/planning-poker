@@ -130,7 +130,6 @@ public class ParticipantService(
     /// </exception>
     public async Task LeaveGameAsync(Guid gameId)
     {
-        // Замінено прямий пошук на використання сервісу доступу
         var participant = await gameAccessService.GetRequiredParticipantAsync(gameId);
         var game = await GetGameOrThrowAsync(gameId);
 
@@ -216,7 +215,6 @@ public class ParticipantService(
         var currentUser = await currentUserContext.GetRequiredUserAsync();
         await GetGameOrThrowAsync(gameId);
         
-        // Отримуємо учасника через сервіс доступу
         var currentUserParticipant = await gameAccessService.GetRequiredParticipantAsync(gameId);
         
         var resolvedDisplayName = string.IsNullOrWhiteSpace(displayName) ? currentUser.DisplayName : displayName.Trim();

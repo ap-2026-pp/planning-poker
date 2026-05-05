@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Identity;
 using Moq;
 using PlanningPoker.BLL.Services;
 using PlanningPoker.Domain.Exceptions;

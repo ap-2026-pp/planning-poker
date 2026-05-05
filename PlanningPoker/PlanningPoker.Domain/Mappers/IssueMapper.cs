@@ -1,4 +1,3 @@
-using System.Data.Common;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.Models;
 

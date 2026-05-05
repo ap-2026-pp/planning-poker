@@ -149,7 +149,7 @@ public class GameService(
     
     /// <summary>
     /// Генерує унікальний інвайт-код для гри.
-    /// </дsummary>
+    /// </summary>
     private async Task<string> GenerateInviteCodeAsync()
     {
         var inviteCodeBuffer = new char[InviteCodeLength];
