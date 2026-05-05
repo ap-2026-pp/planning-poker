@@ -41,11 +41,11 @@ public class IssueService(
     }
 
     /// <summary>
-    /// Створює нову задачу в грі, доступно лише Майстру.
+    /// Створює нову задачу в грі, якщо поточному учаснику дозволено керувати issues згідно з політикою гри.
     /// </summary>
     public async Task<IssueDto> CreateIssueAsync(Guid gameId, CreateIssueDto dto)
     {
-        var participant = await gameAccessService.GetRequiredMasterAsync(gameId, "create", "issue");
+        var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId, "create", "issue");
 
         if (dto == null || string.IsNullOrWhiteSpace(dto.Title))
         {
