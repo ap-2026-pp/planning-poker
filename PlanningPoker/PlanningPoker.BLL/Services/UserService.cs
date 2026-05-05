@@ -14,12 +14,12 @@ internal class UserService : IUserService
 {
     private readonly UserManager<User> _userManager;
     private readonly IJwtService _jwtService;
-    private readonly ICurrentUserContext _currentUserContext;
+    private readonly ICurrentUserContext  _currentUserContext;
     
     public UserService(
         UserManager<User> userManager,
         IJwtService jwtService,
-        ICurrentUserContext currentUserContext)
+        ICurrentUserContext  currentUserContext)
     {
         _userManager = userManager;
         _jwtService = jwtService;
@@ -33,16 +33,16 @@ internal class UserService : IUserService
 
         var existingUser = await _userManager.FindByEmailAsync(dto.Email);
         if (existingUser is not null)
-            throw new ResourceAlreadyExistsException(nameof(User), "email", dto.Email);
+            throw new InvalidOperationException("User with this email already exists.");
 
         var user = new User
         {
             Id = Guid.NewGuid(),
-            UserName = dto.Email.Split('@')[0],
+            UserName = dto.Email,
             Email = dto.Email,
-            DisplayName = dto.Email.Split('@')[0],
+            DisplayName = dto.Email,
             CreatedAt = DateTime.UtcNow,
-            RefreshToken = null
+            RefreshToken = string.Empty
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -57,7 +57,7 @@ internal class UserService : IUserService
         await _userManager.UpdateAsync(user);
 
         var roles = await _userManager.GetRolesAsync(user);
-        var accessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
 
         return AuthMapper.ToAuthResponseDto(
             accessToken,
@@ -81,7 +81,7 @@ internal class UserService : IUserService
             throw new UnauthorizedAccessException("Invalid credentials.");
 
         var roles = await _userManager.GetRolesAsync(user);
-        var accessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
         var refreshToken = _jwtService.GenerateRefreshToken();
 
         user.RefreshToken = refreshToken;
@@ -119,7 +119,7 @@ internal class UserService : IUserService
             throw new SecurityTokenException("Refresh token expired.");
 
         var roles = await _userManager.GetRolesAsync(user);
-        var newAccessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
+        var newAccessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
         var newRefreshToken = _jwtService.GenerateRefreshToken();
 
         user.RefreshToken = newRefreshToken;
@@ -137,9 +137,12 @@ internal class UserService : IUserService
 
     public async Task RevokeTokenAsync()
     {
-        var user = await _currentUserContext.GetRequiredUserAsync();
+        var userId = _currentUserContext.GetRequiredUserId();
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            throw new NotFoundException(nameof(User), userId.ToString());
 
-        user.RefreshToken = null;
+        user.RefreshToken = string.Empty;
         user.RefreshTokenExpiryTime = null;
 
         await _userManager.UpdateAsync(user);
@@ -147,14 +150,11 @@ internal class UserService : IUserService
 
     public async Task<UserDto> GetCurrentUserAsync()
     {
-        var user = await _currentUserContext.GetRequiredUserAsync();
+        var userId = _currentUserContext.GetRequiredUserId();
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            throw new NotFoundException(nameof(User), userId.ToString());
 
         return AuthMapper.ToUserDto(user);
-    }
-
-    private static string GetRequiredEmail(User user)
-    {
-        return user.Email
-            ?? throw new InvalidOperationException("User email is missing.");
     }
 }

@@ -10,7 +10,8 @@ namespace PlanningPoker.BLL.Services;
 
 public class GameService(
     IGameRepository gameRepository,
-    ICurrentUserContext currentUserContext) : IGameService
+    ICurrentUserContext currentUserContext,
+    IGameAccessService gameAccessService) : IGameService
 {
     private const int InviteCodeLength = 20;
     private const string InviteCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -65,6 +66,7 @@ public class GameService(
     /// </exception>
     public async Task<GameDto> GetGameByIdAsync(Guid gameId)
     {
+        await gameAccessService.GetRequiredParticipantAsync(gameId);
         var game = await GetGameOrThrowAsync(gameId);
         return GameMapper.ToGameDto(game);
     }
@@ -87,9 +89,8 @@ public class GameService(
     /// </exception>
     public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto updateGameRequestDto)
     {
-        var userId = currentUserContext.GetRequiredUserId();
+        await gameAccessService.GetRequiredMasterAsync(gameId);
         var existingGame = await GetGameOrThrowAsync(gameId);
-        EnsureUserIsGameMaster(existingGame, userId, "update");
 
         var updatedGame = GameMapper.ToGame(updateGameRequestDto);
         await EnsureUniqueGameNameAsync(updatedGame.Name, existingGame.CreatedBy, gameId);
@@ -118,15 +119,11 @@ public class GameService(
     /// </exception>
     public async Task DeleteGameAsync(Guid gameId)
     {
-        var userId = currentUserContext.GetRequiredUserId();
+        await gameAccessService.GetRequiredMasterAsync(gameId);
         var game = await gameRepository.GetByIdAsync(gameId);
         
-        if (game is null)
-        {
-            return;
-        }
+        if (game is null) return;
         
-        EnsureUserIsGameMaster(game, userId, "delete");
         game.IsActive = false;
         game.IsDeleted = true;
         gameRepository.Update(game);
@@ -146,19 +143,13 @@ public class GameService(
     /// </exception>
     public async Task<Game> GetGameInviteAsync(Guid gameId)
     {
-        var userId = currentUserContext.GetRequiredUserId();
-        var game = await GetGameOrThrowAsync(gameId);
-        EnsureUserIsParticipant(game, userId, "view", "game invite");
-
-        return game;
+        await gameAccessService.GetRequiredParticipantAsync(gameId);
+        return await GetGameOrThrowAsync(gameId);
     }
     
     /// <summary>
     /// Генерує унікальний інвайт-код для гри.
-    /// Код формується випадково на основі дозволеного набору символів
-    /// і перевіряється на унікальність.
     /// </summary>
-    /// <returns>Унікальний інвайт-код.</returns>
     private async Task<string> GenerateInviteCodeAsync()
     {
         var inviteCodeBuffer = new char[InviteCodeLength];
@@ -180,11 +171,6 @@ public class GameService(
     /// <summary>
     /// Повертає гру за ідентифікатором або викидає виняток, якщо гру не знайдено.
     /// </summary>
-    /// <param name="gameId">Ідентифікатор гри.</param>
-    /// <returns>Сутність гри.</returns>
-    /// <exception cref="NotFoundException">
-    /// Виникає, якщо гру не знайдено.
-    /// </exception>
     private async Task<Game> GetGameOrThrowAsync(Guid gameId)
     {
         return await gameRepository.GetByIdAsync(gameId)
@@ -193,18 +179,7 @@ public class GameService(
 
     /// <summary>
     /// Перевіряє, чи не існує в користувача іншої гри з такою ж назвою.
-    /// Під час оновлення поточну гру можна виключити з перевірки.
     /// </summary>
-    /// <param name="gameName">Назва гри для перевірки.</param>
-    /// <param name="createdBy">Ідентифікатор користувача-власника гри.</param>
-    /// <param name="excludedGameId">
-    /// Ідентифікатор гри, яку потрібно виключити з перевірки
-    /// (використовується при оновленні).
-    /// </param>
-    /// <returns>Асинхронна операція без повернення значення.</returns>
-    /// <exception cref="ResourceAlreadyExistsException">
-    /// Виникає, якщо назва вже використовується.
-    /// </exception>
     private async Task EnsureUniqueGameNameAsync(string gameName, Guid createdBy, Guid? excludedGameId = null)
     {
         var exists = excludedGameId.HasValue
@@ -214,46 +189,6 @@ public class GameService(
         if (exists)
         {
             throw new ResourceAlreadyExistsException(nameof(Game), gameName);
-        }
-    }
-
-    /// <summary>
-    /// Перевіряє, чи є поточний користувач Master конкретної гри.
-    /// </summary>
-    /// <param name="game">Гра, для якої виконується перевірка.</param>
-    /// <param name="currentUserId">Ідентифікатор поточного користувача.</param>
-    /// <param name="action">Назва дії, яку користувач намагається виконати.</param>
-    /// <exception cref="ForbiddenException">
-    /// Виникає, якщо користувач не є Master цієї гри.
-    /// </exception>
-    private static void EnsureUserIsGameMaster(Game game, Guid currentUserId, string action)
-    {
-        var isGameMaster = game.Participants.Any(participant =>
-            participant.UserId == currentUserId &&
-            participant.Role == ParticipantRole.Master);
-
-        if (!isGameMaster)
-        {
-            throw new ForbiddenException(action, "game");
-        }
-    }
-
-    /// <summary>
-    /// Перевіряє, чи є поточний користувач учасником гри.
-    /// </summary>
-    /// <param name="game">Гра, для якої виконується перевірка.</param>
-    /// <param name="currentUserId">Ідентифікатор поточного користувача.</param>
-    /// <param name="action">Назва дії, яку користувач намагається виконати.</param>
-    /// <param name="resourceName">Назва ресурсу, до якого виконується доступ.</param>
-    /// <exception cref="ForbiddenException">
-    /// Виникає, якщо користувач не є учасником гри.
-    /// </exception>
-    private static void EnsureUserIsParticipant(Game game, Guid currentUserId, string action, string resourceName)
-    {
-        var isParticipant = game.Participants.Any(participant => participant.UserId == currentUserId);
-        if (!isParticipant)
-        {
-            throw new ForbiddenException(action, resourceName);
         }
     }
 }

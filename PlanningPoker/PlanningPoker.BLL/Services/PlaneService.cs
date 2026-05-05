@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
-using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
 

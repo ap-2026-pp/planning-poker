@@ -10,7 +10,8 @@ namespace PlanningPoker.BLL.Services;
 public class ParticipantService(
     IParticipantRepository participantRepository,
     IGameRepository gameRepository,
-    ICurrentUserContext currentUserContext) : IParticipantService
+    ICurrentUserContext currentUserContext,
+    IGameAccessService gameAccessService) : IParticipantService
 {
     
     /// <summary>
@@ -129,14 +130,8 @@ public class ParticipantService(
     /// </exception>
     public async Task LeaveGameAsync(Guid gameId)
     {
-        var userId = currentUserContext.GetRequiredUserId();
+        var participant = await gameAccessService.GetRequiredParticipantAsync(gameId);
         var game = await GetGameOrThrowAsync(gameId);
-        
-        var participant = game.Participants.SingleOrDefault(currentParticipant => currentParticipant.UserId == userId);
-        if (participant is null)
-        {
-            throw new NotFoundException("Active game participant was not found.");
-        }
 
         if (participant.Role == ParticipantRole.Master)
         {
@@ -169,10 +164,12 @@ public class ParticipantService(
     /// </exception>
     public async Task DeleteGameParticipantAsync(Guid gameId, Guid participantId)
     {
-        var userId = currentUserContext.GetRequiredUserId();
+        await gameAccessService.GetRequiredMasterAsync(gameId);
         await GetGameOrThrowAsync(gameId);
 
-        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(userId, gameId);
+        var currentUserId = currentUserContext.GetRequiredUserId();
+
+        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
         if (currentUserParticipant is null || currentUserParticipant.Role != ParticipantRole.Master)
         {
             throw new ForbiddenException("delete", "participant");
@@ -187,6 +184,11 @@ public class ParticipantService(
         if (participant is null || participant.GameId != gameId)
         {
             throw new NotFoundException(nameof(GameParticipant), participantId);
+        }
+
+        if (participant.Role == ParticipantRole.Master)
+        {
+            throw new InvalidOperationException("Master cannot be removed. Use LeaveGame instead.");
         }
 
         participantRepository.RemoveGameParticipant(participant);
@@ -211,11 +213,9 @@ public class ParticipantService(
     public async Task<GameParticipantDto> UpdateDisplayNameAsync(Guid gameId, string? displayName)
     {
         var currentUser = await currentUserContext.GetRequiredUserAsync();
-        var userId = currentUser.Id;
         await GetGameOrThrowAsync(gameId);
         
-        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(userId, gameId)
-                                     ?? throw new NotFoundException("User participant was not found in the game.");
+        var currentUserParticipant = await gameAccessService.GetRequiredParticipantAsync(gameId);
         
         var resolvedDisplayName = string.IsNullOrWhiteSpace(displayName) ? currentUser.DisplayName : displayName.Trim();
 
@@ -223,13 +223,13 @@ public class ParticipantService(
         {
             await EnsureDisplayNameIsAvailableAsync(resolvedDisplayName, gameId);
             currentUserParticipant.DisplayName = resolvedDisplayName;
+            await participantRepository.SaveChangesAsync();
         }
 
-        await participantRepository.SaveChangesAsync();
         return ParticipantMapper.ToGameParticipantDto(currentUserParticipant);
     }
     
-      /// <summary>
+    /// <summary>
     /// Передає роль Master іншому активному учаснику в межах конкретної гри.
     /// Операцію може виконати лише поточний Master цієї гри.
     /// Після успішної передачі поточний Master отримує роль Player, а вибраний учасник стає новим Master.
@@ -248,31 +248,25 @@ public class ParticipantService(
     /// </exception>
     public async Task TransferMasterAsync(Guid gameId, Guid participantId)
     {
-        var currentUserId = currentUserContext.GetRequiredUserId();
-        await GetGameOrThrowAsync(gameId);
+        var currentMaster = await gameAccessService.GetRequiredMasterAsync(gameId);
 
-        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
-        if (currentUserParticipant is null || currentUserParticipant.Role != ParticipantRole.Master)
-        {
-            throw new ForbiddenException("transfer master to", "participant");
-        }
-        
-        var participant = await participantRepository.GetActiveByIdAsync(participantId);
-        if (participant is null || participant.GameId != gameId)
+        var newMaster = await participantRepository.GetActiveByIdAsync(participantId);
+
+        if (newMaster is null || newMaster.GameId != gameId)
         {
             throw new NotFoundException(nameof(GameParticipant), participantId);
         }
 
-        if (currentUserParticipant.Id == participantId)
+        if (currentMaster.Id == participantId)
         {
             throw new InvalidOperationException("You cannot transfer master role to yourself.");
         }
-        
-        currentUserParticipant.Role = ParticipantRole.Player;
-        participantRepository.Update(currentUserParticipant);
-        
-        participant.Role = ParticipantRole.Master;
-        participantRepository.Update(participant);
+
+        currentMaster.Role = ParticipantRole.Player;
+        newMaster.Role = ParticipantRole.Master;
+
+        participantRepository.Update(currentMaster);
+        participantRepository.Update(newMaster);
         
         await participantRepository.SaveChangesAsync();
     }
@@ -307,5 +301,29 @@ public class ParticipantService(
         {
             throw new ResourceAlreadyExistsException(nameof(GameParticipant), displayName); // TODO change exception
         }
+    }
+
+
+   /// <summary>
+    /// Перемикає режим учасника між Player та Spectator.
+    /// Master не може стати Spectator, оскільки він повинен керувати грою.
+    /// </summary>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="isSpectator">True — увімкнути режим глядача, False — повернутися до ролі гравця.</param>
+   public async Task SetSpectatorModeAsync(Guid gameId, bool isSpectator)
+    {
+        var participant = await gameAccessService.GetRequiredParticipantAsync(gameId);
+        var newRole = isSpectator ? ParticipantRole.Spectator : ParticipantRole.Player;
+
+        if (participant.Role == newRole)
+            return;
+
+        if (isSpectator && participant.Role == ParticipantRole.Master)
+            throw new ForbiddenException("become spectator", "game");
+
+        participant.Role = newRole;
+
+        participantRepository.Update(participant);
+        await participantRepository.SaveChangesAsync();
     }
 }

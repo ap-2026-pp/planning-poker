@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.DTOs.Participant;
 using PlanningPoker.Domain.Interfaces.Services;
-using PlanningPoker.Domain.Mappers;
 
 namespace PlanningPoker.API.Controllers;
 
@@ -51,6 +50,13 @@ public class GameParticipantController(
         return Ok(updatedParticipant);
     }
 
+    [HttpPatch("{gameId:guid}/participants/me/spectator")]
+    public async Task<ActionResult> SetSpectatorMode(Guid gameId, [FromBody] bool isSpectator)
+    {
+        await participantService.SetSpectatorModeAsync(gameId, isSpectator);
+        return NoContent();
+    }
+    
     [HttpPatch("{gameId:guid}/participants/{participantId:guid}/transfer-master")]
     public async Task<ActionResult> TransferMaster(Guid gameId, Guid participantId)
     {
