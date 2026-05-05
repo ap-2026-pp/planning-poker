@@ -127,6 +127,7 @@ public class ParticipantServiceTests
         Assert.Equal(guestAccessToken, result.GuestAccessToken);
         Assert.Null(participant.UserId);
         Assert.Equal(displayName, participant.DisplayName);
+        _guestSessionService.Verify(service => service.RevokeGuestSessionsAsync(participant.Id), Times.Once);
         _guestSessionService.Verify(service => service.CreateGuestSession(participant.Id, guestAccessToken), Times.Once);
     }
 
@@ -206,6 +207,33 @@ public class ParticipantServiceTests
         Assert.True(removedMaster.IsConnected);
         _gameRepository.Verify(repository => repository.Update(game), Times.Once);
         _participantRepository.Verify(repository => repository.Update(removedMaster), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinGameByInviteCodeAsync_WhenRestoredParticipantDisplayNameIsTaken_ThrowsResourceAlreadyExistsException()
+    {
+        const string inviteCode = "invite-code";
+        var guestParticipantId = Guid.NewGuid();
+        var game = CreateGame(inviteCode, isActive: true);
+        var removedParticipant = CreateGuestParticipant(game.Id, ParticipantRole.Player, "Taken Name", guestParticipantId);
+        removedParticipant.RemovedAt = DateTime.UtcNow.AddMinutes(-5);
+        removedParticipant.IsConnected = false;
+
+        SetupGuestIdentity(guestParticipantId);
+        _gameRepository.Setup(repository => repository.GetByInviteCodeAsync(inviteCode)).ReturnsAsync(game);
+        _participantRepository
+            .Setup(repository => repository.GetCurrentParticipantAsync(game.Id, null, guestParticipantId))
+            .ReturnsAsync((GameParticipant?)null);
+        _participantRepository
+            .Setup(repository => repository.GetCurrentParticipantIncludingRemovedAsync(game.Id, null, guestParticipantId))
+            .ReturnsAsync(removedParticipant);
+        _participantRepository
+            .Setup(repository => repository.ExistsByDisplayNameAsync("Taken Name", game.Id))
+            .ReturnsAsync(true);
+
+        var act = async () => await _participantService.JoinGameByInviteCodeAsync(inviteCode, CreateJoinRequest());
+
+        await Assert.ThrowsAsync<ResourceAlreadyExistsException>(act);
     }
 
     [Fact]
@@ -394,6 +422,20 @@ public class ParticipantServiceTests
     }
 
     [Fact]
+    public async Task DeleteGameParticipantAsync_WhenGameDoesNotExist_ThrowsNotFoundException()
+    {
+        var gameId = Guid.NewGuid();
+
+        _gameRepository
+            .Setup(repository => repository.GetByIdAsync(gameId))
+            .ReturnsAsync((Game?)null);
+
+        var act = async () => await _participantService.DeleteGameParticipantAsync(gameId, Guid.NewGuid());
+
+        await Assert.ThrowsAsync<NotFoundException>(act);
+    }
+
+    [Fact]
     public async Task UpdateDisplayNameAsync_WhenCurrentParticipantIsGuest_UpdatesParticipant()
     {
         var guestParticipantId = Guid.NewGuid();
@@ -458,6 +500,20 @@ public class ParticipantServiceTests
 
         Assert.Equal(ParticipantRole.Player, masterParticipant.Role);
         Assert.Equal(ParticipantRole.Master, playerParticipant.Role);
+    }
+
+    [Fact]
+    public async Task TransferMasterAsync_WhenGameDoesNotExist_ThrowsNotFoundException()
+    {
+        var gameId = Guid.NewGuid();
+
+        _gameRepository
+            .Setup(repository => repository.GetByIdAsync(gameId))
+            .ReturnsAsync((Game?)null);
+
+        var act = async () => await _participantService.TransferMasterAsync(gameId, Guid.NewGuid());
+
+        await Assert.ThrowsAsync<NotFoundException>(act);
     }
 
     private void SetupAuthenticatedIdentity(User user)
