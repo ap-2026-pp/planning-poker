@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.BLL.DTOs.Auth;
+using PlanningPoker.Domain.DTOs.Auth;
 using PlanningPoker.Domain.Interfaces.Services;
 
 namespace PlanningPoker.API.Controllers
@@ -30,6 +31,14 @@ namespace PlanningPoker.API.Controllers
         public async Task<IActionResult> Logout()
         {
             await userService.RevokeTokenAsync();
+            return NoContent();
+        }
+
+        [Authorize]
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        {
+            await userService.ChangePasswordAsync(dto);
             return NoContent();
         }
 

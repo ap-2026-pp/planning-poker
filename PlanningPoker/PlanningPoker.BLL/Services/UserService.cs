@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using PlanningPoker.BLL.Constants;
 using PlanningPoker.BLL.DTOs.Auth;
+using PlanningPoker.Domain.DTOs.Auth;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Mappers;
@@ -142,9 +143,37 @@ internal class UserService(
         return AuthMapper.ToUserDto(user);
     }
 
+    public async Task ChangePasswordAsync(ChangePasswordDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        if (dto.OldPassword == dto.NewPassword)
+            throw new InvalidOperationException("New password must be different from current password.");
+
+        var user = await currentUserContext.GetRequiredUserAsync();
+
+        var result = await userManager.ChangePasswordAsync(user, dto.OldPassword, dto.NewPassword);
+
+        if (!result.Succeeded)
+            throw CreateIdentityOperationException(result);
+
+        user.RefreshToken = string.Empty;
+        user.RefreshTokenExpiryTime = null;
+
+        var updateResult = await userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+            throw CreateIdentityOperationException(updateResult);
+    }
+
     private static string GetRequiredEmail(User user)
     {
         return user.Email
             ?? throw new InvalidOperationException("User email is missing.");
+    }
+
+    private static InvalidOperationException CreateIdentityOperationException(IdentityResult result)
+    {
+        var message = string.Join("; ", result.Errors.Select(error => error.Description));
+        return new InvalidOperationException(message);
     }
 }
