@@ -161,6 +161,36 @@ public class GameService(
         return await GetGameOrThrowAsync(gameId);
     }
     
+    public async Task<IEnumerable<GameDto>?> GetUserGamesAsync(UserGamesScope scope)
+    {
+        var currentUserId = currentUserContext.GetRequiredUserId();
+        return scope switch
+        {
+            UserGamesScope.Created => await GetUserCreatedGames(currentUserId),
+            UserGamesScope.Participated => await GetUserParticipatedGames(currentUserId),
+            UserGamesScope.All => await GetAllUserGames(currentUserId),
+            _ => throw new InvalidOperationException()
+        };
+    }
+
+    private async Task<IEnumerable<GameDto>?> GetAllUserGames(Guid currentUserId)
+    {
+        var games = await gameRepository.GetAllByUserId(currentUserId);
+        return (games ?? []).Select(GameMapper.ToGameDto);
+    }
+
+    private async Task<IEnumerable<GameDto>> GetUserParticipatedGames(Guid currentUserId)
+    {
+        var games = await gameRepository.GetByUserIdParticipated(currentUserId);
+        return (games ?? []).Select(GameMapper.ToGameDto);
+    }
+
+    private async Task<IEnumerable<GameDto>> GetUserCreatedGames(Guid currentUserId)
+    {
+        var games = await gameRepository.GetByUserId(currentUserId);
+        return (games ?? []).Select(GameMapper.ToGameDto);
+    }
+
     /// <summary>
     /// Генерує унікальний інвайт-код для гри.
     /// Код формується випадково на основі дозволеного набору символів
