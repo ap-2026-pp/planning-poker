@@ -2,14 +2,15 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.BLL.DTOs.Issue;
+using PlanningPoker.BLL.DTOs.Issue.Export;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
-
 
 namespace PlanningPoker.API.Controllers;
 
 /// <summary>
-/// Керує задачами в межах конкретної гри.
+/// Контролер для управління задачами (issues) в межах конкретної гри.
+/// Всі операції прив’язані до gameId.
 /// </summary>
 [ApiController]
 [Route("api/games/{gameId:guid}/issues")]
@@ -23,13 +24,8 @@ public class IssuesController : ControllerBase
         _issueService = issueService;
     }
 
-    private Guid GetCurrentUserId()
-    {
-        return Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-    }
-
     /// <summary>
-    /// Повертає список задач гри.
+    /// Отримати всі задачі гри.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetIssuesByGame([FromRoute] Guid gameId)
@@ -39,7 +35,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Повертає детальну інформацію про задачу.
+    /// Отримати задачу за Id.
     /// </summary>
     [HttpGet("{issueId:guid}")]
     public async Task<IActionResult> GetIssueById(
@@ -51,14 +47,15 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Створює нову задачу в грі
+    /// Створити нову задачу в межах гри.
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> CreateIssue(
         [FromRoute] Guid gameId,
         [FromBody] CreateIssueDto dto)
     {
-        var issue = await _issueService.CreateIssueAsync(gameId, GetCurrentUserId(), dto);
+        var issue = await _issueService.CreateIssueAsync(gameId, dto);
+
         return CreatedAtAction(
             nameof(GetIssueById),
             new { gameId, issueId = issue.Id },
@@ -66,7 +63,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Оновлює дані задачі
+    /// Оновити задачу.
     /// </summary>
     [HttpPut("{issueId:guid}")]
     public async Task<IActionResult> UpdateIssue(
@@ -79,52 +76,73 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Видаляє задачу з гри
+    /// Видалити задачу.
     /// </summary>
     [HttpDelete("{issueId:guid}")]
     public async Task<IActionResult> DeleteIssue(
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId)
     {
-        await _issueService.DeleteIssueAsync(gameId, issueId, GetCurrentUserId());
+        await _issueService.DeleteIssueAsync(gameId, issueId);
         return NoContent();
     }
 
     /// <summary>
-    /// Оновлює порядок задач у грі
+    /// Оновлює порядок задач у грі.
     /// </summary>
     [HttpPatch("reorder")]
     public async Task<IActionResult> ReorderIssues(
         [FromRoute] Guid gameId,
         [FromBody] ReorderIssueDto dto)
     {
-        await _issueService.ReorderIssuesAsync(gameId, GetCurrentUserId(), dto);
+        await _issueService.ReorderIssuesAsync(gameId, dto);
         return NoContent();
     }
 
     /// <summary>
-    /// Робить задачу поточною для голосування
+    /// Зробити задачу активною для голосування.
     /// </summary>
     [HttpPatch("{issueId:guid}/set-active")]
     public async Task<IActionResult> SetActiveIssue(
         [FromRoute] Guid gameId,
         [FromRoute] Guid issueId)
     {
-        var issue = await _issueService.SetIssueActiveAsync(gameId, issueId, GetCurrentUserId());
+        var issue = await _issueService.SetIssueActiveAsync(gameId, issueId);
         return Ok(issue);
     }
 
     /// <summary>
-    /// Імпортує задачі з Plane
+    /// Імпорт задач із Plane.
     /// </summary>
     [HttpPost("import-plane")]
     public async Task<IActionResult> ImportIssuesFromPlane(
-    [FromRoute] Guid gameId,
-    [FromBody] ImportPlaneIssuesDto dto)
+        [FromRoute] Guid gameId,
+        [FromBody] ImportPlaneIssuesDto dto)
     {
-        var issues = await _issueService.ImportIssueByPlaneAsync(gameId, GetCurrentUserId(), dto);
+        var issues = await _issueService.ImportIssueByPlaneAsync(gameId, dto);
         return Ok(issues);
     }
+
+    /// <summary>
+    /// Експорт задач у CSV файл.
+    /// </summary>
+    [HttpPost("export-csv")]
+    public async Task<IActionResult> ExportIssues(
+        [FromRoute] Guid gameId,
+        [FromBody] ExportIssuesRequestDto dto)
+    {
+        var fileResult = await _issueService.ExportToCsvAsync(gameId, dto);
+
+        return File(fileResult.Content, "text/csv", fileResult.FileName);
+    }
+
+    /// <summary>
+    /// Видалити всі задачі гри.
+    /// </summary>
+    [HttpDelete]
+    public async Task<IActionResult> DeleteAllIssuesAsync([FromRoute] Guid gameId)
+    {
+        await _issueService.DeleteAllIssuesAsync(gameId);
+        return NoContent();
+    }
 }
-
-

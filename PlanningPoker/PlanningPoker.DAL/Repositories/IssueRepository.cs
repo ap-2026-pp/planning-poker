@@ -27,6 +27,14 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
                 i.Id == issueId &&
                 !i.IsRemoved);
     }
+    
+    public async Task<Issue?> GetLastCreatedIssueAsync(Guid gameId)
+    {
+        return await _dbSet
+            .Where(i => i.GameId == gameId && !i.IsRemoved)
+            .OrderByDescending(i => i.CreatedAt)
+            .FirstOrDefaultAsync();
+    }
 
     public async Task<int> GetNextOrderAsync(Guid gameId)
     {
@@ -68,5 +76,22 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
             i.GameId == gameId &&
             i.Url == url &&
             !i.IsRemoved);
+    }
+
+    public async Task<string> GenerateIssueCodeAsync(Guid gameId)
+    {
+        var count = await _dbSet
+            .CountAsync(i => i.GameId == gameId && !i.IsRemoved);
+
+        return $"PP-{count + 1}";
+    }
+
+    public async Task<IEnumerable<Issue>> GetByGameIdWithVotingResultsAsync(Guid gameId)
+    {
+        return await _dbSet
+            .Include(i => i.VotingResults)
+            .Where(i => i.GameId == gameId && !i.IsRemoved)
+            .OrderBy(i => i.Order)
+            .ToListAsync();
     }
 }

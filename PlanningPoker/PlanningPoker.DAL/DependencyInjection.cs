@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddScoped<IIssueRepository, IssueRepository>();
         services.AddScoped<IParticipantRepository, ParticipantRepository>();
         services.AddScoped<IVotingHistoryRepository, VotingHistoryRepository>();
+        
         return services;
     }
 }

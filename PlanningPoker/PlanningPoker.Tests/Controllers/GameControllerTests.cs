@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Moq;
 using PlanningPoker.API.Controllers;
+using PlanningPoker.API.Services;
 using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Services;
@@ -15,13 +18,26 @@ public class GameControllerTests
 
     public GameControllerTests()
     {
-        _controller = new GameController(_gameService.Object);
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ClientApp:BaseUrl"] = "https://planning-poker.app"
+            })
+            .Build();
+
+        _controller = new GameController(_gameService.Object, new InviteLinkService(configuration))
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext()
+            }
+        };
     }
 
     [Fact]
     public async Task CreateGame_WhenRequestIsValid_ReturnsOkWithCreatedGame()
     {
-        var request = CreateGameRequest("new-game", VotingSystem.Custom, true);
+        var request = CreateGameRequest("new-game", "ScrumMaster", VotingSystem.Custom, true);
         var expectedGame = CreateGameDto("new-game", VotingSystem.Custom, true);
 
         _gameService.Setup(service => service.AddGameAsync(request)).ReturnsAsync(expectedGame);
@@ -38,14 +54,14 @@ public class GameControllerTests
     [Fact]
     public async Task CreateGame_WhenGameNameAlreadyExists_ThrowsException()
     {
-        var request = CreateGameRequest("new-game", VotingSystem.Custom, true);
+        var request = CreateGameRequest("new-game", "ScrumMaster", VotingSystem.Custom, true);
         _gameService
             .Setup(service => service.AddGameAsync(request))
-            .ThrowsAsync(new GameAlreadyExistsException(request.Name));
+            .ThrowsAsync(new ResourceAlreadyExistsException(nameof(Game), request.Name));
 
         var act = async () => await _controller.CreateGame(request);
 
-        await Assert.ThrowsAsync<GameAlreadyExistsException>(act);
+        await Assert.ThrowsAsync<ResourceAlreadyExistsException>(act);
         _gameService.Verify(service => service.AddGameAsync(request), Times.Once);
     }
 
@@ -67,17 +83,30 @@ public class GameControllerTests
     }
 
     [Fact]
-    public async Task GetGame_WhenGameDoesNotExist_ThrowsException()
+    public async Task GetGameInvite_WhenCurrentUserCanViewInvite_ReturnsOkWithInviteDto()
     {
         var gameId = Guid.NewGuid();
-        _gameService
-            .Setup(service => service.GetGameByIdAsync(gameId))
-            .ThrowsAsync(new NotFoundException(nameof(Game), gameId));
+        var game = new Game
+        {
+            Id = gameId,
+            InviteCode = "INVITE-CODE-123",
+            Participants = []
+        };
 
-        var act = async () => await _controller.GetGame(gameId);
+        _controller.Request.Scheme = "https";
+        _controller.Request.Host = new HostString("api.example.com");
+        _gameService.Setup(service => service.GetGameInviteAsync(gameId)).ReturnsAsync(game);
 
-        await Assert.ThrowsAsync<NotFoundException>(act);
-        _gameService.Verify(service => service.GetGameByIdAsync(gameId), Times.Once);
+        var result = await _controller.GetGameInvite(gameId);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var inviteDto = Assert.IsType<GameInviteDto>(okResult.Value);
+
+        Assert.Equal(gameId, inviteDto.GameId);
+        Assert.Equal("INVITE-CODE-123", inviteDto.InviteCode);
+        Assert.Equal("https://planning-poker.app/INVITE-CODE-123/", inviteDto.InviteUrl);
+        Assert.False(string.IsNullOrWhiteSpace(inviteDto.QrCodeBase64));
+        _gameService.Verify(service => service.GetGameInviteAsync(gameId), Times.Once);
     }
 
     [Fact]
@@ -130,25 +159,16 @@ public class GameControllerTests
         _gameService.Verify(service => service.DeleteGameAsync(gameId), Times.Once);
     }
 
-    [Fact]
-    public async Task DeleteGame_WhenUserDoesNotHaveRights_ThrowsException()
-    {
-        var gameId = Guid.NewGuid();
-        _gameService
-            .Setup(service => service.DeleteGameAsync(gameId))
-            .ThrowsAsync(new ForbiddenException("delete", "game"));
-
-        var act = async () => await _controller.DeleteGame(gameId);
-
-        await Assert.ThrowsAsync<ForbiddenException>(act);
-        _gameService.Verify(service => service.DeleteGameAsync(gameId), Times.Once);
-    }
-
-    private static CreateGameRequestDto CreateGameRequest(string name, VotingSystem votingSystem, bool autoReveal)
+    private static CreateGameRequestDto CreateGameRequest(
+        string name,
+        string hostDisplayName,
+        VotingSystem votingSystem,
+        bool autoReveal)
     {
         return new CreateGameRequestDto
         {
             Name = name,
+            HostDisplayName = hostDisplayName,
             VotingSystem = votingSystem,
             AutoRevealCards = autoReveal,
             ShowAverage = true,
@@ -185,14 +205,16 @@ public class GameControllerTests
     {
         return new GameDto
         {
+            Id = Guid.NewGuid(),
             Name = name,
             VotingSystem = votingSystem,
+            InviteCode = "INVITE-CODE-123",
             AutoRevealCards = autoReveal,
             ShowAverage = showAverage,
             ShowCountdownAnimation = showCountdownAnimation,
             IsActive = isActive,
             CreatedBy = Guid.NewGuid(),
-            Participants = new List<GameParticipantDto>()
+            Participants = []
         };
     }
 }

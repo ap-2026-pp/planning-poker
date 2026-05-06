@@ -35,12 +35,20 @@ public static class GameMapper
             Id = game.Id,
             Name = game.Name,
             VotingSystem = game.VotingSystem,
+            InviteCode = game.InviteCode,
             AutoRevealCards = game.AutoRevealCards,
             ShowAverage = game.ShowAverage,
             ShowCountdownAnimation = game.ShowCountdownAnimation,
             IsActive = game.IsActive,
             CreatedAt =  game.CreatedAt,
             CreatedBy = game.CreatedBy,
-            Participants = game.Participants.Select(ParticipantMapper.ToGameParticipantDto).ToList()
+            Participants = (game.Participants ?? [])
+                .Where(participant => participant.RemovedAt == null)
+                .Select(ParticipantMapper.ToGameParticipantDto)
+                .ToList(),
+            Issues = (game.Issues ?? [])
+                .Where(issue => !issue.IsRemoved)
+                .Select(IssueMapper.ToDto)
+                .ToList()
         };
 }

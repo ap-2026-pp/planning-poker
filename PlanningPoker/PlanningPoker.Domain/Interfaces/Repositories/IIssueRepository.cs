@@ -15,4 +15,7 @@ public interface IIssueRepository : IBaseRepository<Issue>
     Task ClearCurrentIssueAsync(Guid gameId);
 
     Task<bool> ExistsByUrlAsync(Guid gameId, string url);
+    Task<string> GenerateIssueCodeAsync(Guid gameId);
+    Task<Issue?> GetLastCreatedIssueAsync(Guid gameId);
+    Task<IEnumerable<Issue>> GetByGameIdWithVotingResultsAsync(Guid gameId);
 }

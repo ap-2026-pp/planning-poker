@@ -13,7 +13,12 @@ public class IssueDto
     /// <summary>
     /// Код задачі
     /// </summary>
-    public string Code {get; set;} 
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Посилання на задачу
+    /// </summary>
+    public string Url { get; set; } = string.Empty;
 
     /// <summary>
     /// Назва задачі
@@ -31,7 +36,7 @@ public class IssueDto
     public int Order { get; set; }
 
     /// <summary>
-    /// Визначає, чи заадча є поточною для голосування
+    /// Визначає, чи заадча є поточною для 
     /// </summary>
     public bool IsCurrent { get; set; }
 
@@ -41,8 +46,6 @@ public class IssueDto
     public string? FinalEstimate { get; set; } 
     public string? Status { get; set;}
 }
-
-
 
 
 

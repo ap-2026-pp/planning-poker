@@ -1,4 +1,7 @@
 using System.Text.Json.Serialization;
+using System.Net;
+using System.Net.Http.Json;
+using Microsoft.Extensions.Configuration;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
 
@@ -18,7 +21,6 @@ internal class PlaneService(HttpClient httpClient) : IPlaneService
     public async Task<List<PlaneIssueDto>> GetIssuesAsync(string workspaceSlug, string projectId, string apiKey)
     {
         var statesMap = await GetStatesMap(workspaceSlug, projectId, apiKey);
-
         var issues = new List<PlaneIssueDto>();
         string? cursor = null;
 
@@ -63,11 +65,10 @@ internal class PlaneService(HttpClient httpClient) : IPlaneService
                 .ToList();
 
             issues.AddRange(filteredResults);
-
             cursor = page.NextPageResults ? page.NextCursor : null;
 
         } while (!string.IsNullOrWhiteSpace(cursor));
-
+        
         return issues.OrderBy(i => i.CreatedAt).ToList();
     }
 
