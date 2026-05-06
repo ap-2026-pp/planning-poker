@@ -1,4 +1,5 @@
 using PlanningPoker.Domain.DTOs.Game;
+using PlanningPoker.Domain.DTOs.Participant;
 
 namespace PlanningPoker.Domain.Interfaces.Services;
 

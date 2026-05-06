@@ -10,5 +10,5 @@ public interface IGameService
     public Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto game);
     public Task<Game> GetGameInviteAsync(Guid gameId);
     public Task DeleteGameAsync(Guid gameId);
-    public Task<IEnumerable<GameDto>?> GetUserGamesAsync(UserGamesScope scope);
+    public Task<IEnumerable<UserGameDto>?> GetUserGamesAsync(UserGamesScope scope);
 }

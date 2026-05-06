@@ -1,6 +1,6 @@
 using PlanningPoker.Domain.Models;
 
-namespace PlanningPoker.Domain.DTOs.Game;
+namespace PlanningPoker.Domain.DTOs.Participant;
 
 public class GameParticipantDto
 {

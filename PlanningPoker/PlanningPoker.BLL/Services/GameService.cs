@@ -160,8 +160,26 @@ public class GameService(
         await gameAccessService.GetRequiredParticipantAsync(gameId, "view", "game");
         return await GetGameOrThrowAsync(gameId);
     }
-    
-    public async Task<IEnumerable<GameDto>?> GetUserGamesAsync(UserGamesScope scope)
+
+    /// <summary>
+    /// Повертає список ігор поточного користувача відповідно до вибраного типу вибірки.
+    /// Може повертати лише створені ігри, лише ігри, у яких користувач брав участь (крім створених),
+    /// або всі разом.
+    /// </summary>
+    /// <param name="scope">
+    ///     Тип вибірки ігор:
+    ///     Created — тільки створені користувачем,
+    ///     Participated — тільки ті, у яких він був учасником,
+    ///     All — усі доступні для цього користувача ігри.
+    /// </param>
+    /// <returns>Колекцію ігор користувача у вигляді <see cref="UserGameDto"/>.</returns>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Виникає, якщо не вдалося визначити поточного авторизованого користувача.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Виникає, якщо передано непідтримуване значення <paramref name="scope"/>.
+    /// </exception>
+    public async Task<IEnumerable<UserGameDto>?> GetUserGamesAsync(UserGamesScope scope)
     {
         var currentUserId = currentUserContext.GetRequiredUserId();
         return scope switch
@@ -173,22 +191,39 @@ public class GameService(
         };
     }
 
-    private async Task<IEnumerable<GameDto>?> GetAllUserGames(Guid currentUserId)
+    /// <summary>
+    /// Повертає повний список ігор, пов’язаних з поточним користувачем:
+    /// як створених ним, так і тих, у яких він брав участь.
+    /// </summary>
+    /// <param name="currentUserId">Ідентифікатор поточного користувача.</param>
+    /// <returns>Колекцію ігор користувача у вигляді <see cref="UserGameDto"/>.</returns>
+    private async Task<IEnumerable<UserGameDto>?> GetAllUserGames(Guid currentUserId)
     {
         var games = await gameRepository.GetAllByUserId(currentUserId);
-        return (games ?? []).Select(GameMapper.ToGameDto);
+        return (games ?? []).Select(game => GameMapper.ToUserGameDto(game, currentUserId));
     }
 
-    private async Task<IEnumerable<GameDto>> GetUserParticipatedGames(Guid currentUserId)
+    /// <summary>
+    /// Повертає список ігор, у яких поточний користувач брав участь,
+    /// але не обов’язково був їхнім творцем.
+    /// </summary>
+    /// <param name="currentUserId">Ідентифікатор поточного користувача.</param>
+    /// <returns>Колекцію ігор користувача у вигляді <see cref="UserGameDto"/>.</returns>
+    private async Task<IEnumerable<UserGameDto>?> GetUserParticipatedGames(Guid currentUserId)
     {
         var games = await gameRepository.GetByUserIdParticipated(currentUserId);
-        return (games ?? []).Select(GameMapper.ToGameDto);
+        return (games ?? []).Select(game => GameMapper.ToUserGameDto(game, currentUserId));
     }
 
-    private async Task<IEnumerable<GameDto>> GetUserCreatedGames(Guid currentUserId)
+    /// <summary>
+    /// Повертає список ігор, створених поточним користувачем.
+    /// </summary>
+    /// <param name="currentUserId">Ідентифікатор поточного користувача.</param>
+    /// <returns>Колекцію створених ігор у вигляді <see cref="UserGameDto"/>.</returns>
+    private async Task<IEnumerable<UserGameDto>?> GetUserCreatedGames(Guid currentUserId)
     {
         var games = await gameRepository.GetByUserId(currentUserId);
-        return (games ?? []).Select(GameMapper.ToGameDto);
+        return (games ?? []).Select(game => GameMapper.ToUserGameDto(game, currentUserId));
     }
 
     /// <summary>

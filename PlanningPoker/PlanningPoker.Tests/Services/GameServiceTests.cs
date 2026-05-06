@@ -424,6 +424,44 @@ public class GameServiceTests
         _gameRepository.Verify(repository => repository.SaveChangesAsync(), Times.Never);
     }
 
+    [Fact]
+    public async Task GetUserGamesAsync_WhenScopeIsAll_ReturnsMappedUserGames()
+    {
+        var createdGame = CreateGame("created", VotingSystem.Custom, true);
+        createdGame.CreatedBy = _masterId;
+        createdGame.IsActive = true;
+        createdGame.CreatedAt = DateTime.UtcNow.AddDays(-2);
+        createdGame.Participants.Add(CreateParticipant(_masterId, ParticipantRole.Master, createdGame.CreatedAt.AddMinutes(5)));
+
+        var participatedGame = CreateGame("participated", VotingSystem.Custom, true);
+        participatedGame.Id = Guid.NewGuid();
+        participatedGame.CreatedBy = Guid.NewGuid();
+        participatedGame.IsActive = false;
+        participatedGame.CreatedAt = DateTime.UtcNow.AddDays(-1);
+        participatedGame.Participants.Add(CreateParticipant(_masterId, ParticipantRole.Spectator, participatedGame.CreatedAt.AddMinutes(15)));
+
+        SetupCurrentUserId(_masterId);
+        _gameRepository
+            .Setup(repository => repository.GetAllByUserId(_masterId))
+            .ReturnsAsync([createdGame, participatedGame]);
+
+        var result = (await _gameService.GetUserGamesAsync(UserGamesScope.All)).ToList();
+
+        Assert.Equal(2, result.Count);
+
+        var createdResult = Assert.Single(result, game => game.Id == createdGame.Id.ToString());
+        Assert.Equal("created", createdResult.Name);
+        Assert.Equal(createdGame.Participants.Single().JoinedAt, createdResult.JoinedAt);
+        Assert.Equal(ParticipantRole.Master, createdResult.SessionRole);
+        Assert.True(createdResult.IsActive);
+
+        var participatedResult = Assert.Single(result, game => game.Id == participatedGame.Id.ToString());
+        Assert.Equal("participated", participatedResult.Name);
+        Assert.Equal(participatedGame.Participants.Single().JoinedAt, participatedResult.JoinedAt);
+        Assert.Equal(ParticipantRole.Spectator, participatedResult.SessionRole);
+        Assert.False(participatedResult.IsActive);
+    }
+
     private void SetupCurrentUser(User user)
     {
         _currentUserContext.Setup(context => context.GetCurrentParticipantIdentity())
@@ -455,7 +493,7 @@ public class GameServiceTests
         };
     }
 
-    private static GameParticipant CreateParticipant(Guid userId, ParticipantRole role)
+    private static GameParticipant CreateParticipant(Guid userId, ParticipantRole role, DateTime? joinedAt = null)
     {
         return new GameParticipant
         {
@@ -464,7 +502,7 @@ public class GameServiceTests
             DisplayName = $"Participant{userId}",
             Role = role,
             IsConnected = true,
-            JoinedAt = DateTime.UtcNow
+            JoinedAt = joinedAt ?? DateTime.UtcNow
         };
     }
 

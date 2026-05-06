@@ -51,7 +51,7 @@ public class GameController(
     }
     
     [HttpGet("~/api/games/my")]
-    public async Task<ActionResult<IEnumerable<GameDto>>> GetUserGames([FromQuery] UserGamesScope scope)
+    public async Task<ActionResult<IEnumerable<UserGameDto>?>> GetUserGames([FromQuery] UserGamesScope scope)
     {
         var games = await gameService.GetUserGamesAsync(scope);
         return Ok(games);

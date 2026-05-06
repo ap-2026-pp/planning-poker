@@ -60,4 +60,41 @@ public static class GameMapper
                 .Select(IssueMapper.ToDto)
                 .ToList()
         };
+
+    public static UserGameDto ToUserGameDto(Game game, Guid currentUserId) =>
+        new()
+        {
+            Id = game.Id.ToString(),
+            Name = game.Name,
+            JoinedAt = GetJoinedAt(game, currentUserId),
+            SessionRole = GetSessionRole(game, currentUserId),
+            IsActive = game.IsActive
+        };
+
+    private static DateTime GetJoinedAt(Game game, Guid currentUserId)
+    {
+        var currentParticipant = GetCurrentUserParticipant(game, currentUserId);
+        return currentParticipant?.JoinedAt ?? game.CreatedAt;
+    }
+
+    private static ParticipantRole GetSessionRole(Game game, Guid currentUserId)
+    {
+        var currentParticipant = GetCurrentUserParticipant(game, currentUserId);
+        if (currentParticipant is not null)
+        {
+            return currentParticipant.Role;
+        }
+
+        return game.CreatedBy == currentUserId
+            ? ParticipantRole.Master
+            : ParticipantRole.Player;
+    }
+
+    private static GameParticipant? GetCurrentUserParticipant(Game game, Guid currentUserId)
+    {
+        return (game.Participants)
+            .FirstOrDefault(participant =>
+                participant.UserId == currentUserId &&
+                participant.RemovedAt == null);
+    }
 }
