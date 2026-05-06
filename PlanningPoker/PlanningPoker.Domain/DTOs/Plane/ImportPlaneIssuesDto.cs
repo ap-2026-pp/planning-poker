@@ -10,13 +10,10 @@ namespace PlanningPoker.BLL.DTOs.Plane;
 public class ImportPlaneIssuesDto
 {
     /// <summary>
-    /// Slug робочого простору Plane.
-    /// </summary>
-    public string WorkspaceSlug { get; set; } = string.Empty;
-    /// <summary>
     /// Індифікатор проєкту Plane
     /// </summary>
-    public string ProjectId { get; set; } = string.Empty;
+    public string ProjectUrl { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
 }
 
 

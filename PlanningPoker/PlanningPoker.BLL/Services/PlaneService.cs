@@ -1,164 +1,160 @@
-using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json.Serialization;
-using Microsoft.Extensions.Configuration;
-using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
 
 namespace PlanningPoker.BLL.Services;
 
-/// <summary>
-/// Отримує задачі з Plane API
-/// </summary>
-internal class PlaneService : IPlaneService
+internal class PlaneService(HttpClient httpClient) : IPlaneService
 {
-    /// <summary>
-    /// Назва HTTP-заголовка для передачі API-ключа Plane.
-    /// </summary>
     private const string ApiKeyHeaderName = "X-API-Key";
-
-    /// <summary>
-    /// Максимальна кількість задач, що запитуються за один запит до Plane.
-    /// </summary>
     private const int PageSize = 100;
 
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
-
-    public PlaneService(HttpClient httpClient, IConfiguration configuration)
+    private static readonly HashSet<string> AllowedGroups = new()
     {
-        _httpClient = httpClient;
-        _configuration = configuration;
-    }
+        "backlog",
+        "unstarted"
+    };
 
-    /// <summary>
-    /// Отримує всі задачі з указаного проєкту Plane з урахуванням пагінації
-    /// </summary>
-    public async Task<List<PlaneIssueDto>> GetIssuesAsync(ImportPlaneIssuesDto dto)
+    public async Task<List<PlaneIssueDto>> GetIssuesAsync(string workspaceSlug, string projectId, string apiKey)
     {
-        var apiKey = _configuration["Plane:ApiKey"];
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-            throw new InvalidOperationException("Plane API key is not configured.");
-
-        if (string.IsNullOrWhiteSpace(dto.WorkspaceSlug))
-            throw new ArgumentException("Workspace slug is required.", nameof(dto.WorkspaceSlug));
-
-        if (string.IsNullOrWhiteSpace(dto.ProjectId))
-            throw new ArgumentException("Project id is required.", nameof(dto.ProjectId));
+        var statesMap = await GetStatesMap(workspaceSlug, projectId, apiKey);
 
         var issues = new List<PlaneIssueDto>();
         string? cursor = null;
 
         do
         {
-            using var request = new HttpRequestMessage(
-                HttpMethod.Get,
-                BuildUrl(dto.WorkspaceSlug, dto.ProjectId, cursor));
+            var url = BuildIssuesUrl(workspaceSlug, projectId, PageSize, cursor);
 
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add(ApiKeyHeaderName, apiKey);
 
-            using var response = await _httpClient.SendAsync(request);
-
+            using var response = await httpClient.SendAsync(request);
             await EnsureSuccessfulPlaneResponseAsync(response);
 
-            var page = await response.Content.ReadFromJsonAsync<PlaneIssuesPage>();
+            var rawJson = await response.Content.ReadAsStringAsync();
+
+            var page = System.Text.Json.JsonSerializer.Deserialize<PlaneIssuesPage>(rawJson);
 
             if (page?.Results is null || page.Results.Count == 0)
                 break;
 
-            issues.AddRange(page.Results.Select(issue => new PlaneIssueDto
-            {
-                Id = issue.Id,
-                SequenceId = issue.SequenceId,
-                Name = issue.Name,
-                DescriptionHtml = issue.DescriptionHtml
-            }));
+            var filteredResults = page.Results
+                .Where(i =>
+                    i.State != null &&
+                    statesMap.ContainsKey(i.State) &&
+                    AllowedGroups.Contains(statesMap[i.State].Group.ToLower())
+                )
+                .Select(issue =>
+                {
+                    var state = statesMap[issue.State!];
+                   
+                    return new PlaneIssueDto
+                    {
+                        Id = issue.Id,
+                        SequenceId = issue.SequenceId,
+                        Name = issue.Name,
+                        DescriptionHtml = issue.DescriptionHtml,
+                        Status = state.Name,
+                        CreatedAt = issue.CreatedAt
+                    };
+                    
+                })
+                .ToList();
+
+            issues.AddRange(filteredResults);
 
             cursor = page.NextPageResults ? page.NextCursor : null;
 
         } while (!string.IsNullOrWhiteSpace(cursor));
 
-        return issues;
+        return issues.OrderBy(i => i.CreatedAt).ToList();
     }
 
-    /// <summary>
-    /// Формує відносний URL для запиту задач із Plane API
-    /// </summary>
-    private static string BuildUrl(string workspaceSlug, string projectId, string? cursor)
+    private async Task<Dictionary<string, PlaneStateDetail>> GetStatesMap(string workspace, string project, string apiKey)
+    {
+        var url = $"/api/v1/workspaces/{workspace}/projects/{project}/states/";
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Add(ApiKeyHeaderName, apiKey);
+
+        using var response = await httpClient.SendAsync(request);
+        await EnsureSuccessfulPlaneResponseAsync(response);
+
+        var rawJson = await response.Content.ReadAsStringAsync();
+     
+        var page = System.Text.Json.JsonSerializer.Deserialize<PlaneStatesPage>(rawJson);
+
+        return page?.Results?.ToDictionary(s => s.Id, s => s) ?? new();
+    }
+
+    private static string BuildIssuesUrl(string workspace, string project, int pageSize, string? cursor)
     {
         var url =
-            $"/api/v1/workspaces/{Uri.EscapeDataString(workspaceSlug)}/projects/{Uri.EscapeDataString(projectId)}/work-items/?per_page={PageSize}";
+            $"/api/v1/workspaces/{Uri.EscapeDataString(workspace)}/projects/{Uri.EscapeDataString(project)}/issues/?per_page={pageSize}&order_by=created_at";
 
-        if (!string.IsNullOrWhiteSpace(cursor))
-        {
-            url += $"&cursor={Uri.EscapeDataString(cursor)}";
-        }
-
-        return url;
+        return string.IsNullOrWhiteSpace(cursor)
+            ? url
+            : $"{url}&cursor={Uri.EscapeDataString(cursor)}";
     }
 
-    /// <summary>
-    /// Перевіряє відповідь Plane API та формує зрозумілу помилку у разі невдалого запиту
-    /// </summary>
     private static async Task EnsureSuccessfulPlaneResponseAsync(HttpResponseMessage response)
     {
-        if (response.IsSuccessStatusCode)
-            return;
+        if (response.IsSuccessStatusCode) return;
 
-        var responseBody = await response.Content.ReadAsStringAsync();
-
-        throw response.StatusCode switch
-        {
-            HttpStatusCode.Unauthorized =>
-                new InvalidOperationException("Plane API key is invalid."),
-
-            HttpStatusCode.Forbidden =>
-                new InvalidOperationException("Plane API access is forbidden."),
-
-            HttpStatusCode.NotFound =>
-                new InvalidOperationException("Plane workspace or project was not found."),
-
-            (HttpStatusCode)429 =>
-                new InvalidOperationException("Plane API rate limit exceeded."),
-
-            _ =>
-                new InvalidOperationException(
-                    $"Plane API request failed with status {(int)response.StatusCode}: {responseBody}")
-        };
+        var body = await response.Content.ReadAsStringAsync();
+        throw new Exception($"Plane API error: {body}");
     }
 
-    /// <summary>
-    /// Сторінка відповіді Plane API зі списком задач
-    /// </summary>
+
     private sealed class PlaneIssuesPage
     {
-        [JsonPropertyName("next_cursor")]
+        [JsonPropertyName("next_cursor")] 
         public string? NextCursor { get; set; }
-
-        [JsonPropertyName("next_page_results")]
+        
+        [JsonPropertyName("next_page_results")] 
         public bool NextPageResults { get; set; }
-
-        [JsonPropertyName("results")]
-        public List<PlaneIssueItem> Results { get; set; } = new();
+        
+        [JsonPropertyName("results")] 
+        public List<PlaneIssueItem> Results { get; set; } = [];
     }
 
-    /// <summary>
-    /// Одна задача відповіді Plane API
-    /// </summary>
+    private sealed class PlaneStatesPage
+    {
+        [JsonPropertyName("results")]
+        public List<PlaneStateDetail> Results { get; set; } = [];
+    }
+
     private sealed class PlaneIssueItem
     {
-        [JsonPropertyName("id")]
+        [JsonPropertyName("id")] 
         public string Id { get; set; } = string.Empty;
 
-        [JsonPropertyName("sequence_id")]
+        [JsonPropertyName("sequence_id")] 
         public int? SequenceId { get; set; }
 
-        [JsonPropertyName("name")]
+        [JsonPropertyName("name")] 
         public string Name { get; set; } = string.Empty;
 
-        [JsonPropertyName("description_html")]
+        [JsonPropertyName("description_html")] 
         public string? DescriptionHtml { get; set; }
+
+        [JsonPropertyName("state")]
+        public string? State { get; set; } 
+
+        [JsonPropertyName("created_at")]
+        public DateTime CreatedAt { get; set; }
+    }
+
+    private sealed class PlaneStateDetail
+    {
+        [JsonPropertyName("id")] 
+        public string Id { get; set; } = string.Empty;
+        
+        [JsonPropertyName("name")] 
+        public string Name { get; set; } = string.Empty;
+        
+        [JsonPropertyName("group")] 
+        public string Group { get; set; } = string.Empty;
     }
 }

@@ -9,5 +9,7 @@ public class PlaneIssueDto
     public int? SequenceId { get; set;}
     public string Name { get; set; } = string.Empty;
     public string? DescriptionHtml { get; set; }
+    public string Status { get; set;}
+    public DateTime CreatedAt { get; set; }
 }
 

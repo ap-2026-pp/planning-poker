@@ -1,10 +1,10 @@
-using Microsoft.AspNetCore.Identity;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
-using  PlanningPoker.Domain.Mappers;
+using PlanningPoker.Domain.Mappers;
+using PlanningPoker.Domain.Exceptions;
 
 namespace PlanningPoker.BLL.Services;
 
@@ -54,10 +54,10 @@ internal class IssueService : IIssueService
         CreateIssueDto dto)
     {
         var participant = await _repoParticipant.GetByGameAndUserAsync(gameId, userId);
-        if(participant == null)
+        if (participant == null)
             throw new Exception("User isn't participant of this game");
 
-        if(participant.Role != ParticipantRole.Master)
+        if (participant.Role != ParticipantRole.Master)
             throw new Exception("Only master can create issues");
         var order = await _repoIssues.GetNextOrderAsync(gameId);
 
@@ -121,7 +121,7 @@ internal class IssueService : IIssueService
     /// <summary>
     /// Оновлює порядок задач у списку після перетягування
     /// </summary>
-   public async Task ReorderIssuesAsync(Guid gameId, Guid userId, ReorderIssueDto dto)
+    public async Task ReorderIssuesAsync(Guid gameId, Guid userId, ReorderIssueDto dto)
     {
         var issues = await _repoIssues.GetIssuesByIdsAsync(gameId, dto.IssuesIds);
         var issuesList = issues.ToList();
@@ -157,62 +157,78 @@ internal class IssueService : IIssueService
 
         return IssueMapper.ToDto(issue);
     }
-    
-    /// <summary>
-    /// Імпортує задачі з Plane та додає їх до списку задач гри
-    /// </summary>
-    public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(
-    Guid gameId,
-    Guid createdByParticipantId,
-    ImportPlaneIssuesDto dto)
-    {
-        var planeIssues = await _planeService.GetIssuesAsync(dto);
-        var nextOrder = await _repoIssues.GetNextOrderAsync(gameId);
 
-        var newlyImported = false;
+    /// <summary>
+    /// Імпортує задачі, використовуючи лише посилання на проект та API ключ
+    /// </summary>
+
+   private (string workspaceSlug, string projectId) ParsePlaneUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            throw new InvalidUrlException("Invalid Plane URL.");
+
+        var segments = uri.AbsolutePath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        // expected: /workspace/projects/projectId/issues/...
+        var workspaceIndex = Array.IndexOf(segments, "projects");
+
+        if (workspaceIndex <= 0 || workspaceIndex + 1 >= segments.Length)
+            throw new InvalidUrlException("Invalid Plane URL structure.");
+
+        var workspaceSlug = segments[0];
+        var projectId = segments[workspaceIndex + 1];
+
+        return (workspaceSlug, projectId);
+    }
+
+    internal static string BuildPlaneIssueUrl(string workspace, string project, string issueId)
+        => $"https://app.plane.so/{workspace}/projects/{project}/issues/{issueId}";
+
+
+    public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(
+        Guid gameId,
+        Guid userId,
+        ImportPlaneIssuesDto dto)
+    {
+        var participant = await _repoParticipant.GetByGameAndUserAsync(gameId, userId);
+
+        if (participant?.Role != ParticipantRole.Master)
+            throw new ForbiddenException("Access denied! Only Master can import issues.");
+
+        var (workspaceSlug, projectId) = ParsePlaneUrl(dto.ProjectUrl);
+
+        var planeIssues = await _planeService.GetIssuesAsync(workspaceSlug, projectId, dto.ApiKey);
+
+        var nextOrder = await _repoIssues.GetNextOrderAsync(gameId);
 
         foreach (var planeIssue in planeIssues)
         {
-            var planeUrl = BuildPlaneIssueUrl(dto.WorkspaceSlug, dto.ProjectId, planeIssue.Id);
+            var planeUrl = BuildPlaneIssueUrl(workspaceSlug, projectId, planeIssue.Id);
 
-            var alreadyExists = await _repoIssues.ExistsByUrlAsync(gameId, planeUrl);
-            if (alreadyExists) continue;
+            if (await _repoIssues.ExistsByUrlAsync(gameId, planeUrl))
+                continue;
 
             var issue = new Issue
             {
                 Id = Guid.NewGuid(),
                 GameId = gameId,
                 Url = planeUrl,
-                Title = planeIssue.Name,
+                Title = planeIssue.Name ?? "Untitled Issue",
                 Description = planeIssue.DescriptionHtml ?? string.Empty,
                 Order = nextOrder++,
-                IsCurrent = false,
                 IsRemoved = false,
+                IsCurrent = false,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = createdByParticipantId
+                CreatedBy = participant.Id
             };
 
             await _repoIssues.AddAsync(issue);
-            newlyImported = true; 
         }
 
-        if (newlyImported)
-        {
-            await _repoIssues.SaveChangesAsync();
-        }
+        await _repoIssues.SaveChangesAsync();
 
         var allIssues = await _repoIssues.GetByGameIdAsync(gameId);
         return allIssues.Select(IssueMapper.ToDto);
-    }
-
-    /// <summary>
-    /// Формує посилання на задачу в Plane
-    /// </summary>
-    private static string BuildPlaneIssueUrl(
-        string workspaceSlug,
-        string projectId,
-        string planeIssueId)
-    {
-        return $"https://app.plane.so/{workspaceSlug}/projects/{projectId}/issues/{planeIssueId}";
     }
 }

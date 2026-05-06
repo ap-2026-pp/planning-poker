@@ -1,12 +1,10 @@
 using System.Security.Claims;
-using System.Xml.Serialization;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
-using PlanningPoker.Domain.Models;
+
 
 namespace PlanningPoker.API.Controllers;
 
@@ -24,7 +22,7 @@ public class IssuesController : ControllerBase
     {
         _issueService = issueService;
     }
-    
+
     private Guid GetCurrentUserId()
     {
         return Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -43,7 +41,6 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Повертає детальну інформацію про задачу.
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpGet("{issueId:guid}")]
     public async Task<IActionResult> GetIssueById(
         [FromRoute] Guid gameId,
@@ -56,7 +53,6 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Створює нову задачу в грі
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPost]
     public async Task<IActionResult> CreateIssue(
         [FromRoute] Guid gameId,
@@ -72,7 +68,6 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Оновлює дані задачі
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPut("{issueId:guid}")]
     public async Task<IActionResult> UpdateIssue(
         [FromRoute] Guid gameId,
@@ -86,7 +81,6 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Видаляє задачу з гри
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpDelete("{issueId:guid}")]
     public async Task<IActionResult> DeleteIssue(
         [FromRoute] Guid gameId,
@@ -99,20 +93,18 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Оновлює порядок задач у грі
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPatch("reorder")]
     public async Task<IActionResult> ReorderIssues(
         [FromRoute] Guid gameId,
         [FromBody] ReorderIssueDto dto)
     {
-        await _issueService.ReorderIssuesAsync(gameId, GetCurrentUserId(),dto);
+        await _issueService.ReorderIssuesAsync(gameId, GetCurrentUserId(), dto);
         return NoContent();
     }
 
     /// <summary>
     /// Робить задачу поточною для голосування
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPatch("{issueId:guid}/set-active")]
     public async Task<IActionResult> SetActiveIssue(
         [FromRoute] Guid gameId,
@@ -125,15 +117,14 @@ public class IssuesController : ControllerBase
     /// <summary>
     /// Імпортує задачі з Plane
     /// </summary>
-    [Authorize(Roles = nameof(ParticipantRole.Master))]
     [HttpPost("import-plane")]
     public async Task<IActionResult> ImportIssuesFromPlane(
     [FromRoute] Guid gameId,
     [FromBody] ImportPlaneIssuesDto dto)
-{
-    var issues = await _issueService.ImportIssueByPlaneAsync(gameId, GetCurrentUserId(), dto);
-    return Ok(issues);
-}
+    {
+        var issues = await _issueService.ImportIssueByPlaneAsync(gameId, GetCurrentUserId(), dto);
+        return Ok(issues);
+    }
 }
 
 

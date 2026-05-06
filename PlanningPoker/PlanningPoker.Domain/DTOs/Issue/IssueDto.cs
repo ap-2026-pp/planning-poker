@@ -39,6 +39,7 @@ public class IssueDto
     /// Фінальна оцінка задачі
     /// </summary>
     public string? FinalEstimate { get; set; } 
+    public string? Status { get; set;}
 }
 
 

@@ -32,6 +32,7 @@ public static class GameMapper
     public static GameDto ToGameDto(Game game) =>
         new()
         {
+            Id = game.Id,
             Name = game.Name,
             VotingSystem = game.VotingSystem,
             AutoRevealCards = game.AutoRevealCards,

@@ -169,7 +169,7 @@ public static class DbInitializer
         {
             Id = FirstIssueId,
             GameId = game.Id,
-            Url = "https://app.plane.so/demo/projects/demo/issues/first",
+            Url = "...",
             Title = "First issue",
             Description = "Add registration, login and JWT authentication.",
             Order = 1,
@@ -183,7 +183,7 @@ public static class DbInitializer
         {
             Id = SecondIssueId,
             GameId = game.Id,
-            Url = "https://app.plane.so/demo/projects/demo/issues/second",
+            Url = "...",
             Title = "Second issue",
             Description = "Create issues sidebar and basic issue actions.",
             Order = 2,
@@ -197,7 +197,7 @@ public static class DbInitializer
         {
             Id = ThirdIssueId,
             GameId = game.Id,
-            Url = "https://app.plane.so/demo/projects/demo/issues/third",
+            Url = "...",
             Title = "Third issue",
             Description = "Implement voting flow and active issue selection.",
             Order = 3,
