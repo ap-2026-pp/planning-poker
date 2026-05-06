@@ -162,7 +162,7 @@ internal class IssueService : IIssueService
     /// Імпортує задачі, використовуючи лише посилання на проект та API ключ
     /// </summary>
 
-   private (string workspaceSlug, string projectId) ParsePlaneUrl(string url)
+    private (string workspaceSlug, string projectId) ParsePlaneUrl(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             throw new InvalidUrlException("Invalid Plane URL.");
@@ -170,7 +170,6 @@ internal class IssueService : IIssueService
         var segments = uri.AbsolutePath
             .Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        // expected: /workspace/projects/projectId/issues/...
         var workspaceIndex = Array.IndexOf(segments, "projects");
 
         if (workspaceIndex <= 0 || workspaceIndex + 1 >= segments.Length)
