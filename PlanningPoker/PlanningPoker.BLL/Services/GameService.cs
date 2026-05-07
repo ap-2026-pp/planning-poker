@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
@@ -135,7 +136,6 @@ public class GameService(
     /// </exception>
     public async Task DeleteGameAsync(Guid gameId)
     {
-        await gameAccessService.GetRequiredMasterAsync(gameId);
         var game = await gameRepository.GetByIdAsync(gameId);
         
         if (game is null)
