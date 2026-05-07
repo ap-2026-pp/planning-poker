@@ -1,13 +1,14 @@
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Issue.Export;
 using PlanningPoker.BLL.DTOs.Plane;
-using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Mappers;
 using PlanningPoker.Domain.Models;
 using System.Text;
+using PlanningPoker.BLL.Constants;
+
 namespace PlanningPoker.BLL.Services;
 
 /// <summary>
@@ -59,7 +60,7 @@ public class IssueService(
 
         if (dto == null || string.IsNullOrWhiteSpace(dto.Title))
         {
-            throw new Exception("Title is required");
+            throw new InvalidOperationException("Title is required");
         }
 
         var order = await repoIssues.GetNextOrderAsync(gameId);
@@ -86,34 +87,6 @@ public class IssueService(
         return IssueMapper.ToDto(issue);
     }
 
-    /// <summary>
-    /// Генерує наступний код задачі на основі існуючих у грі.
-    /// </summary>
-    private async Task<string> GenerateIssueCodeAsync(Guid gameId)
-    {
-        var lastIssue = await repoIssues.GetLastCreatedIssueAsync(gameId);
-        var prefix = "PP";
-
-        if (lastIssue == null || string.IsNullOrWhiteSpace(lastIssue.Code))
-        {
-            return $"{prefix}-1";
-        }
-
-        var parts = lastIssue.Code.Split('-');
-
-        if (parts.Length == 2 && int.TryParse(parts[1], out int lastNumber))
-        {
-            return $"{prefix}-{lastNumber + 1}";
-        }
-
-        return $"{prefix}-1";
-    }
-
-    /// <summary>
-    /// Оновлює дані існуючої задачі. Забороняє зміну заголовка для задач із Plane.
-    /// Перевіряємо, чи користувач намагається змінити заголовок,
-    /// для локальних задач дозволено все
-    /// </summary>
     public async Task<IssueDto> UpdateIssueAsync(Guid gameId, Guid issueId, UpdateIssueDto dto)
     {
         await gameAccessService.EnsureCanManageIssuesAsync(
@@ -141,7 +114,10 @@ public class IssueService(
             issue.Url = dto.Url?.Trim() ?? string.Empty;
         }
         
-        issue.Code = dto.Code.Trim();
+        if(!string.IsNullOrWhiteSpace(dto.Code))
+        {
+            issue.Code = dto.Code?.Trim() ?? issue.Code;
+        }
 
         repoIssues.Update(issue);
         await repoIssues.SaveChangesAsync();
@@ -166,6 +142,7 @@ public class IssueService(
         issue.IsRemoved = true;
         
         if (issue.IsCurrent) issue.IsCurrent = false;
+
         repoIssues.Update(issue);
         await repoIssues.SaveChangesAsync();
     }
@@ -205,7 +182,7 @@ public class IssueService(
         var issuesList = issues.ToList();
 
         if (issuesList.Count != dto.IssuesIds.Count)
-            throw new Exception("Invalid issues list.");
+            throw new InvalidOperationException("Invalid issues list.");
 
         for (var i = 0; i < dto.IssuesIds.Count; i++)
         {
@@ -241,41 +218,36 @@ public class IssueService(
     /// <summary>
     /// Імпортує задачі із зовнішньої системи Plane.
     /// </summary>
-    public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto)
+   public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto)
     {
         var participant = await gameAccessService.EnsureCanManageIssuesAsync(
             gameId,
             AccessControlConstants.ImportAction,
             AccessControlConstants.IssueResource);
-        var planeIssues = await planeService.GetIssuesAsync(dto);
+        
+        var (workspaceSlug, projectId) = ParsePlaneUrl(dto.ProjectUrl);
+        
+        var planeIssues = await planeService.GetIssuesAsync(gameId, workspaceSlug, projectId, dto.ApiKey);
         var nextOrder = await repoIssues.GetNextOrderAsync(gameId);
-
-        var newlyImported = false;
-
+        
         foreach (var planeIssue in planeIssues)
         {
-            var planeUrl = BuildPlaneIssueUrl(dto.WorkspaceSlug, dto.ProjectId, planeIssue.Id);
+            var planeUrl = BuildPlaneIssueUrl(workspaceSlug, projectId, planeIssue.Id);
 
-            var alreadyExists = await repoIssues.ExistsByUrlAsync(gameId, planeUrl);
-            if (alreadyExists)
-            {
+            if (await repoIssues.ExistsByUrlAsync(gameId, planeUrl))
                 continue;
-            }
 
             var lastIssue = await repoIssues.GetLastCreatedIssueAsync(gameId);
-
-            var nextNumber = lastIssue == null
-                ? 1
+            var nextNumber = lastIssue == null 
+                ? 1 
                 : int.Parse(lastIssue.Code.Replace("PP-", "")) + 1;
-
-            var code = $"PP-{nextNumber}";
 
             var issue = new Issue
             {
                 Id = Guid.NewGuid(),
                 GameId = gameId,
                 Url = planeUrl,
-                Code = code,
+                Code = FormatCode(nextNumber),
                 Title = planeIssue.Name.Trim(),
                 Description = planeIssue.DescriptionHtml?.Trim() ?? string.Empty,
                 Order = nextOrder++,
@@ -286,23 +258,13 @@ public class IssueService(
             };
 
             await repoIssues.AddAsync(issue);
-            newlyImported = true;
         }
 
-        if (newlyImported)
-        {
-            await repoIssues.SaveChangesAsync();
-        }
+        await repoIssues.SaveChangesAsync();
 
         var allIssues = await repoIssues.GetByGameIdAsync(gameId);
         return allIssues.Select(IssueMapper.ToDto);
     }
-    
-    private static string BuildPlaneIssueUrl(string workspaceSlug, string projectId, string planeIssueId)
-    {
-        return $"https://app.plane.so/{workspaceSlug}/projects/{projectId}/issues/{planeIssueId}";
-    }
- 
 
     /// <summary>
     /// Eкспортуємо задачі у CSV формат
@@ -315,7 +277,6 @@ public class IssueService(
             AccessControlConstants.IssueResource);
 
         var issues = await repoIssues.GetByGameIdWithVotingResultsAsync(gameId);
-
         var builder = new StringBuilder();
 
         builder.AppendLine(string.Join(",",
@@ -345,21 +306,46 @@ public class IssueService(
             FileName = $"issues-{gameId}.csv"
         };
     }
+    
+    private static string FormatCode(int number) => $"PP-{number}";
+
+    private async Task<string> GenerateIssueCodeAsync(Guid gameId)
+    {
+        var lastIssue = await repoIssues.GetLastCreatedIssueAsync(gameId);
+
+        if (lastIssue == null || string.IsNullOrWhiteSpace(lastIssue.Code))
+            return "PP-1";
+
+        var parts = lastIssue.Code.Split('-');
+        if (parts.Length == 2 && int.TryParse(parts[1], out int lastNumber))
+            return FormatCode(lastNumber + 1);
+
+        return FormatCode(1);
+    }
+
+    private (string workspaceSlug, string projectId) ParsePlaneUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            throw new InvalidUrlException("Invalid Plane URL.");
+
+        var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var workspaceIndex = Array.IndexOf(segments, "projects");
+
+        if (workspaceIndex <= 0 || workspaceIndex + 1 >= segments.Length)
+            throw new InvalidUrlException("Invalid Plane URL structure.");
+
+        return (segments[0], segments[workspaceIndex + 1]);
+    }
+
+    private static string BuildPlaneIssueUrl(string workspace, string project, string issueId)
+        => $"https://app.plane.so/{workspace}/projects/{project}/issues/{issueId}";
 
     private static string EscapeCsv(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
         var escaped = value.Replace("\"", "\"\"");
-
-        if (escaped.Contains(',') || escaped.Contains('\n') || escaped.Contains('\r'))
-        {
-            return $"\"{escaped}\"";
-        }
-
-        return escaped;
+        return (escaped.Contains(',') || escaped.Contains('\n') || escaped.Contains('\r')) 
+            ? $"\"{escaped}\"" 
+            : escaped;
     }
 }

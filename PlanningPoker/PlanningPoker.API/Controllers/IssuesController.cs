@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.BLL.DTOs.Issue;
@@ -87,7 +88,7 @@ public class IssuesController : ControllerBase
     }
 
     /// <summary>
-    /// Перевпорядкувати задачі.
+    /// Оновлює порядок задач у грі.
     /// </summary>
     [HttpPatch("reorder")]
     public async Task<IActionResult> ReorderIssues(
