@@ -37,7 +37,8 @@ public class GameParticipantConfiguration : IEntityTypeConfiguration<GamePartici
 
         builder.HasOne(x => x.User)
             .WithMany(x => x.Participants)
-            .HasForeignKey(x => x.UserId);
+            .HasForeignKey(x => x.UserId)
+            .IsRequired(false);
 
         builder.HasMany(x => x.Votes)
             .WithOne(x => x.Participant)

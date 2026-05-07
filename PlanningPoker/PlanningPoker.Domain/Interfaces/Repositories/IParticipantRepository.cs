@@ -6,8 +6,9 @@ public interface IParticipantRepository : IBaseRepository<GameParticipant>
 {
     Task<IEnumerable<GameParticipant>?> GetGameParticipantsAsync(Guid gameId);
     Task<GameParticipant?> GetActiveByIdAsync(Guid participantId);
-    Task<GameParticipant?> GetByUserIdAndGameIdAsync(Guid userId, Guid gameId);
-    Task<GameParticipant?> GetByUserIdAndGameIdIncludingRemovedAsync(Guid userId, Guid gameId);
+    Task<GameParticipant?> GetCurrentParticipantAsync(Guid gameId, Guid? userId, Guid? guestParticipantId);
+    Task<GameParticipant?> GetCurrentParticipantIncludingRemovedAsync(Guid gameId, Guid? userId, Guid? guestParticipantId);
+    Task<GameParticipant?> GetByGameAndUserAsync(Guid gameId, Guid userId);
     void RemoveGameParticipant(GameParticipant participant);
-    Task<bool> ExistsByDisplayNameAsync(string displayName, Guid gameId);
+    Task<bool> ExistsByDisplayNameAsync(string? displayName, Guid gameId);
 }

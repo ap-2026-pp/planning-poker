@@ -10,9 +10,12 @@ public static class GameMapper
         {
             Name = createGameRequestDto.Name,
             VotingSystem = createGameRequestDto.VotingSystem,
+            RevealPolicy = createGameRequestDto.RevealPolicy,
+            IssuesPolicy = createGameRequestDto.IssuesPolicy,
             AutoRevealCards = createGameRequestDto.AutoRevealCards,
             ShowAverage = createGameRequestDto.ShowAverage,
             ShowCountdownAnimation = createGameRequestDto.ShowCountdownAnimation,
+            EnableFunFeatures = createGameRequestDto.EnableFunFeatures,
             IsActive = true,
             IsDeleted = false
         };
@@ -22,9 +25,12 @@ public static class GameMapper
         {
             Name = updateGameRequestDto.Name,
             VotingSystem = updateGameRequestDto.VotingSystem,
+            RevealPolicy = updateGameRequestDto.RevealPolicy,
+            IssuesPolicy = updateGameRequestDto.IssuesPolicy,
             AutoRevealCards = updateGameRequestDto.AutoRevealCards,
             ShowAverage = updateGameRequestDto.ShowAverage,
             ShowCountdownAnimation = updateGameRequestDto.ShowCountdownAnimation,
+            EnableFunFeatures = updateGameRequestDto.EnableFunFeatures,
             IsActive = updateGameRequestDto.IsActive,
             IsDeleted = false
         };
@@ -36,9 +42,12 @@ public static class GameMapper
             Name = game.Name,
             VotingSystem = game.VotingSystem,
             InviteCode = game.InviteCode,
+            RevealPolicy = game.RevealPolicy,
+            IssuesPolicy = game.IssuesPolicy,
             AutoRevealCards = game.AutoRevealCards,
             ShowAverage = game.ShowAverage,
             ShowCountdownAnimation = game.ShowCountdownAnimation,
+            EnableFunFeatures = game.EnableFunFeatures,
             IsActive = game.IsActive,
             CreatedAt =  game.CreatedAt,
             CreatedBy = game.CreatedBy,

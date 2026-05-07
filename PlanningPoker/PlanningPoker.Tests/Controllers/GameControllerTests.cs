@@ -170,9 +170,12 @@ public class GameControllerTests
             Name = name,
             HostDisplayName = hostDisplayName,
             VotingSystem = votingSystem,
+            RevealPolicy = RevealPolicy.Everyone,
+            IssuesPolicy = IssuesPolicy.Everyone,
             AutoRevealCards = autoReveal,
             ShowAverage = true,
-            ShowCountdownAnimation = true
+            ShowCountdownAnimation = true,
+            EnableFunFeatures = true
         };
     }
 
@@ -188,9 +191,12 @@ public class GameControllerTests
         {
             Name = name,
             VotingSystem = votingSystem,
+            RevealPolicy = RevealPolicy.Everyone,
+            IssuesPolicy = IssuesPolicy.Everyone,
             AutoRevealCards = autoReveal,
             ShowAverage = showAverage,
             ShowCountdownAnimation = showCountdownAnimation,
+            EnableFunFeatures = true,
             IsActive = isActive,
         };
     }
@@ -209,9 +215,12 @@ public class GameControllerTests
             Name = name,
             VotingSystem = votingSystem,
             InviteCode = "INVITE-CODE-123",
+            RevealPolicy = RevealPolicy.Everyone,
+            IssuesPolicy = IssuesPolicy.Everyone,
             AutoRevealCards = autoReveal,
             ShowAverage = showAverage,
             ShowCountdownAnimation = showCountdownAnimation,
+            EnableFunFeatures = true,
             IsActive = isActive,
             CreatedBy = Guid.NewGuid(),
             Participants = []

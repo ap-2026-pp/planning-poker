@@ -26,11 +26,12 @@ public class GameParticipantController(
     }
 
     [HttpPost("join/{inviteCode}")]
-    public async Task<ActionResult<GameDto>> JoinGameByInviteCode(
+    [AllowAnonymous]
+    public async Task<ActionResult<JoinGameResponseDto>> JoinGameByInviteCode(
         string inviteCode,
         [FromBody] JoinGameRequestDto joinGameRequestDto)
     {
-        var game = await participantService.JoinGameByInviteCodeAsync(inviteCode, joinGameRequestDto.DisplayName);
+        var game = await participantService.JoinGameByInviteCodeAsync(inviteCode, joinGameRequestDto);
         return Ok(game);
     }
 

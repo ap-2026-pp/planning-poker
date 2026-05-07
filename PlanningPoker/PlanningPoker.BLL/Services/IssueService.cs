@@ -1,6 +1,7 @@
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Issue.Export;
 using PlanningPoker.BLL.DTOs.Plane;
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
@@ -22,9 +23,12 @@ public class IssueService(
     /// </summary>
     public async Task<IEnumerable<IssueDto>> GetIssuesByGameAsync(Guid gameId)
     {
-        await gameAccessService.GetRequiredParticipantAsync(gameId);
-
+        await gameAccessService.GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.ViewAction,
+            AccessControlConstants.IssuesResource);
         var issues = await repoIssues.GetByGameIdAsync(gameId);
+
         return issues.Select(IssueMapper.ToDto);
     }
 
@@ -33,8 +37,10 @@ public class IssueService(
     /// </summary>
     public async Task<IssueDetailsDto> GetIssueByIdAsync(Guid gameId, Guid issueId)
     {
-        await gameAccessService.GetRequiredParticipantAsync(gameId);
-
+        await gameAccessService.GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.ViewAction,
+            AccessControlConstants.IssueResource);
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
@@ -42,14 +48,19 @@ public class IssueService(
     }
 
     /// <summary>
-    /// Створює нову задачу в грі, доступно лише Майстру.
+    /// Створює нову задачу в грі, якщо поточному учаснику дозволено керувати issues згідно з політикою гри.
     /// </summary>
     public async Task<IssueDto> CreateIssueAsync(Guid gameId, CreateIssueDto dto)
     {
-        var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+        var participant = await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.CreateAction,
+            AccessControlConstants.IssueResource);
 
         if (dto == null || string.IsNullOrWhiteSpace(dto.Title))
+        {
             throw new Exception("Title is required");
+        }
 
         var order = await repoIssues.GetNextOrderAsync(gameId);
         var code = await GenerateIssueCodeAsync(gameId);
@@ -105,18 +116,21 @@ public class IssueService(
     /// </summary>
     public async Task<IssueDto> UpdateIssueAsync(Guid gameId, Guid issueId, UpdateIssueDto dto)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.UpdateAction,
+            AccessControlConstants.IssueResource);
 
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
-        bool isImportedFromPlane = !string.IsNullOrWhiteSpace(issue.Url);
+        var isImportedFromPlane = !string.IsNullOrWhiteSpace(issue.Url);
 
         if (isImportedFromPlane)
         {
             if (issue.Title != dto.Title.Trim())
             {
-                throw new ForbiddenException("Ви не маєте права змінювати заголовок задачі, що була імпортована з Plane.");
+                throw new ForbiddenException("You cannot update the title of the imported issue.");
             }
             issue.Description = dto.Description?.Trim() ?? string.Empty;
         }
@@ -127,7 +141,7 @@ public class IssueService(
             issue.Url = dto.Url?.Trim() ?? string.Empty;
         }
         
-        issue.Code = dto.Code?.Trim() ?? issue.Code;
+        issue.Code = dto.Code.Trim();
 
         repoIssues.Update(issue);
         await repoIssues.SaveChangesAsync();
@@ -141,7 +155,10 @@ public class IssueService(
     /// </summary>
     public async Task DeleteIssueAsync(Guid gameId, Guid issueId)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.DeleteAction,
+            AccessControlConstants.IssueResource);
 
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
@@ -149,7 +166,6 @@ public class IssueService(
         issue.IsRemoved = true;
         
         if (issue.IsCurrent) issue.IsCurrent = false;
-
         repoIssues.Update(issue);
         await repoIssues.SaveChangesAsync();
     }
@@ -159,7 +175,10 @@ public class IssueService(
     /// </summary>
     public async Task DeleteAllIssuesAsync(Guid gameId)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.DeleteAction,
+            AccessControlConstants.IssueResource);
 
         var issues = await repoIssues.GetByGameIdAsync(gameId);
 
@@ -177,13 +196,16 @@ public class IssueService(
     /// </summary>
     public async Task ReorderIssuesAsync(Guid gameId, ReorderIssueDto dto)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.ReorderAction,
+            AccessControlConstants.IssueResource);
 
         var issues = await repoIssues.GetIssuesByIdsAsync(gameId, dto.IssuesIds);
         var issuesList = issues.ToList();
 
         if (issuesList.Count != dto.IssuesIds.Count)
-            throw new InvalidOperationException("Список задач невалідний або містить задачі з іншої гри");
+            throw new Exception("Invalid issues list.");
 
         for (var i = 0; i < dto.IssuesIds.Count; i++)
         {
@@ -199,8 +221,10 @@ public class IssueService(
     /// </summary>
     public async Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
-
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.SetAction,
+            AccessControlConstants.IssueResource);
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
@@ -217,9 +241,12 @@ public class IssueService(
     /// <summary>
     /// Імпортує задачі із зовнішньої системи Plane.
     /// </summary>
-   public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto)
+    public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto)
     {
-        var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+        var participant = await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.ImportAction,
+            AccessControlConstants.IssueResource);
         var planeIssues = await planeService.GetIssuesAsync(dto);
         var nextOrder = await repoIssues.GetNextOrderAsync(gameId);
 
@@ -255,7 +282,7 @@ public class IssueService(
                 IsCurrent = false,
                 IsRemoved = false,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = participant.UserId
+                CreatedBy = participant.Id
             };
 
             await repoIssues.AddAsync(issue);
@@ -270,6 +297,7 @@ public class IssueService(
         var allIssues = await repoIssues.GetByGameIdAsync(gameId);
         return allIssues.Select(IssueMapper.ToDto);
     }
+    
     private static string BuildPlaneIssueUrl(string workspaceSlug, string projectId, string planeIssueId)
     {
         return $"https://app.plane.so/{workspaceSlug}/projects/{projectId}/issues/{planeIssueId}";
@@ -281,7 +309,10 @@ public class IssueService(
     /// </summary>
     public async Task<ExportIssuesFileDto> ExportToCsvAsync(Guid gameId, ExportIssuesRequestDto dto)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId);
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.ExportAction,
+            AccessControlConstants.IssueResource);
 
         var issues = await repoIssues.GetByGameIdWithVotingResultsAsync(gameId);
 
