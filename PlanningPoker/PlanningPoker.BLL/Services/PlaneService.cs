@@ -7,19 +7,28 @@ using PlanningPoker.Domain.Interfaces.Services;
 
 namespace PlanningPoker.BLL.Services;
 
-internal class PlaneService(HttpClient httpClient) : IPlaneService
+internal class PlaneService : IPlaneService
 {
     private const string ApiKeyHeaderName = "X-API-Key";
+    private readonly  IGameAccessService _gameAccessService;
+    private readonly HttpClient _httpClient;
     private const int PageSize = 100;
-
+    public PlaneService(IGameAccessService gameAccessService,
+        HttpClient httpClient)
+    {
+        _gameAccessService = gameAccessService;
+        _httpClient = httpClient;
+    }
     private static readonly HashSet<string> AllowedGroups = new()
     {
         "backlog",
         "unstarted"
     };
 
-    public async Task<List<PlaneIssueDto>> GetIssuesAsync(string workspaceSlug, string projectId, string apiKey)
+    public async Task<List<PlaneIssueDto>> GetIssuesAsync(Guid gameId, string workspaceSlug, string projectId, string apiKey)
     {
+        await _gameAccessService.GetRequiredMasterAsync(gameId);
+
         var statesMap = await GetStatesMap(workspaceSlug, projectId, apiKey);
         var issues = new List<PlaneIssueDto>();
         string? cursor = null;
@@ -31,7 +40,7 @@ internal class PlaneService(HttpClient httpClient) : IPlaneService
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add(ApiKeyHeaderName, apiKey);
 
-            using var response = await httpClient.SendAsync(request);
+            using var response = await _httpClient.SendAsync(request);
             await EnsureSuccessfulPlaneResponseAsync(response);
 
             var rawJson = await response.Content.ReadAsStringAsync();
@@ -79,7 +88,7 @@ internal class PlaneService(HttpClient httpClient) : IPlaneService
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add(ApiKeyHeaderName, apiKey);
 
-        using var response = await httpClient.SendAsync(request);
+        using var response = await _httpClient.SendAsync(request);
         await EnsureSuccessfulPlaneResponseAsync(response);
 
         var rawJson = await response.Content.ReadAsStringAsync();

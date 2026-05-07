@@ -166,7 +166,7 @@ public class IssueService(
         
         var (workspaceSlug, projectId) = ParsePlaneUrl(dto.ProjectUrl);
         
-        var planeIssues = await planeService.GetIssuesAsync(workspaceSlug, projectId, dto.ApiKey);
+        var planeIssues = await planeService.GetIssuesAsync(gameId, workspaceSlug, projectId, dto.ApiKey);
         var nextOrder = await repoIssues.GetNextOrderAsync(gameId);
 
         foreach (var planeIssue in planeIssues)

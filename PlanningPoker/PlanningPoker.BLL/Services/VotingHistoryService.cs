@@ -9,16 +9,20 @@ namespace PlanningPoker.BLL.Services;
 internal class VotingHistoryService : IVotingHistoryService
 {
     private readonly IVotingHistoryRepository _repoVotingHistory;
-
-    public VotingHistoryService(IVotingHistoryRepository repoVotingHistory)
+    private readonly  IGameAccessService _gameAccessService;
+    public VotingHistoryService(IVotingHistoryRepository repoVotingHistory,
+            IGameAccessService gameAccessService)
     {
         _repoVotingHistory = repoVotingHistory;
+        _gameAccessService = gameAccessService;
     }
 
     public async Task<VotingHistoryListDto> GetHistoryAsync(
         Guid gameId,
         VotingHistoryQueryDto query)
     {
+        await _gameAccessService.GetRequiredMasterAsync(gameId);
+
         var results = await _repoVotingHistory.GetHistoryRawAsync(gameId);
 
         var items = results
@@ -50,6 +54,8 @@ internal class VotingHistoryService : IVotingHistoryService
         Guid gameId,
         Guid entryId)
     {
+        await _gameAccessService.GetRequiredMasterAsync(gameId);
+
         var result = await _repoVotingHistory.GetHistoryDetailsRawAsync(gameId, entryId);
 
         if (result is null)
@@ -64,6 +70,8 @@ internal class VotingHistoryService : IVotingHistoryService
         Guid gameId,
         ExportVotingHistoryDto dto)
     {
+        await _gameAccessService.GetRequiredMasterAsync(gameId);
+
         var history = await GetHistoryAsync(gameId, new VotingHistoryQueryDto
         {
             Page = 1,
@@ -199,7 +207,10 @@ internal class VotingHistoryService : IVotingHistoryService
             return string.Empty;
         }
 
-        if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+        if (value.Contains(',') || 
+            value.Contains('"') || 
+            value.Contains('\n') ||
+            value.Contains('\r'))
         {
             return $"\"{value.Replace("\"", "\"\"")}\"";
         }
