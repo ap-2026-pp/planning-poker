@@ -12,8 +12,8 @@ using PlanningPoker.DAL.Data;
 namespace PlanningPoker.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260501054211_AddVotingResultEntity")]
-    partial class AddVotingResultEntity
+    [Migration("20260507075058_AddNullableTypeForIssueEntity")]
+    partial class AddNullableTypeForIssueEntity
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -143,6 +143,9 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("EnableFunFeatures")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("InviteCode")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -154,10 +157,16 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("IssuesPolicy")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<int>("RevealPolicy")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("ShowAverage")
                         .HasColumnType("boolean");
@@ -211,9 +220,11 @@ namespace PlanningPoker.DAL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GameId");
-
                     b.HasIndex("UserId");
+
+                    b.HasIndex("GameId", "DisplayName")
+                        .IsUnique()
+                        .HasFilter("\"RemovedAt\" IS NULL");
 
                     b.ToTable("GameParticipants", (string)null);
                 });
@@ -223,6 +234,10 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -256,7 +271,6 @@ namespace PlanningPoker.DAL.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<string>("Url")
-                        .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 

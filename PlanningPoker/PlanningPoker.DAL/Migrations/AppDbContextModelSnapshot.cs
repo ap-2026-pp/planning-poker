@@ -268,7 +268,6 @@ namespace PlanningPoker.DAL.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<string>("Url")
-                        .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 

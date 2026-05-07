@@ -18,6 +18,7 @@ public class IssueService(
     IPlaneService planeService,
     IGameAccessService gameAccessService) : IIssueService
 {
+
     public async Task<IEnumerable<IssueDto>> GetIssuesByGameAsync(Guid gameId)
     {
         await gameAccessService.GetRequiredParticipantAsync(gameId);
@@ -88,7 +89,10 @@ public class IssueService(
             issue.Url = dto.Url?.Trim() ?? string.Empty;
         }
         
-        issue.Code = dto.Code?.Trim() ?? issue.Code;
+        if(!string.IsNullOrWhiteSpace(dto.Code))
+        {
+            issue.Code = dto.Code?.Trim() ?? issue.Code;
+        }
 
         repoIssues.Update(issue);
         await repoIssues.SaveChangesAsync();
@@ -102,6 +106,7 @@ public class IssueService(
 
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
+
 
         issue.IsRemoved = true;
         if (issue.IsCurrent) issue.IsCurrent = false;
@@ -186,7 +191,7 @@ public class IssueService(
                 Id = Guid.NewGuid(),
                 GameId = gameId,
                 Url = planeUrl,
-                Code = $"PP-{nextNumber}",
+                Code = FormatCode(nextNumber),
                 Title = planeIssue.Name.Trim(),
                 Description = planeIssue.DescriptionHtml?.Trim() ?? string.Empty,
                 Order = nextOrder++,
@@ -239,18 +244,21 @@ public class IssueService(
             FileName = $"issues-{gameId}.csv"
         };
     }
+    
+    private static string FormatCode(int number) => $"PP-{number}";
 
     private async Task<string> GenerateIssueCodeAsync(Guid gameId)
     {
         var lastIssue = await repoIssues.GetLastCreatedIssueAsync(gameId);
+
         if (lastIssue == null || string.IsNullOrWhiteSpace(lastIssue.Code))
             return "PP-1";
 
         var parts = lastIssue.Code.Split('-');
         if (parts.Length == 2 && int.TryParse(parts[1], out int lastNumber))
-            return $"PP-{lastNumber + 1}";
+            return FormatCode(lastNumber + 1);
 
-        return "PP-1";
+        return FormatCode(1);
     }
 
     private (string workspaceSlug, string projectId) ParsePlaneUrl(string url)
