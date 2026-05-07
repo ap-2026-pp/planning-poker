@@ -25,12 +25,14 @@ internal class UserService(
         if (existingUser is not null)
             throw new ResourceAlreadyExistsException(nameof(User), "email", dto.Email);
 
+        var emailLocalPart = ExtractEmailLocalPart(dto.Email);
+
         var user = new User
         {
             Id = Guid.NewGuid(),
-            UserName = dto.Email.Split('@')[0],
+            UserName = emailLocalPart,
             Email = dto.Email,
-            DisplayName = dto.Email.Split('@')[0],
+            DisplayName = emailLocalPart,
             CreatedAt = DateTime.UtcNow,
             RefreshToken = string.Empty
         };
@@ -146,5 +148,11 @@ internal class UserService(
     {
         return user.Email
             ?? throw new InvalidOperationException("User email is missing.");
+    }
+
+    private static string ExtractEmailLocalPart(string email)
+    {
+        var separatorIndex = email.IndexOf('@');
+        return separatorIndex > 0 ? email[..separatorIndex] : email;
     }
 }

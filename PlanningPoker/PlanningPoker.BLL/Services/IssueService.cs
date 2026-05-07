@@ -1,6 +1,7 @@
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Issue.Export;
 using PlanningPoker.BLL.DTOs.Plane;
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
@@ -22,7 +23,10 @@ public class IssueService(
     /// </summary>
     public async Task<IEnumerable<IssueDto>> GetIssuesByGameAsync(Guid gameId)
     {
-        await gameAccessService.GetRequiredParticipantAsync(gameId, "view", "issues");
+        await gameAccessService.GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.ViewAction,
+            AccessControlConstants.IssuesResource);
         var issues = await repoIssues.GetByGameIdAsync(gameId);
 
         return issues.Select(IssueMapper.ToDto);
@@ -33,7 +37,10 @@ public class IssueService(
     /// </summary>
     public async Task<IssueDetailsDto> GetIssueByIdAsync(Guid gameId, Guid issueId)
     {
-        await gameAccessService.GetRequiredParticipantAsync(gameId, "view", "issue");
+        await gameAccessService.GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.ViewAction,
+            AccessControlConstants.IssueResource);
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
@@ -45,7 +52,10 @@ public class IssueService(
     /// </summary>
     public async Task<IssueDto> CreateIssueAsync(Guid gameId, CreateIssueDto dto)
     {
-        var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId, "create", "issue");
+        var participant = await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.CreateAction,
+            AccessControlConstants.IssueResource);
 
         if (dto == null || string.IsNullOrWhiteSpace(dto.Title))
         {
@@ -106,7 +116,10 @@ public class IssueService(
     /// </summary>
     public async Task<IssueDto> UpdateIssueAsync(Guid gameId, Guid issueId, UpdateIssueDto dto)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId, "update", "issue");
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.UpdateAction,
+            AccessControlConstants.IssueResource);
 
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
@@ -142,7 +155,10 @@ public class IssueService(
     /// </summary>
     public async Task DeleteIssueAsync(Guid gameId, Guid issueId)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId, "delete", "issue");
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.DeleteAction,
+            AccessControlConstants.IssueResource);
 
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
@@ -159,7 +175,10 @@ public class IssueService(
     /// </summary>
     public async Task DeleteAllIssuesAsync(Guid gameId)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId, "delete", "issue");
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.DeleteAction,
+            AccessControlConstants.IssueResource);
 
         var issues = await repoIssues.GetByGameIdAsync(gameId);
 
@@ -177,7 +196,10 @@ public class IssueService(
     /// </summary>
     public async Task ReorderIssuesAsync(Guid gameId, ReorderIssueDto dto)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId, "reorder", "issue");
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.ReorderAction,
+            AccessControlConstants.IssueResource);
 
         var issues = await repoIssues.GetIssuesByIdsAsync(gameId, dto.IssuesIds);
         var issuesList = issues.ToList();
@@ -199,7 +221,10 @@ public class IssueService(
     /// </summary>
     public async Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId, "set", "issue");
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.SetAction,
+            AccessControlConstants.IssueResource);
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
@@ -218,7 +243,10 @@ public class IssueService(
     /// </summary>
     public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto)
     {
-        var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId, "import", "issue");
+        var participant = await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.ImportAction,
+            AccessControlConstants.IssueResource);
         var planeIssues = await planeService.GetIssuesAsync(dto);
         var nextOrder = await repoIssues.GetNextOrderAsync(gameId);
 
@@ -281,7 +309,10 @@ public class IssueService(
     /// </summary>
     public async Task<ExportIssuesFileDto> ExportToCsvAsync(Guid gameId, ExportIssuesRequestDto dto)
     {
-        await gameAccessService.EnsureCanManageIssuesAsync(gameId, "export", "issue");
+        await gameAccessService.EnsureCanManageIssuesAsync(
+            gameId,
+            AccessControlConstants.ExportAction,
+            AccessControlConstants.IssueResource);
 
         var issues = await repoIssues.GetByGameIdWithVotingResultsAsync(gameId);
 

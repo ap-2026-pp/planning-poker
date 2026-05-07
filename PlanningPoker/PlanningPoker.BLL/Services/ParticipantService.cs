@@ -1,3 +1,4 @@
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
@@ -27,7 +28,10 @@ public class ParticipantService(
     /// <exception cref="ForbiddenException">Виникає, якщо поточний користувач не є учасником гри.</exception>
     public async Task<IEnumerable<GameParticipantDto>> GetGameParticipantsAsync(Guid gameId)
     {
-        await gameAccessService.GetRequiredParticipantAsync(gameId, "view", "game");
+        await gameAccessService.GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.ViewAction,
+            AccessControlConstants.GameResource);
         var participants = await participantRepository.GetGameParticipantsAsync(gameId);
         return (participants ?? []).Select(ParticipantMapper.ToGameParticipantDto);
     }
@@ -132,7 +136,10 @@ public class ParticipantService(
     public async Task LeaveGameAsync(Guid gameId)
     {
         var game = await GetGameOrThrowAsync(gameId);
-        var participant = await gameAccessService.GetRequiredParticipantAsync(gameId, "leave", "game");
+        var participant = await gameAccessService.GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.LeaveAction,
+            AccessControlConstants.GameResource);
         
         if (participant.UserId == game.CreatedBy)
         {
@@ -172,7 +179,10 @@ public class ParticipantService(
         await GetGameOrThrowAsync(gameId);
 
         var currentUserParticipant =
-            await gameAccessService.GetRequiredMasterAsync(gameId, "delete", "game participant");
+            await gameAccessService.GetRequiredMasterAsync(
+                gameId,
+                AccessControlConstants.DeleteAction,
+                AccessControlConstants.GameParticipantResource);
 
         if (currentUserParticipant.Id == participantId)
         {
@@ -203,7 +213,10 @@ public class ParticipantService(
         await GetGameOrThrowAsync(gameId);
         
         var currentParticipant =
-            await gameAccessService.GetRequiredParticipantAsync(gameId, "update display name", "game");
+            await gameAccessService.GetRequiredParticipantAsync(
+                gameId,
+                AccessControlConstants.UpdateDisplayNameAction,
+                AccessControlConstants.GameResource);
         
         var resolvedDisplayName = ResolveUpdatedDisplayName(
             displayName,
@@ -240,7 +253,10 @@ public class ParticipantService(
         await GetGameOrThrowAsync(gameId);
 
         var currentMaster =
-            await gameAccessService.GetRequiredMasterAsync(gameId, "transfer master to", "participant");
+            await gameAccessService.GetRequiredMasterAsync(
+                gameId,
+                AccessControlConstants.TransferMasterAction,
+                AccessControlConstants.GameParticipantResource);
 
         if (currentMaster.Id == participantId)
         {
@@ -251,8 +267,8 @@ public class ParticipantService(
             await gameAccessService.GetRequiredNonSpectatorParticipantAsync(
                 gameId,
                 participantId,
-                "transfer master to",
-                "spectator");
+                AccessControlConstants.TransferMasterAction,
+                AccessControlConstants.SpectatorResource);
 
         currentMaster.Role = ParticipantRole.Player;
         newMaster.Role = ParticipantRole.Master;
@@ -277,7 +293,10 @@ public class ParticipantService(
         await GetGameOrThrowAsync(gameId);
 
         var currentParticipant =
-            await gameAccessService.GetRequiredParticipantAsync(gameId, "change role", "game participant");
+            await gameAccessService.GetRequiredParticipantAsync(
+                gameId,
+                AccessControlConstants.ChangeRoleAction,
+                AccessControlConstants.GameParticipantResource);
 
         if (isSpectator)
         {
@@ -539,7 +558,9 @@ public class ParticipantService(
 
         if (existingParticipant?.Role != ParticipantRole.Master)
         {
-            throw new ForbiddenException("join", "game");
+            throw new ForbiddenException(
+                AccessControlConstants.JoinAction,
+                AccessControlConstants.GameResource);
         }
 
         game.IsActive = true;

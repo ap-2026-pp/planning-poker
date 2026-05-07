@@ -1,3 +1,4 @@
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
@@ -49,7 +50,7 @@ public class GameAccessService(
         var participant = await GetRequiredParticipantAsync(gameId, action, resourceName);
 
         return participant.Role != ParticipantRole.Master
-            ? throw new ForbiddenException(action, "game")
+            ? throw new ForbiddenException(action, AccessControlConstants.GameResource)
             : participant;
     }
 
@@ -63,7 +64,10 @@ public class GameAccessService(
     /// </exception>
     public async Task<GameParticipant> EnsureCanRevealCardsAsync(Guid gameId)
     {
-        var participant = await GetRequiredParticipantAsync(gameId, "reveal cards", "game");
+        var participant = await GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.RevealCardsAction,
+            AccessControlConstants.GameResource);
         
         if (participant.Game.RevealPolicy == RevealPolicy.Everyone ||
             participant.Role == ParticipantRole.Master)
@@ -71,7 +75,9 @@ public class GameAccessService(
             return participant;
         }
 
-        throw new ForbiddenException("reveal cards", "game");
+        throw new ForbiddenException(
+            AccessControlConstants.RevealCardsAction,
+            AccessControlConstants.GameResource);
     }
 
     /// <summary>
@@ -83,10 +89,15 @@ public class GameAccessService(
     /// <exception cref="ForbiddenException">Виникає, якщо учасник має роль Spectator.</exception>
     public async Task<GameParticipant> EnsureCanVoteAsync(Guid gameId)
     {
-        var participant = await GetRequiredParticipantAsync(gameId, "vote", "game");
+        var participant = await GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.VoteAction,
+            AccessControlConstants.GameResource);
 
         return participant.Role == ParticipantRole.Spectator 
-            ? throw new ForbiddenException("vote", "game") 
+            ? throw new ForbiddenException(
+                AccessControlConstants.VoteAction,
+                AccessControlConstants.GameResource)
             : participant;
     }
 
