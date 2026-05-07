@@ -74,7 +74,10 @@ public class GameService(
     public async Task<GameDto> GetGameByIdAsync(Guid gameId)
     {
         var game = await GetGameOrThrowAsync(gameId);
-        await gameAccessService.GetRequiredParticipantAsync(gameId, "view", "game");
+        await gameAccessService.GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.ViewAction,
+            AccessControlConstants.GameResource);
         return GameMapper.ToGameDto(game);
     }
 
@@ -97,7 +100,10 @@ public class GameService(
     public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto updateGameRequestDto)
     {
         var existingGame = await GetGameOrThrowAsync(gameId);
-        await gameAccessService.GetRequiredMasterAsync(gameId, "update", "game");
+        await gameAccessService.GetRequiredMasterAsync(
+            gameId,
+            AccessControlConstants.UpdateAction,
+            AccessControlConstants.GameResource);
 
         var updatedGame = GameMapper.ToGame(updateGameRequestDto);
         await EnsureUniqueGameNameAsync(updatedGame.Name, existingGame.CreatedBy, gameId);
@@ -129,6 +135,7 @@ public class GameService(
     /// </exception>
     public async Task DeleteGameAsync(Guid gameId)
     {
+        await gameAccessService.GetRequiredMasterAsync(gameId);
         var game = await gameRepository.GetByIdAsync(gameId);
         
         if (game is null)
@@ -136,7 +143,10 @@ public class GameService(
             return;
         }
 
-        await gameAccessService.GetRequiredMasterAsync(gameId, "delete", "game");
+        await gameAccessService.GetRequiredMasterAsync(
+            gameId,
+            AccessControlConstants.DeleteAction,
+            AccessControlConstants.GameResource);
         
         game.IsActive = false;
         game.IsDeleted = true;
@@ -157,7 +167,10 @@ public class GameService(
     /// </exception>
     public async Task<Game> GetGameInviteAsync(Guid gameId)
     {
-        await gameAccessService.GetRequiredParticipantAsync(gameId, "view", "game");
+        await gameAccessService.GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.ViewAction,
+            AccessControlConstants.GameResource);
         return await GetGameOrThrowAsync(gameId);
     }
 

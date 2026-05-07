@@ -396,7 +396,6 @@ public class GameServiceTests
     public async Task DeleteGameAsync_WhenGameDoesNotExist_ReturnsWithoutSaving()
     {
         var gameId = Guid.NewGuid();
-        SetupCurrentUserId(_masterId);
         _gameRepository.Setup(repository => repository.GetByIdAsync(gameId)).ReturnsAsync((Game?)null);
 
         await _gameService.DeleteGameAsync(gameId);
@@ -492,7 +491,7 @@ public class GameServiceTests
             DisplayName = displayName
         };
     }
-
+    
     private static GameParticipant CreateParticipant(Guid userId, ParticipantRole role, DateTime? joinedAt = null)
     {
         return new GameParticipant

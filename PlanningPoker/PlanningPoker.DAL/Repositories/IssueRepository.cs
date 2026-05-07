@@ -27,7 +27,7 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
                 i.Id == issueId &&
                 !i.IsRemoved);
     }
-
+    
     public async Task<Issue?> GetLastCreatedIssueAsync(Guid gameId)
     {
         return await _dbSet
@@ -58,14 +58,13 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
 
     public async Task ClearCurrentIssueAsync(Guid gameId)
     {
-        var issues = await _dbSet
-            .Where(i =>
+        var issue = await _dbSet
+            .FirstOrDefaultAsync(i =>
                 i.GameId == gameId &&
                 i.IsCurrent &&
-                !i.IsRemoved)
-            .ToListAsync();
+                !i.IsRemoved);
 
-        foreach (var issue in issues)
+        if (issue != null)
         {
             issue.IsCurrent = false;
         }
