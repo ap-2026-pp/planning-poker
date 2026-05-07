@@ -8,7 +8,8 @@ public static class AuthMapper
     public static UserDto ToUserDto(User user) =>
         new(
             user.Id,
-            user.Email ?? string.Empty
+            user.Email ?? string.Empty,
+            user.DisplayName
         );
 
     public static AuthResponseDto ToAuthResponseDto(

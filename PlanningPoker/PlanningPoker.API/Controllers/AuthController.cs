@@ -57,5 +57,13 @@ namespace PlanningPoker.API.Controllers
             var result = await userService.GetCurrentUserAsync();
             return Ok(result);
         }
+
+        [Authorize]
+        [HttpPut("me/display-name")]
+        public async Task<IActionResult> UpdateCurrentUserDisplayName([FromBody] UpdateUserDisplayNameDto dto)
+        {
+            var result = await userService.UpdateCurrentUserDisplayNameAsync(dto);
+            return Ok(result);
+        }
     }
 }

@@ -10,5 +10,6 @@ public interface IUserService
     Task<AuthResponseDto> RefreshTokensAsync(TokenRequestDto dto);
     Task RevokeTokenAsync();
     Task<UserDto> GetCurrentUserAsync();
+    Task<UserDto> UpdateCurrentUserDisplayNameAsync(UpdateUserDisplayNameDto dto);
     Task ChangePasswordAsync(ChangePasswordDto dto);
 }

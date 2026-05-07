@@ -156,7 +156,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
-app.UseDeveloperExceptionPage();
 app.UseHttpsRedirection();
 
 app.UseAuthentication();

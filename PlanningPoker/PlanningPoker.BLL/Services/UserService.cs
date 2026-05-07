@@ -206,6 +206,48 @@ internal class UserService(
     }
 
     /// <summary>
+    /// Оновлює глобальне display name поточного авторизованого користувача.
+    /// Це значення використовується як профільне ім'я за замовчуванням,
+    /// але не змінює display name у вже наявних game participants.
+    /// </summary>
+    /// <param name="dto">Нове глобальне display name користувача.</param>
+    /// <returns>Оновлений профіль користувача у вигляді <see cref="UserDto"/>.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Виникає, якщо вхідний DTO дорівнює <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Виникає, якщо нове display name порожнє або складається лише з пробілів,
+    /// або якщо не вдалося зберегти зміни користувача.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Виникає, якщо не вдалося визначити поточного користувача.
+    /// </exception>
+    /// <exception cref="NotFoundException">
+    /// Виникає, якщо поточного користувача не знайдено в сховищі.
+    /// </exception>
+    public async Task<UserDto> UpdateCurrentUserDisplayNameAsync(UpdateUserDisplayNameDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        var displayName = dto.DisplayName?.Trim();
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            throw new InvalidOperationException("Display name is required.");
+        }
+
+        var user = await currentUserContext.GetRequiredUserAsync();
+        if (string.Equals(user.DisplayName, displayName, StringComparison.Ordinal))
+        {
+            return AuthMapper.ToUserDto(user);
+        }
+
+        user.DisplayName = displayName;
+
+        var result = await userManager.UpdateAsync(user);
+        return !result.Succeeded ? throw CreateIdentityOperationException(result) : AuthMapper.ToUserDto(user);
+    }
+
+    /// <summary>
     /// Змінює пароль поточного авторизованого користувача.
     /// Після успішної зміни пароля відкликає refresh token, щоб користувач повторно пройшов авторизацію.
     /// </summary>
