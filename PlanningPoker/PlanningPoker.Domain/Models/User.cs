@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Identity;
 
 public class User : IdentityUser<Guid>
 {
-    public string DisplayName { get; set; }
+    public string? DisplayName { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? RefreshTokenExpiryTime { get; set; }
     public string? RefreshToken { get; set; }

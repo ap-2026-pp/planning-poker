@@ -9,9 +9,12 @@ public class GameDto
     public string? Name { get; set; }
     public VotingSystem VotingSystem { get; set; }
     public string? InviteCode { get; set; }
+    public RevealPolicy RevealPolicy { get; set; }
+    public IssuesPolicy IssuesPolicy { get; set; }
     public bool AutoRevealCards { get; set; }
     public bool ShowAverage { get; set; }
     public bool ShowCountdownAnimation { get; set; }
+    public bool EnableFunFeatures { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public Guid? CreatedBy { get; set; }

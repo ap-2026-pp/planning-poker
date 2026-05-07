@@ -9,6 +9,7 @@ public class AppDbContext : IdentityDbContext<User, Role, Guid>
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
     public DbSet<Game> Games { get; set; }
     public DbSet<GameParticipant> GameParticipants { get; set; }
+    public DbSet<GuestSession> GuestSessions { get; set; }
     public DbSet<Issue> Issues { get; set; }
     public DbSet<Vote> Votes { get; set; }
     public DbSet<VotingResult> VotingResults { get; set; }
