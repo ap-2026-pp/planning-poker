@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.Configuration;
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
 
@@ -27,7 +28,10 @@ internal class PlaneService : IPlaneService
 
     public async Task<List<PlaneIssueDto>> GetIssuesAsync(Guid gameId, string workspaceSlug, string projectId, string apiKey)
     {
-        await _gameAccessService.GetRequiredMasterAsync(gameId);
+        await _gameAccessService.GetRequiredMasterAsync(
+            gameId,
+            AccessControlConstants.GetAction,
+            AccessControlConstants.IssuesResource);
 
         var statesMap = await GetStatesMap(workspaceSlug, projectId, apiKey);
         var issues = new List<PlaneIssueDto>();

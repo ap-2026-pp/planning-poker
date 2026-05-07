@@ -23,4 +23,8 @@ internal static class AccessControlConstants
     public const string UpdateDisplayNameAction = "update display name";
     public const string TransferMasterAction = "transfer master to";
     public const string ChangeRoleAction = "change role";
+    public const string GetHistoryAction = "get history in";
+    public const string GetAction = "get"; 
+    public static string GetHistoryDetailsAction => "get history details in";
+    public static string ExportHistoryAction = "export history in";
 }

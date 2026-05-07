@@ -1,4 +1,5 @@
 using System.Text;
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.DTOs.VotingHistory;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
@@ -21,7 +22,10 @@ internal class VotingHistoryService : IVotingHistoryService
         Guid gameId,
         VotingHistoryQueryDto query)
     {
-        await _gameAccessService.GetRequiredMasterAsync(gameId);
+        await _gameAccessService.GetRequiredMasterAsync(
+            gameId, 
+            AccessControlConstants.GetHistoryAction, 
+            AccessControlConstants.GameResource);
 
         var results = await _repoVotingHistory.GetHistoryRawAsync(gameId);
 
@@ -54,7 +58,10 @@ internal class VotingHistoryService : IVotingHistoryService
         Guid gameId,
         Guid entryId)
     {
-        await _gameAccessService.GetRequiredMasterAsync(gameId);
+        await _gameAccessService.GetRequiredMasterAsync(
+            gameId,  
+            AccessControlConstants.GetHistoryDetailsAction, 
+            AccessControlConstants.GameResource);
 
         var result = await _repoVotingHistory.GetHistoryDetailsRawAsync(gameId, entryId);
 
@@ -70,7 +77,10 @@ internal class VotingHistoryService : IVotingHistoryService
         Guid gameId,
         ExportVotingHistoryDto dto)
     {
-        await _gameAccessService.GetRequiredMasterAsync(gameId);
+        await _gameAccessService.GetRequiredMasterAsync(
+            gameId,  
+            AccessControlConstants.ExportHistoryAction, 
+            AccessControlConstants.GameResource);
 
         var history = await GetHistoryAsync(gameId, new VotingHistoryQueryDto
         {
