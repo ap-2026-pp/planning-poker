@@ -145,6 +145,31 @@ public class GameAccessService(
     }
 
     /// <summary>
+    /// Повертає інших активних учасників гри, які не є Spectator.
+    /// Якщо репозиторій не повернув список, використовує вже завантажених у гру учасників як fallback.
+    /// </summary>
+    /// <param name="game">Гра, для якої потрібно отримати список учасників.</param>
+    /// <param name="excludedParticipantId">Ідентифікатор учасника, якого потрібно виключити зі списку.</param>
+    /// <returns>Список активних non-spectator учасників без виключеного учасника.</returns>
+    public async Task<IReadOnlyList<GameParticipant>> GetOtherActiveNonSpectatorParticipantsAsync(
+        Game game,
+        Guid excludedParticipantId)
+    {
+        var participants = (await participantRepository.GetGameParticipantsAsync(game.Id))?.ToList();
+        if (participants is null || participants.Count == 0)
+        {
+            participants = game.Participants.ToList();
+        }
+
+        return participants
+            .Where(participant =>
+                participant.RemovedAt is null &&
+                participant.Id != excludedParticipantId &&
+                participant.Role != ParticipantRole.Spectator)
+            .ToList();
+    }
+
+    /// <summary>
     /// Повертає активного учасника гри, який не має ролі Spectator.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>

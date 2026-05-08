@@ -102,6 +102,48 @@ public class GameAccessServiceTests
         await Assert.ThrowsAsync<NotFoundException>(act);
     }
 
+    [Fact]
+    public async Task GetOtherActiveNonSpectatorParticipantsAsync_WhenRepositoryReturnsParticipants_FiltersSpectatorsAndExcludedParticipant()
+    {
+        var excludedParticipant = CreateParticipant(_gameId, _userId, ParticipantRole.Master);
+        var playerParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Player);
+        var spectatorParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Spectator);
+        var removedParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Player);
+        removedParticipant.RemovedAt = DateTime.UtcNow.AddMinutes(-5);
+
+        var game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.MasterOnly);
+
+        _participantRepository
+            .Setup(repository => repository.GetGameParticipantsAsync(_gameId))
+            .ReturnsAsync([excludedParticipant, playerParticipant, spectatorParticipant, removedParticipant]);
+
+        var result = await _gameAccessService.GetOtherActiveNonSpectatorParticipantsAsync(game, excludedParticipant.Id);
+
+        var participants = result.ToList();
+        Assert.Single(participants);
+        Assert.Same(playerParticipant, participants[0]);
+    }
+
+    [Fact]
+    public async Task GetOtherActiveNonSpectatorParticipantsAsync_WhenRepositoryReturnsEmpty_UsesGameParticipantsFallback()
+    {
+        var excludedParticipant = CreateParticipant(_gameId, _userId, ParticipantRole.Master);
+        var playerParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Player);
+        var spectatorParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Spectator);
+        var game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.MasterOnly);
+        game.Participants = [excludedParticipant, playerParticipant, spectatorParticipant];
+
+        _participantRepository
+            .Setup(repository => repository.GetGameParticipantsAsync(_gameId))
+            .ReturnsAsync([]);
+
+        var result = await _gameAccessService.GetOtherActiveNonSpectatorParticipantsAsync(game, excludedParticipant.Id);
+
+        var participants = result.ToList();
+        Assert.Single(participants);
+        Assert.Same(playerParticipant, participants[0]);
+    }
+
     private void SetupCurrentUserIdentity(Guid userId)
     {
         _currentUserContext

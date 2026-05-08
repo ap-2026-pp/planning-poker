@@ -9,6 +9,7 @@ public interface IGameAccessService
     Task<GameParticipant> EnsureCanRevealCardsAsync(Guid gameId);
     Task<GameParticipant> EnsureCanVoteAsync(Guid gameId);
     Task<GameParticipant> GetRequiredActiveParticipantAsync(Guid gameId, Guid participantId);
+    Task<IReadOnlyList<GameParticipant>> GetOtherActiveNonSpectatorParticipantsAsync(Game game, Guid excludedParticipantId);
     Task<GameParticipant> GetRequiredNonSpectatorParticipantAsync(
         Guid gameId,
         Guid participantId,

@@ -18,9 +18,9 @@ public class ParticipantService(
     IGameRepository gameRepository,
     ICurrentUserContext currentUserContext,
     IGuestSessionService guestSessionService,
-    IGameAccessService gameAccessService) : IParticipantService
+    IGameAccessService gameAccessService,
+    IGameRoomNotifier gameRoomNotifier) : IParticipantService
 {
-    
     /// <summary>
     /// Повертає список активних учасників гри.
     /// </summary>
@@ -36,7 +36,7 @@ public class ParticipantService(
         var participants = await participantRepository.GetGameParticipantsAsync(gameId);
         return (participants ?? []).Select(ParticipantMapper.ToGameParticipantDto);
     }
-    
+
     /// <summary>
     /// Додає поточного користувача до гри за інвайт-кодом або відновлює його попередню участь.
     /// Якщо користувач уже є активним учасником гри, оновлює його display name та статус підключення.
@@ -53,7 +53,8 @@ public class ParticipantService(
     /// <exception cref="ResourceAlreadyExistsException">
     /// Виникає, якщо обране display name уже використовується іншим активним учасником цієї гри.
     /// </exception>
-    public async Task<JoinGameResponseDto> JoinGameByInviteCodeAsync(string inviteCode, JoinGameRequestDto joinGameRequestDto)
+    public async Task<JoinGameResponseDto> JoinGameByInviteCodeAsync(string inviteCode,
+        JoinGameRequestDto joinGameRequestDto)
     {
         if (joinGameRequestDto.ParticipantRole == ParticipantRole.Master)
         {
@@ -111,6 +112,9 @@ public class ParticipantService(
 
         await participantRepository.SaveChangesAsync();
 
+        await gameRoomNotifier.NotifyParticipantJoinedAsync(game.Id,
+            ParticipantMapper.ToGameParticipantDto(participant));
+
         var guestAccessToken = await CreateGuestTokenIfNeededAsync(currentUser, participant.Id);
         var refreshedGame = await gameRepository.GetByIdAsync(game.Id) ?? game;
 
@@ -124,10 +128,12 @@ public class ParticipantService(
 
     /// <summary>
     /// Видаляє поточного користувача зі списку активних учасників гри.
-    /// Якщо гру залишає master, що не є власником гри, права master повертаються до власника,
-    /// а поточний користувач виходить з гри.
-    /// Якщо гру залишає master-власник гри, сесія завершується для всіх активних учасників,
-    /// а сама гра позначається як неактивна.
+    /// Якщо виходить власник гри, вона закривається для всіх.
+    /// Якщо це не master — просто виходить.
+    /// Якщо виходить master не власник гри, права повертаються активному власнику гри,
+    /// інакше передаємо їх іншому активному учаснику.
+    /// Якщо активних учасників більше немає, права повертаються власнику, навіть якщо він відсутній,
+    /// а гра закривається для всіх і позначається неактивною.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
     /// <returns>Асинхронна операція без повернення значення.</returns>
@@ -148,23 +154,13 @@ public class ParticipantService(
             return;
         }
 
-        if (participant.Role != ParticipantRole.Master)
+        if (participant.Role == ParticipantRole.Master)
         {
-            await RemoveParticipantAsync(participant);
+            await LeaveGameAsMasterAsync(game, participant);
             return;
         }
 
-        var gameOwner = 
-            await participantRepository.GetCurrentParticipantIncludingRemovedAsync(gameId, game.CreatedBy, null);
-
-        if (gameOwner is not null && gameOwner.Id != participant.Id)
-        {
-            ReturnMasterRoleToOwner(gameOwner, participant);
-            await RemoveParticipantAsync(participant);
-            return;
-        }
-        
-        await CloseGameForAllParticipantsAsync(game);
+        await RemoveParticipantAsync(participant);
     }
     
     /// <summary>
@@ -191,7 +187,7 @@ public class ParticipantService(
         }
         
         var participant = await gameAccessService.GetRequiredActiveParticipantAsync(gameId, participantId);
-        await RemoveParticipantAsync(participant);
+        await RemoveParticipantAsync(participant, true);
     }
 
     /// <summary>
@@ -232,6 +228,10 @@ public class ParticipantService(
         await EnsureDisplayNameIsAvailableAsync(resolvedDisplayName!, gameId);
         currentParticipant.DisplayName = resolvedDisplayName;
         await participantRepository.SaveChangesAsync();
+
+        await gameRoomNotifier.NotifyMasterChangedAsync(
+            gameId,
+            ParticipantMapper.ToGameParticipantDto(currentParticipant));
 
         return ParticipantMapper.ToGameParticipantDto(currentParticipant);
     }
@@ -278,6 +278,8 @@ public class ParticipantService(
         participantRepository.Update(newMaster);
 
         await participantRepository.SaveChangesAsync();
+        await gameRoomNotifier.NotifyMasterChangedAsync(gameId, ParticipantMapper.ToGameParticipantDto(currentMaster));
+        await gameRoomNotifier.NotifyMasterChangedAsync(gameId, ParticipantMapper.ToGameParticipantDto(newMaster));
     }
 
     /// <summary>
@@ -312,16 +314,22 @@ public class ParticipantService(
                 currentParticipant.Role = ParticipantRole.Spectator;
                 participantRepository.Update(currentParticipant);
                 await participantRepository.SaveChangesAsync();
+                await gameRoomNotifier.NotifyMasterChangedAsync(
+                    gameId,
+                    ParticipantMapper.ToGameParticipantDto(currentParticipant));
             }
 
             return;
         }
-        
+
         if (currentParticipant.Role == ParticipantRole.Spectator)
         {
             currentParticipant.Role = ParticipantRole.Player;
             participantRepository.Update(currentParticipant);
             await participantRepository.SaveChangesAsync();
+            await gameRoomNotifier.NotifyMasterChangedAsync(
+                gameId,
+                ParticipantMapper.ToGameParticipantDto(currentParticipant));
         }
     }
 
@@ -360,7 +368,7 @@ public class ParticipantService(
         participant.IsConnected = true;
         participant.JoinedAt = DateTime.UtcNow;
         UpdateParticipantRoleIfAllowed(participant, requestedRole);
-        
+
         return participant;
     }
 
@@ -403,7 +411,7 @@ public class ParticipantService(
 
         UpdateParticipantRoleIfAllowed(participant, requestedRole);
         participantRepository.Update(participant);
-        
+
         return participant;
     }
 
@@ -475,10 +483,20 @@ public class ParticipantService(
     /// Видаляє учасника з гри та зберігає зміни.
     /// </summary>
     /// <param name="participant">Учасник, якого потрібно видалити з гри.</param>
-    private async Task RemoveParticipantAsync(GameParticipant participant)
+    /// <param name="isKicked">Прапорець, що показує чи учасник вийшов, чи бу видалений</param>
+    private async Task RemoveParticipantAsync(GameParticipant participant, bool isKicked = false)
     {
         participantRepository.RemoveGameParticipant(participant);
         await participantRepository.SaveChangesAsync();
+
+        if (isKicked)
+        {
+            await gameRoomNotifier.NotifyParticipantKickedAsync(participant.GameId, participant.Id);
+        }
+        else
+        {
+            await gameRoomNotifier.NotifyParticipantLeftAsync(participant.GameId, participant.Id);
+        }
     }
 
     /// <summary>
@@ -495,23 +513,82 @@ public class ParticipantService(
         game.IsActive = false;
         gameRepository.Update(game);
         await participantRepository.SaveChangesAsync();
+
+        foreach (var participantId in game.Participants.Select(p => p.Id))
+        {
+            await gameRoomNotifier.NotifyParticipantLeftAsync(game.Id, participantId);
+        }
+    }
+
+    private async Task LeaveGameAsMasterAsync(Game game, GameParticipant currentParticipant)
+    {
+        var nextMaster = await GetNextMasterCandidateOrDefaultAsync(game, currentParticipant.Id);
+        if (nextMaster is not null)
+        {
+            await TransferMasterBeforeLeaveAsync(nextMaster, currentParticipant);
+            await RemoveParticipantAsync(currentParticipant);
+            return;
+        }
+
+        await RestoreInactiveOwnerMasterRoleIfNeededAsync(game, currentParticipant);
+        await CloseGameForAllParticipantsAsync(game);
+    }
+
+    private async Task<GameParticipant?> GetNextMasterCandidateOrDefaultAsync(Game game, Guid excludedParticipantId)
+    {
+        var activeNonSpectatorParticipants =
+            await gameAccessService.GetOtherActiveNonSpectatorParticipantsAsync(game, excludedParticipantId);
+
+        return activeNonSpectatorParticipants
+            .OrderByDescending(participant => participant.UserId == game.CreatedBy)
+            .ThenBy(participant => participant.JoinedAt)
+            .FirstOrDefault();
+    }
+
+    private async Task RestoreInactiveOwnerMasterRoleIfNeededAsync(Game game, GameParticipant currentParticipant)
+    {
+        var ownerIncludingRemoved =
+            await participantRepository.GetCurrentParticipantIncludingRemovedAsync(game.Id, game.CreatedBy, null);
+
+        if (ownerIncludingRemoved is null ||
+            ownerIncludingRemoved.Id == currentParticipant.Id ||
+            ownerIncludingRemoved.RemovedAt is null ||
+            ownerIncludingRemoved.Role == ParticipantRole.Spectator)
+        {
+            return;
+        }
+
+        ownerIncludingRemoved.Role = ParticipantRole.Master;
+        currentParticipant.Role = ParticipantRole.Player;
+        participantRepository.Update(ownerIncludingRemoved);
+        participantRepository.Update(currentParticipant);
+        await participantRepository.SaveChangesAsync();
     }
 
     /// <summary>
-    /// Повертає роль Master власнику гри, а поточному master-учаснику призначає роль Player.
+    /// Передає роль Master іншому активному не-spectator учаснику
+    /// перед виходом поточного master з гри.
     /// </summary>
-    /// <param name="gameOwner">Учасник-власник гри, якому повертається роль Master.</param>
-    /// <param name="currentParticipant">Поточний учасник з роллю Master, який передає права.</param>
-    private void ReturnMasterRoleToOwner(GameParticipant gameOwner, GameParticipant currentParticipant)
+    /// <param name="newMaster">Учасник, якому передається роль Master.</param>
+    /// <param name="currentParticipant">Поточний master, який залишає гру.</param>
+    private async Task TransferMasterBeforeLeaveAsync(
+        GameParticipant newMaster,
+        GameParticipant currentParticipant)
     {
-        if (gameOwner.Role != ParticipantRole.Master)
+        if (newMaster.Role != ParticipantRole.Master)
         {
-            gameOwner.Role = ParticipantRole.Master;
-            participantRepository.Update(gameOwner);
+            newMaster.Role = ParticipantRole.Master;
+            participantRepository.Update(newMaster);
         }
 
         currentParticipant.Role = ParticipantRole.Player;
         participantRepository.Update(currentParticipant);
+
+        await participantRepository.SaveChangesAsync();
+
+        await gameRoomNotifier.NotifyMasterChangedAsync(
+            currentParticipant.GameId,
+            ParticipantMapper.ToGameParticipantDto(newMaster));
     }
 
     /// <summary>
@@ -525,7 +602,7 @@ public class ParticipantService(
         return await gameRepository.GetByIdAsync(gameId)
                ?? throw new NotFoundException(nameof(Game), gameId);
     }
-    
+
     /// <summary>
     /// Повертає гру за інвайт-кодом або кидає виняток, якщо гру не знайдено.
     /// </summary>
@@ -629,12 +706,9 @@ public class ParticipantService(
             return existingParticipant.DisplayName;
         }
 
-        if (!string.IsNullOrWhiteSpace(defaultDisplayName))
-        {
-            return defaultDisplayName.Trim();
-        }
-
-        return BuildGuestDisplayName(fallbackParticipantId ?? Guid.NewGuid());
+        return !string.IsNullOrWhiteSpace(defaultDisplayName)
+            ? defaultDisplayName.Trim()
+            : BuildGuestDisplayName(fallbackParticipantId ?? Guid.NewGuid());
     }
 
     /// <summary>
@@ -675,14 +749,11 @@ public class ParticipantService(
             return requestedDisplayName.Trim();
         }
 
-        if (!string.IsNullOrWhiteSpace(authenticatedUserDisplayName))
-        {
-            return authenticatedUserDisplayName.Trim();
-        }
-
-        return currentParticipantDisplayName;
+        return !string.IsNullOrWhiteSpace(authenticatedUserDisplayName)
+            ? authenticatedUserDisplayName.Trim()
+            : currentParticipantDisplayName;
     }
-    
+
     /// <summary>
     /// Формує display name для guest participant, якщо користувач не передав власне ім'я.
     /// </summary>

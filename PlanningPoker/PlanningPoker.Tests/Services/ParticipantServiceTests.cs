@@ -1,6 +1,7 @@
 using Moq;
 using PlanningPoker.BLL.Services;
 using PlanningPoker.Domain.DTOs.Game;
+using PlanningPoker.Domain.DTOs.Participant;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
@@ -14,6 +15,7 @@ public class ParticipantServiceTests
     private readonly Mock<IGameRepository> _gameRepository = new();
     private readonly Mock<ICurrentUserContext> _currentUserContext = new();
     private readonly Mock<IGuestSessionService> _guestSessionService = new();
+    private readonly Mock<IGameRoomNotifier> _gameRoomNotifier = new();
     private readonly IParticipantService _participantService;
     private readonly Guid _masterId = Guid.NewGuid();
     private readonly Guid _playerId = Guid.NewGuid();
@@ -27,7 +29,8 @@ public class ParticipantServiceTests
             _gameRepository.Object,
             _currentUserContext.Object,
             _guestSessionService.Object,
-            gameAccessService);
+            gameAccessService,
+            _gameRoomNotifier.Object);
     }
 
     [Fact]
@@ -89,6 +92,11 @@ public class ParticipantServiceTests
         Assert.Equal(displayName, game.Participants.Single().DisplayName);
         Assert.Equal(_playerId, game.Participants.Single().UserId);
         _guestSessionService.Verify(service => service.GenerateGuestAccessToken(It.IsAny<Guid>()), Times.Never);
+        _gameRoomNotifier.Verify(
+            notifier => notifier.NotifyParticipantJoinedAsync(
+                game.Id,
+                It.Is<GameParticipantDto>(participant => participant.DisplayName == displayName)),
+            Times.Once);
     }
 
     [Fact]
@@ -263,7 +271,7 @@ public class ParticipantServiceTests
     }
 
     [Fact]
-    public async Task LeaveGameAsync_WhenCurrentGuestIsMaster_ClosesSessionForAllParticipants()
+    public async Task LeaveGameAsync_WhenCurrentGuestIsMaster_TransfersMasterToRemainingPlayer()
     {
         var guestMasterId = Guid.NewGuid();
         var masterParticipant = CreateGuestParticipant(_gameId, ParticipantRole.Master, "Guest Master", guestMasterId);
@@ -278,10 +286,11 @@ public class ParticipantServiceTests
 
         await _participantService.LeaveGameAsync(_gameId);
 
-        Assert.False(game.IsActive);
+        Assert.True(game.IsActive);
+        Assert.Equal(ParticipantRole.Master, playerParticipant.Role);
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(masterParticipant), Times.Once);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(playerParticipant), Times.Once);
-        _gameRepository.Verify(repository => repository.Update(game), Times.Once);
+        _participantRepository.Verify(repository => repository.RemoveGameParticipant(playerParticipant), Times.Never);
+        _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
     }
 
     [Fact]
@@ -301,6 +310,9 @@ public class ParticipantServiceTests
 
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(playerParticipant), Times.Once);
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
+        _gameRoomNotifier.Verify(
+            notifier => notifier.NotifyParticipantLeftAsync(_gameId, playerParticipant.Id),
+            Times.Once);
     }
 
     [Fact]
@@ -363,7 +375,7 @@ public class ParticipantServiceTests
     }
 
     [Fact]
-    public async Task LeaveGameAsync_WhenDelegatedMasterLeavesAndOwnerIsInactive_ReturnsMasterToRemovedOwnerAndRemovesOnlyCurrentParticipant()
+    public async Task LeaveGameAsync_WhenDelegatedMasterLeavesAndOwnerIsInactive_TransfersMasterToAnotherActivePlayer()
     {
         var ownerId = Guid.NewGuid();
         var removedOwnerParticipant = CreateParticipant(ownerId, _gameId, ParticipantRole.Player, "Owner");
@@ -391,13 +403,50 @@ public class ParticipantServiceTests
         await _participantService.LeaveGameAsync(_gameId);
 
         Assert.True(game.IsActive);
-        Assert.Equal(ParticipantRole.Master, removedOwnerParticipant.Role);
+        Assert.Equal(ParticipantRole.Player, removedOwnerParticipant.Role);
+        Assert.Equal(ParticipantRole.Master, anotherPlayer.Role);
         Assert.False(removedOwnerParticipant.IsConnected);
         Assert.NotNull(removedOwnerParticipant.RemovedAt);
-        _participantRepository.Verify(repository => repository.Update(removedOwnerParticipant), Times.Once);
+        _participantRepository.Verify(repository => repository.Update(removedOwnerParticipant), Times.Never);
+        _participantRepository.Verify(repository => repository.Update(anotherPlayer), Times.Once);
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(delegatedMaster), Times.Once);
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(anotherPlayer), Times.Never);
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LeaveGameAsync_WhenDelegatedMasterLeavesAndOnlySpectatorRemains_ClosesGameWithoutPromotingSpectator()
+    {
+        var ownerId = Guid.NewGuid();
+        var spectatorOwner = CreateParticipant(ownerId, _gameId, ParticipantRole.Spectator, "Owner Spectator");
+        var delegatedMaster = CreateParticipant(_playerId, _gameId, ParticipantRole.Master, "Delegated Master");
+        var game = CreateGame(
+            "invite-code",
+            isActive: true,
+            gameId: _gameId,
+            createdBy: ownerId,
+            participants: [spectatorOwner, delegatedMaster]);
+
+        SetupAuthenticatedIdentity(CreateUser(_playerId, "Delegated Master"));
+        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(game);
+        _participantRepository
+            .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, _playerId, null))
+            .ReturnsAsync(delegatedMaster);
+        _participantRepository
+            .Setup(repository => repository.GetGameParticipantsAsync(_gameId))
+            .ReturnsAsync([spectatorOwner, delegatedMaster]);
+        _participantRepository
+            .Setup(repository => repository.GetCurrentParticipantIncludingRemovedAsync(_gameId, ownerId, null))
+            .ReturnsAsync(spectatorOwner);
+
+        await _participantService.LeaveGameAsync(_gameId);
+
+        Assert.False(game.IsActive);
+        Assert.Equal(ParticipantRole.Spectator, spectatorOwner.Role);
+        _participantRepository.Verify(repository => repository.Update(spectatorOwner), Times.Never);
+        _participantRepository.Verify(repository => repository.RemoveGameParticipant(delegatedMaster), Times.Once);
+        _participantRepository.Verify(repository => repository.RemoveGameParticipant(spectatorOwner), Times.Once);
+        _gameRepository.Verify(repository => repository.Update(game), Times.Once);
     }
 
     [Fact]
@@ -419,6 +468,9 @@ public class ParticipantServiceTests
         await _participantService.DeleteGameParticipantAsync(_gameId, playerParticipant.Id);
 
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(playerParticipant), Times.Once);
+        _gameRoomNotifier.Verify(
+            notifier => notifier.NotifyParticipantKickedAsync(_gameId, playerParticipant.Id),
+            Times.Once);
     }
 
     [Fact]
@@ -456,6 +508,13 @@ public class ParticipantServiceTests
 
         Assert.Equal(newDisplayName, result.DisplayName);
         Assert.Equal(newDisplayName, participant.DisplayName);
+        _gameRoomNotifier.Verify(
+            notifier => notifier.NotifyMasterChangedAsync(
+                _gameId,
+                It.Is<GameParticipantDto>(updatedParticipant =>
+                    updatedParticipant.Id == participant.Id &&
+                    updatedParticipant.DisplayName == newDisplayName)),
+            Times.Once);
     }
 
     [Fact]
@@ -500,6 +559,44 @@ public class ParticipantServiceTests
 
         Assert.Equal(ParticipantRole.Player, masterParticipant.Role);
         Assert.Equal(ParticipantRole.Master, playerParticipant.Role);
+        _gameRoomNotifier.Verify(
+            notifier => notifier.NotifyMasterChangedAsync(
+                _gameId,
+                It.Is<GameParticipantDto>(updatedParticipant =>
+                    updatedParticipant.Id == masterParticipant.Id &&
+                    updatedParticipant.Role == ParticipantRole.Player)),
+            Times.Once);
+        _gameRoomNotifier.Verify(
+            notifier => notifier.NotifyMasterChangedAsync(
+                _gameId,
+                It.Is<GameParticipantDto>(updatedParticipant =>
+                    updatedParticipant.Id == playerParticipant.Id &&
+                    updatedParticipant.Role == ParticipantRole.Master)),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SetSpectatorModeAsync_WhenPlayerSwitchesToSpectator_NotifiesRoom()
+    {
+        var participant = CreateParticipant(_playerId, _gameId, ParticipantRole.Player, "Player");
+        var game = CreateGame("invite-code", true, _gameId);
+
+        SetupAuthenticatedIdentity(CreateUser(_playerId, "Player"));
+        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(game);
+        _participantRepository
+            .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, _playerId, null))
+            .ReturnsAsync(participant);
+
+        await _participantService.SetSpectatorModeAsync(_gameId, true);
+
+        Assert.Equal(ParticipantRole.Spectator, participant.Role);
+        _gameRoomNotifier.Verify(
+            notifier => notifier.NotifyMasterChangedAsync(
+                _gameId,
+                It.Is<GameParticipantDto>(updatedParticipant =>
+                    updatedParticipant.Id == participant.Id &&
+                    updatedParticipant.Role == ParticipantRole.Spectator)),
+            Times.Once);
     }
 
     [Fact]
