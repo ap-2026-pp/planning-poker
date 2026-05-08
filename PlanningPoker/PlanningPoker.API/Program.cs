@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using PlanningPoker.API.Hubs;
 using PlanningPoker.API.Middlewares;
 using PlanningPoker.API.Services;
 using PlanningPoker.BLL;
@@ -20,8 +21,10 @@ builder.Host.UseSerilog((context, configuration) => configuration.ReadFrom.Confi
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
+builder.Services.AddScoped<IGameRoomNotifier, GameRoomNotifier>();
 builder.Services.AddScoped<InviteLinkService>();
 
+builder.Services.AddSignalR();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
@@ -70,6 +73,19 @@ builder.Services
 
         options.Events = new JwtBearerEvents
         {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Path.StartsWithSegments(GameRoomHub.HubRoute))
+                {
+                    var accessToken = context.Request.Query["access_token"].ToString();
+                    if (!string.IsNullOrWhiteSpace(accessToken))
+                    {
+                        context.Token = accessToken;
+                    }
+                }
+
+                return Task.CompletedTask;
+            },
             OnTokenValidated = async context =>
             {
                 var tokenType = context.Principal?.FindFirstValue(GuestSessionDefaults.TokenTypeClaimType);
@@ -78,15 +94,20 @@ builder.Services
                     return;
                 }
 
-                const string bearerPrefix = "Bearer ";
-                var authorizationHeader = context.Request.Headers.Authorization.ToString();
-                if (!authorizationHeader.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+                var accessToken = context.Request.Path.StartsWithSegments(GameRoomHub.HubRoute)
+                    ? context.Request.Query["access_token"].ToString()
+                    : null;
+
+                if (string.IsNullOrWhiteSpace(accessToken))
                 {
-                    context.Fail("Guest access token is missing.");
-                    return;
+                    const string bearerPrefix = "Bearer ";
+                    var authorizationHeader = context.Request.Headers.Authorization.ToString();
+                    if (authorizationHeader.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        accessToken = authorizationHeader[bearerPrefix.Length..].Trim();
+                    }
                 }
 
-                var accessToken = authorizationHeader[bearerPrefix.Length..].Trim();
                 if (string.IsNullOrWhiteSpace(accessToken))
                 {
                     context.Fail("Guest access token is missing.");
@@ -161,6 +182,7 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapHub<GameRoomHub>(GameRoomHub.HubRoute);
 app.MapControllers();
 
 app.Run();
