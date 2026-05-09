@@ -13,6 +13,7 @@ public class GameServiceTests
     private readonly Mock<IGameRepository> _gameRepository = new();
     private readonly Mock<IParticipantRepository> _participantRepository = new();
     private readonly Mock<ICurrentUserContext> _currentUserContext = new();
+    private readonly Mock<IGameRealtimeService> _gameRealtimeService = new();
     private readonly GameService _gameService;
     private readonly Guid _playerId = Guid.NewGuid();
     private readonly Guid _masterId = Guid.NewGuid();
@@ -20,7 +21,7 @@ public class GameServiceTests
     public GameServiceTests()
     {
         var gameAccessService = new GameAccessService(_participantRepository.Object, _currentUserContext.Object);
-        _gameService = new GameService(_gameRepository.Object, _currentUserContext.Object, gameAccessService);
+        _gameService = new GameService(_gameRepository.Object, _currentUserContext.Object, gameAccessService,  _gameRealtimeService.Object);
     }
 
     [Fact]

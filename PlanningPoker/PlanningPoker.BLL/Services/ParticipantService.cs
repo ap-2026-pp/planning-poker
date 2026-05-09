@@ -19,7 +19,7 @@ public class ParticipantService(
     ICurrentUserContext currentUserContext,
     IGuestSessionService guestSessionService,
     IGameAccessService gameAccessService,
-    IGameRoomNotifier gameRoomNotifier) : IParticipantService
+    IGameRealtimeService gameRealtimeService) : IParticipantService
 {
     /// <summary>
     /// Повертає список активних учасників гри.
@@ -110,7 +110,7 @@ public class ParticipantService(
             ResolveReconnectRole(game, existingParticipant, currentUser.Id, wasInactive),
             allowCreateNewParticipant: false);
 
-        return await BuildJoinGameResponseAsync(game, participant, currentUser);
+        return await BuildJoinGameResponseAsync(game, participant, currentUser, notifyGameUpdated: wasInactive);
     }
 
     /// <summary>
@@ -194,7 +194,7 @@ public class ParticipantService(
     public async Task<GameParticipantDto> UpdateDisplayNameAsync(Guid gameId, string? displayName)
     {
         var currentUser = await currentUserContext.GetUserOrDefaultAsync();
-        await GetGameOrThrowAsync(gameId);
+        var game = await GetGameOrThrowAsync(gameId);
 
         var currentParticipant =
             await gameAccessService.GetRequiredParticipantAsync(
@@ -216,8 +216,8 @@ public class ParticipantService(
         currentParticipant.DisplayName = resolvedDisplayName;
         await participantRepository.SaveChangesAsync();
 
-        await gameRoomNotifier.NotifyMasterChangedAsync(
-            gameId,
+        await gameRealtimeService.NotifyParticipantUpdatedAsync(
+            game,
             ParticipantMapper.ToGameParticipantDto(currentParticipant));
 
         return ParticipantMapper.ToGameParticipantDto(currentParticipant);
@@ -238,7 +238,7 @@ public class ParticipantService(
     /// </exception>
     public async Task TransferMasterAsync(Guid gameId, Guid participantId)
     {
-        await GetGameOrThrowAsync(gameId);
+        var game = await GetGameOrThrowAsync(gameId);
 
         var currentMaster =
             await gameAccessService.GetRequiredMasterAsync(
@@ -265,8 +265,8 @@ public class ParticipantService(
         participantRepository.Update(newMaster);
 
         await participantRepository.SaveChangesAsync();
-        await gameRoomNotifier.NotifyMasterChangedAsync(gameId, ParticipantMapper.ToGameParticipantDto(currentMaster));
-        await gameRoomNotifier.NotifyMasterChangedAsync(gameId, ParticipantMapper.ToGameParticipantDto(newMaster));
+        await gameRealtimeService.NotifyParticipantUpdatedAsync(game, ParticipantMapper.ToGameParticipantDto(currentMaster));
+        await gameRealtimeService.NotifyParticipantUpdatedAsync(game, ParticipantMapper.ToGameParticipantDto(newMaster));
     }
 
     /// <summary>
@@ -280,7 +280,7 @@ public class ParticipantService(
     /// </param>
     public async Task SetSpectatorModeAsync(Guid gameId, bool isSpectator)
     {
-        await GetGameOrThrowAsync(gameId);
+        var game = await GetGameOrThrowAsync(gameId);
 
         var currentParticipant =
             await gameAccessService.GetRequiredParticipantAsync(
@@ -296,15 +296,13 @@ public class ParticipantService(
                     "You must transfer master rights before switching to another role.");
             }
 
-            if (currentParticipant.Role != ParticipantRole.Spectator)
-            {
-                currentParticipant.Role = ParticipantRole.Spectator;
-                participantRepository.Update(currentParticipant);
-                await participantRepository.SaveChangesAsync();
-                await gameRoomNotifier.NotifyMasterChangedAsync(
-                    gameId,
-                    ParticipantMapper.ToGameParticipantDto(currentParticipant));
-            }
+            if (currentParticipant.Role == ParticipantRole.Spectator) return;
+            currentParticipant.Role = ParticipantRole.Spectator;
+            participantRepository.Update(currentParticipant);
+            await participantRepository.SaveChangesAsync();
+            await gameRealtimeService.NotifyParticipantUpdatedAsync(
+                game,
+                ParticipantMapper.ToGameParticipantDto(currentParticipant));
 
             return;
         }
@@ -314,8 +312,8 @@ public class ParticipantService(
             currentParticipant.Role = ParticipantRole.Player;
             participantRepository.Update(currentParticipant);
             await participantRepository.SaveChangesAsync();
-            await gameRoomNotifier.NotifyMasterChangedAsync(
-                gameId,
+            await gameRealtimeService.NotifyParticipantUpdatedAsync(
+                game,
                 ParticipantMapper.ToGameParticipantDto(currentParticipant));
         }
     }
@@ -511,12 +509,18 @@ public class ParticipantService(
     private async Task<JoinGameResponseDto> BuildJoinGameResponseAsync(
         Game game,
         GameParticipant participant,
-        User? currentUser)
+        User? currentUser,
+        bool notifyGameUpdated = false)
     {
         await participantRepository.SaveChangesAsync();
 
-        await gameRoomNotifier.NotifyParticipantJoinedAsync(
-            game.Id,
+        if (notifyGameUpdated)
+        {
+            await gameRealtimeService.NotifyGameUpdatedAsync(game);
+        }
+
+        await gameRealtimeService.NotifyParticipantJoinedAsync(
+            game,
             ParticipantMapper.ToGameParticipantDto(participant));
 
         var guestAccessToken = await CreateGuestTokenIfNeededAsync(currentUser, participant.Id);
@@ -559,16 +563,17 @@ public class ParticipantService(
     /// <param name="isKicked">Прапорець, що показує чи учасник вийшов, чи бу видалений</param>
     private async Task RemoveParticipantAsync(GameParticipant participant, bool isKicked = false)
     {
+        var game = await GetGameOrThrowAsync(participant.GameId);
         participantRepository.RemoveGameParticipant(participant);
         await participantRepository.SaveChangesAsync();
 
         if (isKicked)
         {
-            await gameRoomNotifier.NotifyParticipantKickedAsync(participant.GameId, participant.Id);
+            await gameRealtimeService.NotifyParticipantKickedAsync(game, participant.Id);
         }
         else
         {
-            await gameRoomNotifier.NotifyParticipantLeftAsync(participant.GameId, participant.Id);
+            await gameRealtimeService.NotifyParticipantLeftAsync(game, participant.Id);
         }
     }
 
@@ -586,10 +591,11 @@ public class ParticipantService(
         game.IsActive = false;
         gameRepository.Update(game);
         await participantRepository.SaveChangesAsync();
+        await gameRealtimeService.NotifyGameUpdatedAsync(game);
 
         foreach (var participantId in game.Participants.Select(p => p.Id))
         {
-            await gameRoomNotifier.NotifyParticipantLeftAsync(game.Id, participantId);
+            await gameRealtimeService.NotifyParticipantLeftAsync(game, participantId);
         }
     }
 
@@ -648,6 +654,7 @@ public class ParticipantService(
         GameParticipant newMaster,
         GameParticipant currentParticipant)
     {
+        var game = await GetGameOrThrowAsync(newMaster.GameId);
         if (newMaster.Role != ParticipantRole.Master)
         {
             newMaster.Role = ParticipantRole.Master;
@@ -659,8 +666,8 @@ public class ParticipantService(
 
         await participantRepository.SaveChangesAsync();
 
-        await gameRoomNotifier.NotifyMasterChangedAsync(
-            currentParticipant.GameId,
+        await gameRealtimeService.NotifyParticipantUpdatedAsync(
+            game,
             ParticipantMapper.ToGameParticipantDto(newMaster));
     }
 

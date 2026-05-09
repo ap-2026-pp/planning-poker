@@ -9,4 +9,5 @@ public class UserGameDto
     public DateTime JoinedAt { get; set; }
     public ParticipantRole SessionRole { get; set; }
     public bool IsActive { get; set; }
+    public bool IsDeleted { get; set; }
 }

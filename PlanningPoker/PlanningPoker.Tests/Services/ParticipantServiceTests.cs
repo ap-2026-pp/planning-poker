@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices.JavaScript;
 using Moq;
 using PlanningPoker.BLL.Services;
 using PlanningPoker.Domain.DTOs.Game;
@@ -15,7 +16,7 @@ public class ParticipantServiceTests
     private readonly Mock<IGameRepository> _gameRepository = new();
     private readonly Mock<ICurrentUserContext> _currentUserContext = new();
     private readonly Mock<IGuestSessionService> _guestSessionService = new();
-    private readonly Mock<IGameRoomNotifier> _gameRoomNotifier = new();
+    private readonly Mock<IGameRealtimeService> _gameRealtimeService = new();
     private readonly IParticipantService _participantService;
     private readonly Guid _masterId = Guid.NewGuid();
     private readonly Guid _playerId = Guid.NewGuid();
@@ -30,7 +31,7 @@ public class ParticipantServiceTests
             _currentUserContext.Object,
             _guestSessionService.Object,
             gameAccessService,
-            _gameRoomNotifier.Object);
+            _gameRealtimeService.Object);
     }
 
     [Fact]
@@ -92,9 +93,9 @@ public class ParticipantServiceTests
         Assert.Equal(displayName, game.Participants.Single().DisplayName);
         Assert.Equal(_playerId, game.Participants.Single().UserId);
         _guestSessionService.Verify(service => service.GenerateGuestAccessToken(It.IsAny<Guid>()), Times.Never);
-        _gameRoomNotifier.Verify(
+        _gameRealtimeService.Verify(
             notifier => notifier.NotifyParticipantJoinedAsync(
-                game.Id,
+                game,
                 It.Is<GameParticipantDto>(participant => participant.DisplayName == displayName)),
             Times.Once);
     }
@@ -272,9 +273,9 @@ public class ParticipantServiceTests
         Assert.Null(result.GuestAccessToken);
         Assert.True(participant.IsConnected);
         _guestSessionService.Verify(service => service.GenerateGuestAccessToken(It.IsAny<Guid>()), Times.Never);
-        _gameRoomNotifier.Verify(
+        _gameRealtimeService.Verify(
             notifier => notifier.NotifyParticipantJoinedAsync(
-                _gameId,
+                game,
                 It.Is<GameParticipantDto>(entry => entry.Id == participant.Id)),
             Times.Once);
     }
@@ -383,8 +384,8 @@ public class ParticipantServiceTests
 
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(playerParticipant), Times.Once);
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
-        _gameRoomNotifier.Verify(
-            notifier => notifier.NotifyParticipantLeftAsync(_gameId, playerParticipant.Id),
+        _gameRealtimeService.Verify(
+            notifier => notifier.NotifyParticipantLeftAsync(game, playerParticipant.Id),
             Times.Once);
     }
 
@@ -525,12 +526,13 @@ public class ParticipantServiceTests
     [Fact]
     public async Task DeleteGameParticipantAsync_WhenCurrentGuestIsMaster_RemovesParticipant()
     {
+        var game = CreateGame("invite-code", true, _gameId);
         var guestMasterId = Guid.NewGuid();
         var masterParticipant = CreateGuestParticipant(_gameId, ParticipantRole.Master, "Guest Master", guestMasterId);
         var playerParticipant = CreateParticipant(_playerId, _gameId, ParticipantRole.Player, "Player");
 
         SetupGuestIdentity(guestMasterId);
-        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(CreateGame("invite-code", true, _gameId));
+        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(game);
         _participantRepository
             .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, null, guestMasterId))
             .ReturnsAsync(masterParticipant);
@@ -541,8 +543,8 @@ public class ParticipantServiceTests
         await _participantService.DeleteGameParticipantAsync(_gameId, playerParticipant.Id);
 
         _participantRepository.Verify(repository => repository.RemoveGameParticipant(playerParticipant), Times.Once);
-        _gameRoomNotifier.Verify(
-            notifier => notifier.NotifyParticipantKickedAsync(_gameId, playerParticipant.Id),
+        _gameRealtimeService.Verify(
+            notifier => notifier.NotifyParticipantKickedAsync(game, playerParticipant.Id),
             Times.Once);
     }
 
@@ -581,9 +583,9 @@ public class ParticipantServiceTests
 
         Assert.Equal(newDisplayName, result.DisplayName);
         Assert.Equal(newDisplayName, participant.DisplayName);
-        _gameRoomNotifier.Verify(
-            notifier => notifier.NotifyMasterChangedAsync(
-                _gameId,
+        _gameRealtimeService.Verify(
+            notifier => notifier.NotifyParticipantUpdatedAsync(
+                game,
                 It.Is<GameParticipantDto>(updatedParticipant =>
                     updatedParticipant.Id == participant.Id &&
                     updatedParticipant.DisplayName == newDisplayName)),
@@ -615,12 +617,13 @@ public class ParticipantServiceTests
     [Fact]
     public async Task TransferMasterAsync_WhenCurrentGuestIsMaster_TransfersRights()
     {
+        var game = CreateGame("invite-code", true, _gameId);
         var guestMasterId = Guid.NewGuid();
         var masterParticipant = CreateGuestParticipant(_gameId, ParticipantRole.Master, "Guest Master", guestMasterId);
         var playerParticipant = CreateParticipant(_playerId, _gameId, ParticipantRole.Player, "Player");
 
         SetupGuestIdentity(guestMasterId);
-        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(CreateGame("invite-code", true, _gameId));
+        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(game);
         _participantRepository
             .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, null, guestMasterId))
             .ReturnsAsync(masterParticipant);
@@ -632,16 +635,16 @@ public class ParticipantServiceTests
 
         Assert.Equal(ParticipantRole.Player, masterParticipant.Role);
         Assert.Equal(ParticipantRole.Master, playerParticipant.Role);
-        _gameRoomNotifier.Verify(
-            notifier => notifier.NotifyMasterChangedAsync(
-                _gameId,
+        _gameRealtimeService.Verify(
+            notifier => notifier.NotifyParticipantUpdatedAsync(
+                game,
                 It.Is<GameParticipantDto>(updatedParticipant =>
                     updatedParticipant.Id == masterParticipant.Id &&
                     updatedParticipant.Role == ParticipantRole.Player)),
             Times.Once);
-        _gameRoomNotifier.Verify(
-            notifier => notifier.NotifyMasterChangedAsync(
-                _gameId,
+        _gameRealtimeService.Verify(
+            notifier => notifier.NotifyParticipantUpdatedAsync(
+                game,
                 It.Is<GameParticipantDto>(updatedParticipant =>
                     updatedParticipant.Id == playerParticipant.Id &&
                     updatedParticipant.Role == ParticipantRole.Master)),
@@ -663,9 +666,9 @@ public class ParticipantServiceTests
         await _participantService.SetSpectatorModeAsync(_gameId, true);
 
         Assert.Equal(ParticipantRole.Spectator, participant.Role);
-        _gameRoomNotifier.Verify(
-            notifier => notifier.NotifyMasterChangedAsync(
-                _gameId,
+        _gameRealtimeService.Verify(
+            notifier => notifier.NotifyParticipantUpdatedAsync(
+                game,
                 It.Is<GameParticipantDto>(updatedParticipant =>
                     updatedParticipant.Id == participant.Id &&
                     updatedParticipant.Role == ParticipantRole.Spectator)),

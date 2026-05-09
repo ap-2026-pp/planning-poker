@@ -8,6 +8,7 @@ using PlanningPoker.API.Hubs;
 using PlanningPoker.API.Middlewares;
 using PlanningPoker.API.Services;
 using PlanningPoker.BLL;
+using PlanningPoker.BLL.Services;
 using PlanningPoker.DAL;
 using PlanningPoker.DAL.Data;
 using PlanningPoker.Domain.Constants;
@@ -22,6 +23,7 @@ builder.Host.UseSerilog((context, configuration) => configuration.ReadFrom.Confi
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddScoped<IGameRoomNotifier, GameRoomNotifier>();
+builder.Services.AddScoped<IUserNotifier, UserNotifier>();
 builder.Services.AddScoped<InviteLinkService>();
 
 builder.Services.AddSignalR();
@@ -183,6 +185,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHub<GameRoomHub>(GameRoomHub.HubRoute);
+app.MapHub<UserHub>(UserHub.HubRoute);
 app.MapControllers();
 
 app.Run();

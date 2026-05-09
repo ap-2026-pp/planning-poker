@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using PlanningPoker.API.Hubs;
+using PlanningPoker.BLL.DTOs.Issue;
+using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.DTOs.Participant;
 using PlanningPoker.Domain.Interfaces.Services;
 
@@ -8,25 +10,23 @@ namespace PlanningPoker.API.Services;
 public class GameRoomNotifier(IHubContext<GameRoomHub> hubContext) : IGameRoomNotifier
 {
     public Task NotifyParticipantJoinedAsync(Guid gameId, GameParticipantDto participant)
-    {
-        return NotifyGroupAsync(gameId, GameRoomHubEvents.ParticipantJoined, participant);
-    }
+        => NotifyGroupAsync(gameId, GameRoomHubEvents.ParticipantJoined, participant);
 
     public Task NotifyParticipantLeftAsync(Guid gameId, Guid participantId)
-    {
-        return NotifyGroupAsync(gameId, GameRoomHubEvents.ParticipantLeft, participantId);
-    }
+        => NotifyGroupAsync(gameId, GameRoomHubEvents.ParticipantLeft, participantId);
 
     public Task NotifyParticipantKickedAsync(Guid gameId, Guid participantId)
-    {
-        return NotifyGroupAsync(gameId, GameRoomHubEvents.ParticipantKicked, participantId);
-    }
+        => NotifyGroupAsync(gameId, GameRoomHubEvents.ParticipantKicked, participantId);
 
-    public Task NotifyMasterChangedAsync(Guid gameId, GameParticipantDto participant)
-    {
-        return NotifyGroupAsync(gameId, GameRoomHubEvents.MasterChanged, participant);
-    }
+    public Task NotifyParticipantUpdatedAsync(Guid gameId, GameParticipantDto participant)
+        => NotifyGroupAsync(gameId, GameRoomHubEvents.ParticipantUpdated, participant);
 
+    public Task NotifyGameUpdatedAsync(Guid gameId, GameDto game)
+        => NotifyGroupAsync(gameId, GameRoomHubEvents.GameUpdated, game);
+
+    public Task NotifyIssueAddedAsync(Guid gameId, IssueDto issue) 
+        => NotifyGroupAsync(gameId, GameRoomHubEvents.IssueCreated, issue);
+    
     private Task NotifyGroupAsync(Guid gameId, string eventName, object payload)
     {
         return hubContext.Clients
