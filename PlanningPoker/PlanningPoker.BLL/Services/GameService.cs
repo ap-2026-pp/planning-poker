@@ -235,7 +235,7 @@ public class GameService(
     /// <returns>Колекцію створених ігор у вигляді <see cref="UserGameDto"/>.</returns>
     private async Task<IEnumerable<UserGameDto>?> GetUserCreatedGames(Guid currentUserId)
     {
-        var games = await gameRepository.GetByUserId(currentUserId);
+        var games = await gameRepository.GetCreatedByUserId(currentUserId);
         return (games ?? []).Select(game => GameMapper.ToUserGameDto(game, currentUserId));
     }
 
