@@ -11,4 +11,5 @@ public interface IParticipantRepository : IBaseRepository<GameParticipant>
     Task<GameParticipant?> GetByGameAndUserAsync(Guid gameId, Guid userId);
     void RemoveGameParticipant(GameParticipant participant);
     Task<bool> ExistsByDisplayNameAsync(string? displayName, Guid gameId);
+    Task<IReadOnlyCollection<Guid>> GetAuthorizedUserIdsByGameIdAsync(Guid gameId);
 }

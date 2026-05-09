@@ -16,7 +16,8 @@ namespace PlanningPoker.BLL.Services;
 public class GameService(
     IGameRepository gameRepository,
     ICurrentUserContext currentUserContext,
-    IGameAccessService gameAccessService) : IGameService
+    IGameAccessService gameAccessService,
+    IGameRealtimeService gameRealtimeService) : IGameService
 {
     private const int InviteCodeLength = 20;
     private const string InviteCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -75,13 +76,15 @@ public class GameService(
     public async Task<GameDto> GetGameByIdAsync(Guid gameId)
     {
         var game = await GetGameOrThrowAsync(gameId);
-        await gameAccessService.GetRequiredParticipantAsync(
-            gameId,
+
+        await gameAccessService.GetParticipantOrEnsureOwnerAsync(
+            game,
             AccessControlConstants.ViewAction,
             AccessControlConstants.GameResource);
+
         return GameMapper.ToGameDto(game);
     }
-
+    
     /// <summary>
     /// Оновлює параметри існуючої гри.
     /// Операція доступна лише користувачу з роллю Master у цій грі.
@@ -101,10 +104,8 @@ public class GameService(
     public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto updateGameRequestDto)
     {
         var existingGame = await GetGameOrThrowAsync(gameId);
-        await gameAccessService.GetRequiredMasterAsync(
-            gameId,
-            AccessControlConstants.UpdateAction,
-            AccessControlConstants.GameResource);
+
+        await gameAccessService.EnsureCanUpdateGameAsync(existingGame);
 
         var updatedGame = GameMapper.ToGame(updateGameRequestDto);
         await EnsureUniqueGameNameAsync(updatedGame.Name, existingGame.CreatedBy, gameId);
@@ -121,6 +122,7 @@ public class GameService(
         
         gameRepository.Update(existingGame);
         await gameRepository.SaveChangesAsync();
+        await gameRealtimeService.NotifyGameUpdatedAsync(existingGame);
         
         return GameMapper.ToGameDto(existingGame);
     }
@@ -143,15 +145,13 @@ public class GameService(
             return;
         }
 
-        await gameAccessService.GetRequiredMasterAsync(
-            gameId,
-            AccessControlConstants.DeleteAction,
-            AccessControlConstants.GameResource);
+        await gameAccessService.EnsureCanDeleteGameAsync(game);
         
         game.IsActive = false;
         game.IsDeleted = true;
         gameRepository.Update(game);
         await gameRepository.SaveChangesAsync();
+        await gameRealtimeService.NotifyGameUpdatedAsync(game);
     }
     
     /// <summary>

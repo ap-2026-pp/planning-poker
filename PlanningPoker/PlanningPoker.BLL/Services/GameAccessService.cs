@@ -189,4 +189,92 @@ public class GameAccessService(
             ? throw new ForbiddenException(action, resourceName)
             : participant;
     }
+
+    public async Task<GameParticipant?> GetParticipantOrEnsureOwnerAsync(
+        Game game,
+        string action,
+        string resourceName)
+    {
+        var currentIdentity = currentUserContext.GetCurrentParticipantIdentity();
+
+        var participant = await participantRepository.GetCurrentParticipantAsync(
+            game.Id,
+            currentIdentity.UserId,
+            currentIdentity.GuestParticipantId);
+
+        if (participant is not null)
+        {
+            return participant;
+        }
+
+        var currentUserId = currentIdentity.UserId;
+        if (currentUserId.HasValue && game.CreatedBy == currentUserId.Value)
+        {
+            return null;
+        }
+
+        throw new ForbiddenException(action, resourceName);
+    }
+    
+    public async Task<GameParticipant?> EnsureCanUpdateGameAsync(Game game)
+    {
+        var currentIdentity = currentUserContext.GetCurrentParticipantIdentity();
+
+        var participant = await participantRepository.GetCurrentParticipantAsync(
+            game.Id,
+            currentIdentity.UserId,
+            currentIdentity.GuestParticipantId);
+
+        if (participant is not null)
+        {
+            if (participant.Role == ParticipantRole.Master)
+            {
+                return participant;
+            }
+
+            throw new ForbiddenException(
+                AccessControlConstants.UpdateAction,
+                AccessControlConstants.GameResource);
+        }
+
+        if (currentIdentity.UserId.HasValue && game.CreatedBy == currentIdentity.UserId.Value)
+        {
+            return null;
+        }
+
+        throw new ForbiddenException(
+            AccessControlConstants.UpdateAction,
+            AccessControlConstants.GameResource);
+    }
+
+    public async Task EnsureCanDeleteGameAsync(Game game)
+    {
+        var currentIdentity = currentUserContext.GetCurrentParticipantIdentity();
+
+        var participant = await participantRepository.GetCurrentParticipantAsync(
+            game.Id,
+            currentIdentity.UserId,
+            currentIdentity.GuestParticipantId);
+
+        if (participant is not null)
+        {
+            if (participant.Role == ParticipantRole.Master)
+            {
+                return;
+            }
+
+            throw new ForbiddenException(
+                AccessControlConstants.DeleteAction,
+                AccessControlConstants.GameResource);
+        }
+
+        if (currentIdentity.UserId.HasValue && game.CreatedBy == currentIdentity.UserId.Value)
+        {
+            return;
+        }
+
+        throw new ForbiddenException(
+            AccessControlConstants.DeleteAction,
+            AccessControlConstants.GameResource);
+    }
 }

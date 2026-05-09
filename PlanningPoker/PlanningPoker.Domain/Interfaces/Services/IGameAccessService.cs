@@ -15,4 +15,8 @@ public interface IGameAccessService
         Guid participantId,
         string action,
         string resourceName);
+
+    Task<GameParticipant?> GetParticipantOrEnsureOwnerAsync(Game game, string action, string resourceName);
+    Task<GameParticipant?> EnsureCanUpdateGameAsync(Game game);
+    Task EnsureCanDeleteGameAsync(Game game);
 }

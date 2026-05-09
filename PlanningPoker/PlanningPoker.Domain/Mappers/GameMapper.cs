@@ -68,7 +68,8 @@ public static class GameMapper
             Name = game.Name,
             JoinedAt = GetJoinedAt(game, currentUserId),
             SessionRole = GetSessionRole(game, currentUserId),
-            IsActive = game.IsActive
+            IsActive = game.IsActive,
+            IsDeleted = game.IsDeleted
         };
 
     private static DateTime GetJoinedAt(Game game, Guid currentUserId)

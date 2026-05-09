@@ -88,4 +88,14 @@ internal class ParticipantRepository(AppDbContext context) : BaseRepository<Game
             participant.GameId == gameId &&
             participant.RemovedAt == null);
     }
+    
+    public async Task<IReadOnlyCollection<Guid>> GetAuthorizedUserIdsByGameIdAsync(Guid gameId)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Where(participant => participant.GameId == gameId && participant.UserId != null)
+            .Select(participant => participant.UserId!.Value)
+            .Distinct()
+            .ToListAsync();
+    }
 }
