@@ -7,6 +7,7 @@ public interface IParticipantService
 {
     public Task<IEnumerable<GameParticipantDto>> GetGameParticipantsAsync(Guid gameId);
     public Task<JoinGameResponseDto> JoinGameByInviteCodeAsync(string inviteCode, JoinGameRequestDto joinGameRequestDto);
+    public Task<JoinGameResponseDto> ReconnectToGameAsync(Guid gameId);
     public Task LeaveGameAsync(Guid gameId);
     public Task DeleteGameParticipantAsync(Guid gameId, Guid participantId);
     public Task<GameParticipantDto> UpdateDisplayNameAsync(Guid gameId, string? displayName);

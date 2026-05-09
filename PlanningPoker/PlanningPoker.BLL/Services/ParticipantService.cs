@@ -38,17 +38,15 @@ public class ParticipantService(
     }
 
     /// <summary>
-    /// Додає поточного користувача до гри за інвайт-кодом або відновлює його попередню участь.
-    /// Якщо користувач уже є активним учасником гри, оновлює його display name та статус підключення.
-    /// Якщо користувач раніше був видалений з гри, відновлює його участь.
-    /// Якщо гра неактивна, реактивувати її може лише master, який уже був учасником цієї гри.
+    /// Додає поточного користувача до активної гри за інвайт-кодом або відновлює його попередню участь.
+    /// Для неактивних ігор повторний вхід виконується через окремий reconnect flow.
     /// </summary>
     /// <param name="inviteCode">Код запрошення до гри.</param>
     /// <param name="joinGameRequestDto">Дані для приєднання до гри.</param>
     /// <returns>Актуальний стан гри та дані поточного guest session у вигляді <see cref="JoinGameResponseDto"/>.</returns>
     /// <exception cref="NotFoundException">Виникає, якщо гру з вказаним інвайт-кодом не знайдено.</exception>
     /// <exception cref="ForbiddenException">
-    /// Виникає, якщо користувач намагається приєднатися до неактивної гри без права повторно її активувати.
+    /// Виникає, якщо користувач намагається приєднатися до неактивної гри.
     /// </exception>
     /// <exception cref="ResourceAlreadyExistsException">
     /// Виникає, якщо обране display name уже використовується іншим активним учасником цієї гри.
@@ -65,65 +63,54 @@ public class ParticipantService(
         var currentIdentity = currentUserContext.GetCurrentParticipantIdentity();
         var game = await GetGameByInviteCodeOrThrowAsync(inviteCode);
 
-        var activeParticipant = await participantRepository.GetCurrentParticipantAsync(
+        var (activeParticipant, existingParticipant) = await GetParticipantStateAsync(
             game.Id,
             currentIdentity.UserId,
             currentIdentity.GuestParticipantId);
         
-        var existingParticipant = activeParticipant ??
-                                  await participantRepository.GetCurrentParticipantIncludingRemovedAsync(
-                                      game.Id,
-                                      currentIdentity.UserId,
-                                      currentIdentity.GuestParticipantId);
-
-        EnsureGameCanBeJoinedAsync(game, existingParticipant);
+        EnsureGameCanBeJoinedByInviteCode(game);
 
         var requestedRole = ResolveRole(joinGameRequestDto.ParticipantRole, existingParticipant);
-        var requestedDisplayName = joinGameRequestDto.DisplayName;
+        var participant = await UpsertParticipantAsync(
+            game.Id,
+            activeParticipant,
+            existingParticipant,
+            joinGameRequestDto.DisplayName,
+            currentUser,
+            requestedRole,
+            allowCreateNewParticipant: true);
 
-        GameParticipant participant;
-        
-        if (activeParticipant is not null)
+        return await BuildJoinGameResponseAsync(game, participant, currentUser);
+    }
+
+    public async Task<JoinGameResponseDto> ReconnectToGameAsync(Guid gameId)
+    {
+        var currentUser = await currentUserContext.GetRequiredUserAsync();
+        var game = await GetGameOrThrowAsync(gameId);
+        var wasInactive = !game.IsActive;
+
+        var (activeParticipant, existingParticipant) =
+            await GetParticipantStateAsync(game.Id, currentUser.Id, null);
+
+        EnsureGameCanBeReconnected(game, existingParticipant, currentUser.Id);
+
+        if (existingParticipant is null)
         {
-            participant = await RejoinActiveParticipantAsync(
-                activeParticipant,
-                game.Id,
-                requestedDisplayName,
-                currentUser,
-                requestedRole);
+            throw new ForbiddenException(
+                AccessControlConstants.JoinAction,
+                AccessControlConstants.GameResource);
         }
-        else if (existingParticipant is not null)
-        {
-            participant = await RestoreParticipantAsync(
-                existingParticipant,
-                game.Id,
-                requestedDisplayName,
-                currentUser,
-                requestedRole);
-        }
-        else
-        {
-            participant = await CreateNewParticipantAsync(
-                game.Id,
-                requestedDisplayName,
-                currentUser,
-                requestedRole);
-        }
 
-        await participantRepository.SaveChangesAsync();
+        var participant = await UpsertParticipantAsync(
+            game.Id,
+            activeParticipant,
+            existingParticipant,
+            requestedDisplayName: null,
+            currentUser,
+            ResolveReconnectRole(game, existingParticipant, currentUser.Id, wasInactive),
+            allowCreateNewParticipant: false);
 
-        await gameRoomNotifier.NotifyParticipantJoinedAsync(game.Id,
-            ParticipantMapper.ToGameParticipantDto(participant));
-
-        var guestAccessToken = await CreateGuestTokenIfNeededAsync(currentUser, participant.Id);
-        var refreshedGame = await gameRepository.GetByIdAsync(game.Id) ?? game;
-
-        return new JoinGameResponseDto
-        {
-            Game = GameMapper.ToGameDto(refreshedGame),
-            CurrentParticipantId = participant.Id,
-            GuestAccessToken = guestAccessToken
-        };
+        return await BuildJoinGameResponseAsync(game, participant, currentUser);
     }
 
     /// <summary>
@@ -147,7 +134,7 @@ public class ParticipantService(
             gameId,
             AccessControlConstants.LeaveAction,
             AccessControlConstants.GameResource);
-        
+
         if (participant.UserId == game.CreatedBy)
         {
             await CloseGameForAllParticipantsAsync(game);
@@ -162,7 +149,7 @@ public class ParticipantService(
 
         await RemoveParticipantAsync(participant);
     }
-    
+
     /// <summary>
     /// Видаляє активного учасника з гри. Операція доступна лише Master у межах цієї гри.
     /// </summary>
@@ -185,7 +172,7 @@ public class ParticipantService(
         {
             throw new InvalidOperationException("You cannot delete yourself.");
         }
-        
+
         var participant = await gameAccessService.GetRequiredActiveParticipantAsync(gameId, participantId);
         await RemoveParticipantAsync(participant, true);
     }
@@ -208,13 +195,13 @@ public class ParticipantService(
     {
         var currentUser = await currentUserContext.GetUserOrDefaultAsync();
         await GetGameOrThrowAsync(gameId);
-        
+
         var currentParticipant =
             await gameAccessService.GetRequiredParticipantAsync(
                 gameId,
                 AccessControlConstants.UpdateDisplayNameAction,
                 AccessControlConstants.GameResource);
-        
+
         var resolvedDisplayName = ResolveUpdatedDisplayName(
             displayName,
             currentUser?.DisplayName,
@@ -224,7 +211,7 @@ public class ParticipantService(
         {
             return ParticipantMapper.ToGameParticipantDto(currentParticipant);
         }
-        
+
         await EnsureDisplayNameIsAvailableAsync(resolvedDisplayName!, gameId);
         currentParticipant.DisplayName = resolvedDisplayName;
         await participantRepository.SaveChangesAsync();
@@ -235,7 +222,7 @@ public class ParticipantService(
 
         return ParticipantMapper.ToGameParticipantDto(currentParticipant);
     }
-    
+
     /// <summary>
     /// Передає роль Master іншому активному учаснику в межах конкретної гри.
     /// Операцію може виконати лише поточний Master цієї гри.
@@ -457,6 +444,92 @@ public class ParticipantService(
         return participant;
     }
 
+    private async Task<(GameParticipant? ActiveParticipant, GameParticipant? ExistingParticipant)>
+        GetParticipantStateAsync(
+            Guid gameId,
+            Guid? userId,
+            Guid? guestParticipantId)
+    {
+        var activeParticipant =
+            await participantRepository.GetCurrentParticipantAsync(gameId, userId, guestParticipantId);
+        var existingParticipant = activeParticipant ??
+                                  await participantRepository.GetCurrentParticipantIncludingRemovedAsync(
+                                      gameId,
+                                      userId,
+                                      guestParticipantId);
+
+        return (activeParticipant, existingParticipant);
+    }
+
+    private async Task<GameParticipant> UpsertParticipantAsync(
+        Guid gameId,
+        GameParticipant? activeParticipant,
+        GameParticipant? existingParticipant,
+        string? requestedDisplayName,
+        User? currentUser,
+        ParticipantRole requestedRole,
+        bool allowCreateNewParticipant)
+    {
+        GameParticipant participant;
+
+        if (activeParticipant is not null)
+        {
+            participant = await RejoinActiveParticipantAsync(
+                activeParticipant,
+                gameId,
+                requestedDisplayName,
+                currentUser,
+                requestedRole);
+        }
+        else if (existingParticipant is not null)
+        {
+            participant = await RestoreParticipantAsync(
+                existingParticipant,
+                gameId,
+                requestedDisplayName,
+                currentUser,
+                requestedRole);
+        }
+        else if (allowCreateNewParticipant)
+        {
+            participant = await CreateNewParticipantAsync(
+                gameId,
+                requestedDisplayName,
+                currentUser,
+                requestedRole);
+        }
+        else
+        {
+            throw new ForbiddenException(
+                AccessControlConstants.JoinAction,
+                AccessControlConstants.GameResource);
+        }
+
+        return participant;
+    }
+
+    private async Task<JoinGameResponseDto> BuildJoinGameResponseAsync(
+        Game game,
+        GameParticipant participant,
+        User? currentUser)
+    {
+        await participantRepository.SaveChangesAsync();
+
+        await gameRoomNotifier.NotifyParticipantJoinedAsync(
+            game.Id,
+            ParticipantMapper.ToGameParticipantDto(participant));
+
+        var guestAccessToken = await CreateGuestTokenIfNeededAsync(currentUser, participant.Id);
+        var refreshedGame = await gameRepository.GetByIdAsync(game.Id) ?? game;
+
+        return new JoinGameResponseDto
+        {
+            Game = GameMapper.ToGameDto(refreshedGame),
+            CurrentParticipantId = participant.Id,
+            GuestAccessToken = guestAccessToken
+        };
+    }
+
     /// <summary>
     /// Створює guest access token для неавторизованого учасника та зберігає відповідну guest session.
     /// Для авторизованого користувача токен не створюється.
@@ -618,23 +691,40 @@ public class ParticipantService(
     }
 
     /// <summary>
-    /// Перевіряє, чи може користувач приєднатися до гри.
-    /// Якщо гра неактивна, повторно активувати її дозволено лише учаснику з роллю Master,
-    /// який уже був пов’язаний із цією грою.
+    /// Перевіряє, що приєднання за invite code дозволене лише для активної гри.
     /// </summary>
     /// <param name="game">Гра, до якої виконується приєднання.</param>
-    /// <param name="existingParticipant">Існуючий учасник гри, якщо він уже був пов’язаний із нею.</param>
     /// <exception cref="ForbiddenException">
-    /// Виникає, якщо користувач не має права повторно активувати неактивну гру.
+    /// Виникає, якщо гра неактивна.
     /// </exception>
-    private void EnsureGameCanBeJoinedAsync(Game game, GameParticipant? existingParticipant)
+    private static void EnsureGameCanBeJoinedByInviteCode(Game game)
+    {
+        if (!game.IsActive)
+        {
+            throw new ForbiddenException(
+                AccessControlConstants.JoinAction,
+                AccessControlConstants.GameResource);
+        }
+    }
+
+    private void EnsureGameCanBeReconnected(
+        Game game,
+        GameParticipant? existingParticipant,
+        Guid currentUserId)
     {
         if (game.IsActive)
         {
-            return;
+            if (existingParticipant is not null)
+            {
+                return;
+            }
+
+            throw new ForbiddenException(
+                AccessControlConstants.JoinAction,
+                AccessControlConstants.GameResource);
         }
 
-        if (existingParticipant?.Role != ParticipantRole.Master)
+        if (game.CreatedBy != currentUserId || existingParticipant is null)
         {
             throw new ForbiddenException(
                 AccessControlConstants.JoinAction,
@@ -726,6 +816,20 @@ public class ParticipantService(
         }
 
         return existingParticipant?.Role ?? ParticipantRole.Player;
+    }
+
+    private static ParticipantRole ResolveReconnectRole(
+        Game game,
+        GameParticipant existingParticipant,
+        Guid currentUserId,
+        bool wasInactive)
+    {
+        if (wasInactive && game.CreatedBy == currentUserId)
+        {
+            return ParticipantRole.Master;
+        }
+
+        return existingParticipant.Role;
     }
 
     /// <summary>

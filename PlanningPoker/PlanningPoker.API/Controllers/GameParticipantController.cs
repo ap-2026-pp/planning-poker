@@ -35,6 +35,13 @@ public class GameParticipantController(
         return Ok(game);
     }
 
+    [HttpPost("{gameId:guid}/reconnect")]
+    public async Task<ActionResult<JoinGameResponseDto>> ReconnectToGame(Guid gameId)
+    {
+        var game = await participantService.ReconnectToGameAsync(gameId);
+        return Ok(game);
+    }
+
     [HttpDelete("{gameId:guid}/participants/me")]
     public async Task<ActionResult> LeaveGame(Guid gameId)
     {

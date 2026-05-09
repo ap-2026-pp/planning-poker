@@ -174,47 +174,29 @@ public class ParticipantServiceTests
     }
 
     [Fact]
-    public async Task JoinGameByInviteCodeAsync_WhenGuestWasRemovedMasterInInactiveGame_ReactivatesGame()
+    public async Task JoinGameByInviteCodeAsync_WhenGameIsInactive_ThrowsForbiddenException()
     {
         const string inviteCode = "invite-code";
-        const string guestAccessToken = "guest-access-token";
-        var guestParticipantId = Guid.NewGuid();
         var game = CreateGame(inviteCode, isActive: false);
-        var removedMaster = CreateGuestParticipant(game.Id, ParticipantRole.Master, "Guest Master", guestParticipantId);
-        removedMaster.RemovedAt = DateTime.UtcNow.AddMinutes(-5);
-        removedMaster.IsConnected = false;
+        var currentUser = CreateUser(_playerId, "Player");
+        var existingParticipant = CreateParticipant(_playerId, game.Id, ParticipantRole.Master, "Player");
+        existingParticipant.RemovedAt = DateTime.UtcNow.AddMinutes(-5);
+        existingParticipant.IsConnected = false;
 
-        SetupGuestIdentity(guestParticipantId);
+        SetupAuthenticatedIdentity(currentUser);
         _gameRepository.Setup(repository => repository.GetByInviteCodeAsync(inviteCode)).ReturnsAsync(game);
         _participantRepository
-            .Setup(repository => repository.GetCurrentParticipantAsync(game.Id, null, guestParticipantId))
+            .Setup(repository => repository.GetCurrentParticipantAsync(game.Id, _playerId, null))
             .ReturnsAsync((GameParticipant?)null);
         _participantRepository
-            .Setup(repository => repository.GetCurrentParticipantIncludingRemovedAsync(game.Id, null, guestParticipantId))
-            .ReturnsAsync(removedMaster);
-        _participantRepository
-            .Setup(repository => repository.ExistsByDisplayNameAsync("Guest Master", game.Id))
-            .ReturnsAsync(false);
-        _participantRepository
-            .Setup(repository => repository.SaveChangesAsync())
-            .Callback(() => game.Participants.Add(removedMaster))
-            .Returns(Task.CompletedTask);
-        _gameRepository
-            .Setup(repository => repository.GetByIdAsync(game.Id))
-            .ReturnsAsync(CreateGame(inviteCode, isActive: true, gameId: game.Id, participants: [removedMaster]));
-        _guestSessionService
-            .Setup(service => service.GenerateGuestAccessToken(guestParticipantId))
-            .Returns(guestAccessToken);
+            .Setup(repository => repository.GetCurrentParticipantIncludingRemovedAsync(game.Id, _playerId, null))
+            .ReturnsAsync(existingParticipant);
 
-        var result = await _participantService.JoinGameByInviteCodeAsync(inviteCode, CreateJoinRequest());
+        var act = async () => await _participantService.JoinGameByInviteCodeAsync(inviteCode, CreateJoinRequest());
 
-        Assert.True(game.IsActive);
-        Assert.Equal(guestParticipantId, result.CurrentParticipantId);
-        Assert.Equal(guestAccessToken, result.GuestAccessToken);
-        Assert.Null(removedMaster.RemovedAt);
-        Assert.True(removedMaster.IsConnected);
-        _gameRepository.Verify(repository => repository.Update(game), Times.Once);
-        _participantRepository.Verify(repository => repository.Update(removedMaster), Times.Once);
+        await Assert.ThrowsAsync<ForbiddenException>(act);
+        _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
+        _participantRepository.Verify(repository => repository.SaveChangesAsync(), Times.Never);
     }
 
     [Fact]
@@ -268,6 +250,97 @@ public class ParticipantServiceTests
 
         await Assert.ThrowsAsync<ResourceAlreadyExistsException>(act);
         _participantRepository.Verify(repository => repository.AddAsync(It.IsAny<GameParticipant>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ReconnectToGameAsync_WhenActiveParticipantExists_ReturnsCurrentParticipant()
+    {
+        var currentUser = CreateUser(_playerId, "Player");
+        var participant = CreateParticipant(_playerId, _gameId, ParticipantRole.Player, "Player");
+        var game = CreateGame("invite-code", isActive: true, gameId: _gameId, participants: [participant]);
+
+        SetupAuthenticatedIdentity(currentUser);
+        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(game);
+        _participantRepository
+            .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, _playerId, null))
+            .ReturnsAsync(participant);
+
+        var result = await _participantService.ReconnectToGameAsync(_gameId);
+
+        Assert.Equal(game.Id, result.Game.Id);
+        Assert.Equal(participant.Id, result.CurrentParticipantId);
+        Assert.Null(result.GuestAccessToken);
+        Assert.True(participant.IsConnected);
+        _guestSessionService.Verify(service => service.GenerateGuestAccessToken(It.IsAny<Guid>()), Times.Never);
+        _gameRoomNotifier.Verify(
+            notifier => notifier.NotifyParticipantJoinedAsync(
+                _gameId,
+                It.Is<GameParticipantDto>(entry => entry.Id == participant.Id)),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ReconnectToGameAsync_WhenOwnerReopensInactiveGame_RestoresParticipantAndReactivatesIt()
+    {
+        var ownerId = Guid.NewGuid();
+        var currentUser = CreateUser(ownerId, "Owner");
+        var removedOwnerParticipant = CreateParticipant(ownerId, _gameId, ParticipantRole.Player, "Owner");
+        removedOwnerParticipant.IsConnected = false;
+        removedOwnerParticipant.RemovedAt = DateTime.UtcNow.AddMinutes(-5);
+
+        var game = CreateGame("invite-code", isActive: false, gameId: _gameId, createdBy: ownerId);
+
+        SetupAuthenticatedIdentity(currentUser);
+        _gameRepository
+            .Setup(repository => repository.GetByIdAsync(_gameId))
+            .ReturnsAsync(() => game.IsActive
+                ? CreateGame(
+                    "invite-code",
+                    isActive: true,
+                    gameId: _gameId,
+                    createdBy: ownerId,
+                    participants: [removedOwnerParticipant])
+                : game);
+        _participantRepository
+            .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, ownerId, null))
+            .ReturnsAsync((GameParticipant?)null);
+        _participantRepository
+            .Setup(repository => repository.GetCurrentParticipantIncludingRemovedAsync(_gameId, ownerId, null))
+            .ReturnsAsync(removedOwnerParticipant);
+        _participantRepository
+            .Setup(repository => repository.ExistsByDisplayNameAsync("Owner", _gameId))
+            .ReturnsAsync(false);
+
+        var result = await _participantService.ReconnectToGameAsync(_gameId);
+
+        Assert.True(game.IsActive);
+        Assert.Equal(removedOwnerParticipant.Id, result.CurrentParticipantId);
+        Assert.Equal(ParticipantRole.Master, removedOwnerParticipant.Role);
+        Assert.True(removedOwnerParticipant.IsConnected);
+        Assert.Null(removedOwnerParticipant.RemovedAt);
+        _gameRepository.Verify(repository => repository.Update(game), Times.Once);
+        _participantRepository.Verify(repository => repository.Update(removedOwnerParticipant), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReconnectToGameAsync_WhenInactiveGameAndCurrentUserIsNotMaster_ThrowsForbiddenException()
+    {
+        var currentUser = CreateUser(_playerId, "Player");
+        var participant = CreateParticipant(_playerId, _gameId, ParticipantRole.Player, "Player");
+        var game = CreateGame("invite-code", isActive: false, gameId: _gameId, participants: [participant]);
+
+        SetupAuthenticatedIdentity(currentUser);
+        _gameRepository.Setup(repository => repository.GetByIdAsync(_gameId)).ReturnsAsync(game);
+        _participantRepository
+            .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, _playerId, null))
+            .ReturnsAsync(participant);
+
+        var act = async () => await _participantService.ReconnectToGameAsync(_gameId);
+
+        await Assert.ThrowsAsync<ForbiddenException>(act);
+        Assert.False(game.IsActive);
+        _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
+        _participantRepository.Verify(repository => repository.SaveChangesAsync(), Times.Never);
     }
 
     [Fact]

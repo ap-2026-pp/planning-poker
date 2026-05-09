@@ -69,6 +69,29 @@ public class GameParticipantControllerTests
     }
 
     [Fact]
+    public async Task ReconnectToGame_WhenRequestIsValid_ReturnsOkWithGame()
+    {
+        var gameId = Guid.NewGuid();
+        var response = new JoinGameResponseDto
+        {
+            Game = CreateGameDto("Demo Game"),
+            CurrentParticipantId = Guid.NewGuid()
+        };
+
+        _participantService
+            .Setup(service => service.ReconnectToGameAsync(gameId))
+            .ReturnsAsync(response);
+
+        var result = await _controller.ReconnectToGame(gameId);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<JoinGameResponseDto>(okResult.Value);
+
+        Assert.Same(response, payload);
+        _participantService.Verify(service => service.ReconnectToGameAsync(gameId), Times.Once);
+    }
+
+    [Fact]
     public async Task LeaveGame_WhenServiceSucceeds_ReturnsNoContent()
     {
         var gameId = Guid.NewGuid();
@@ -184,5 +207,4 @@ public class GameParticipantControllerTests
         };
     }
 }
-
 
