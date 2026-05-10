@@ -66,7 +66,8 @@ internal class GameRepository(AppDbContext context) : BaseRepository<Game>(conte
                 g.CreatedBy != currentUserId &&
                 !g.IsDeleted &&
                 g.Participants.Any(participant =>
-                    participant.UserId == currentUserId))
+                    participant.UserId == currentUserId &&
+                    participant.RemovedAt == null))
             .ToListAsync();
     }
 

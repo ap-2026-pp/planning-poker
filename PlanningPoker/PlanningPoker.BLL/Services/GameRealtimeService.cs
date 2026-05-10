@@ -17,12 +17,6 @@ public class GameRealtimeService(
         await NotifyAuthorizedUsersAboutGameUpdateAsync(game);
     }
 
-    public async Task NotifyParticipantLeftAsync(Game game, Guid participantId)
-    {
-        await gameRoomNotifier.NotifyParticipantLeftAsync(game.Id, participantId);
-        await NotifyAuthorizedUsersAboutGameUpdateAsync(game);
-    }
-
     public async Task NotifyParticipantKickedAsync(Game game, Guid participantId)
     {
         await gameRoomNotifier.NotifyParticipantKickedAsync(game.Id, participantId);

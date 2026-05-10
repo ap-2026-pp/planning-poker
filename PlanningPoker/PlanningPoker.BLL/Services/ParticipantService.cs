@@ -114,7 +114,7 @@ public class ParticipantService(
     }
 
     /// <summary>
-    /// Видаляє поточного користувача зі списку активних учасників гри.
+    /// Позначає поточного користувача неактивним.
     /// Якщо виходить власник гри, вона закривається для всіх.
     /// Якщо це не master — просто виходить.
     /// Якщо виходить master не власник гри, права повертаються активному власнику гри,
@@ -147,7 +147,7 @@ public class ParticipantService(
             return;
         }
 
-        await RemoveParticipantAsync(participant);
+        await LeaveParticipantAsync(participant);
     }
 
     /// <summary>
@@ -174,7 +174,7 @@ public class ParticipantService(
         }
 
         var participant = await gameAccessService.GetRequiredActiveParticipantAsync(gameId, participantId);
-        await RemoveParticipantAsync(participant, true);
+        await RemoveParticipantAsync(participant);
     }
 
     /// <summary>
@@ -560,21 +560,26 @@ public class ParticipantService(
     /// Видаляє учасника з гри та зберігає зміни.
     /// </summary>
     /// <param name="participant">Учасник, якого потрібно видалити з гри.</param>
-    /// <param name="isKicked">Прапорець, що показує чи учасник вийшов, чи бу видалений</param>
-    private async Task RemoveParticipantAsync(GameParticipant participant, bool isKicked = false)
+    private async Task RemoveParticipantAsync(GameParticipant participant)
     {
         var game = await GetGameOrThrowAsync(participant.GameId);
+
         participantRepository.RemoveGameParticipant(participant);
         await participantRepository.SaveChangesAsync();
 
-        if (isKicked)
-        {
-            await gameRealtimeService.NotifyParticipantKickedAsync(game, participant.Id);
-        }
-        else
-        {
-            await gameRealtimeService.NotifyParticipantLeftAsync(game, participant.Id);
-        }
+        await gameRealtimeService.NotifyParticipantKickedAsync(game, participant.Id);
+    }
+    
+    private async Task LeaveParticipantAsync(GameParticipant participant)
+    {
+        var game = await GetGameOrThrowAsync(participant.GameId);
+
+        participantRepository.MarkParticipantOffline(participant);
+        await participantRepository.SaveChangesAsync();
+
+        await gameRealtimeService.NotifyParticipantUpdatedAsync(
+            game,
+            ParticipantMapper.ToGameParticipantDto(participant));
     }
 
     /// <summary>
@@ -583,19 +588,22 @@ public class ParticipantService(
     /// <param name="game">Гра, яку потрібно завершити.</param>
     private async Task CloseGameForAllParticipantsAsync(Game game)
     {
-        foreach (var currentParticipant in game.Participants)
+        foreach (var currentParticipant in game.Participants.Where(p => p.RemovedAt == null))
         {
-            participantRepository.RemoveGameParticipant(currentParticipant);
+            participantRepository.MarkParticipantOffline(currentParticipant);
         }
 
         game.IsActive = false;
         gameRepository.Update(game);
         await participantRepository.SaveChangesAsync();
+
         await gameRealtimeService.NotifyGameUpdatedAsync(game);
 
-        foreach (var participantId in game.Participants.Select(p => p.Id))
+        foreach (var participant in game.Participants.Where(p => p.RemovedAt == null))
         {
-            await gameRealtimeService.NotifyParticipantLeftAsync(game, participantId);
+            await gameRealtimeService.NotifyParticipantUpdatedAsync(
+                game,
+                ParticipantMapper.ToGameParticipantDto(participant));
         }
     }
 
@@ -605,7 +613,7 @@ public class ParticipantService(
         if (nextMaster is not null)
         {
             await TransferMasterBeforeLeaveAsync(nextMaster, currentParticipant);
-            await RemoveParticipantAsync(currentParticipant);
+            await LeaveParticipantAsync(currentParticipant);
             return;
         }
 
@@ -655,6 +663,7 @@ public class ParticipantService(
         GameParticipant currentParticipant)
     {
         var game = await GetGameOrThrowAsync(newMaster.GameId);
+
         if (newMaster.Role != ParticipantRole.Master)
         {
             newMaster.Role = ParticipantRole.Master;
@@ -665,6 +674,10 @@ public class ParticipantService(
         participantRepository.Update(currentParticipant);
 
         await participantRepository.SaveChangesAsync();
+
+        await gameRealtimeService.NotifyParticipantUpdatedAsync(
+            game,
+            ParticipantMapper.ToGameParticipantDto(currentParticipant));
 
         await gameRealtimeService.NotifyParticipantUpdatedAsync(
             game,

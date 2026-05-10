@@ -12,9 +12,6 @@ public class GameRoomNotifier(IHubContext<GameRoomHub> hubContext) : IGameRoomNo
     public Task NotifyParticipantJoinedAsync(Guid gameId, GameParticipantDto participant)
         => NotifyGroupAsync(gameId, GameRoomHubEvents.ParticipantJoined, participant);
 
-    public Task NotifyParticipantLeftAsync(Guid gameId, Guid participantId)
-        => NotifyGroupAsync(gameId, GameRoomHubEvents.ParticipantLeft, participantId);
-
     public Task NotifyParticipantKickedAsync(Guid gameId, Guid participantId)
         => NotifyGroupAsync(gameId, GameRoomHubEvents.ParticipantKicked, participantId);
 

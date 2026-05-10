@@ -362,13 +362,13 @@ public class ParticipantServiceTests
 
         Assert.True(game.IsActive);
         Assert.Equal(ParticipantRole.Master, playerParticipant.Role);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(masterParticipant), Times.Once);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(playerParticipant), Times.Never);
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(masterParticipant), Times.Once);
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(playerParticipant), Times.Never);
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
     }
 
     [Fact]
-    public async Task LeaveGameAsync_WhenCurrentGuestIsPlayer_RemovesParticipant()
+    public async Task LeaveGameAsync_WhenCurrentGuestIsPlayer_MarksParticipantOffline()
     {
         var guestPlayerId = Guid.NewGuid();
         var playerParticipant = CreateGuestParticipant(_gameId, ParticipantRole.Player, "Guest Player", guestPlayerId);
@@ -380,12 +380,29 @@ public class ParticipantServiceTests
             .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, null, guestPlayerId))
             .ReturnsAsync(playerParticipant);
 
+        _participantRepository
+            .Setup(repository => repository.MarkParticipantOffline(It.IsAny<GameParticipant>()))
+            .Callback<GameParticipant>(participant =>
+            {
+                participant.IsConnected = false;
+                participant.RemovedAt = null;
+            });
+
         await _participantService.LeaveGameAsync(_gameId);
 
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(playerParticipant), Times.Once);
+        Assert.False(playerParticipant.IsConnected);
+        Assert.Null(playerParticipant.RemovedAt);
+
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(playerParticipant), Times.Once);
+        _participantRepository.Verify(repository => repository.RemoveGameParticipant(It.IsAny<GameParticipant>()), Times.Never);
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
+
         _gameRealtimeService.Verify(
-            notifier => notifier.NotifyParticipantLeftAsync(game, playerParticipant.Id),
+            notifier => notifier.NotifyParticipantUpdatedAsync(
+                game,
+                It.Is<GameParticipantDto>(participant =>
+                    participant.Id == playerParticipant.Id &&
+                    participant.IsConnected == false)),
             Times.Once);
     }
 
@@ -411,8 +428,8 @@ public class ParticipantServiceTests
         await _participantService.LeaveGameAsync(_gameId);
 
         Assert.False(game.IsActive);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(ownerParticipant), Times.Once);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(delegatedMaster), Times.Once);
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(ownerParticipant), Times.Once);
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(delegatedMaster), Times.Once);
         _gameRepository.Verify(repository => repository.Update(game), Times.Once);
     }
 
@@ -443,8 +460,8 @@ public class ParticipantServiceTests
         Assert.True(game.IsActive);
         Assert.Equal(ParticipantRole.Master, ownerParticipant.Role);
         _participantRepository.Verify(repository => repository.Update(ownerParticipant), Times.Once);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(delegatedMaster), Times.Once);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(ownerParticipant), Times.Never);
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(delegatedMaster), Times.Once);
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(ownerParticipant), Times.Never);
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
     }
 
@@ -483,8 +500,8 @@ public class ParticipantServiceTests
         Assert.NotNull(removedOwnerParticipant.RemovedAt);
         _participantRepository.Verify(repository => repository.Update(removedOwnerParticipant), Times.Never);
         _participantRepository.Verify(repository => repository.Update(anotherPlayer), Times.Once);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(delegatedMaster), Times.Once);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(anotherPlayer), Times.Never);
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(delegatedMaster), Times.Once);
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(anotherPlayer), Times.Never);
         _gameRepository.Verify(repository => repository.Update(It.IsAny<Game>()), Times.Never);
     }
 
@@ -518,8 +535,8 @@ public class ParticipantServiceTests
         Assert.False(game.IsActive);
         Assert.Equal(ParticipantRole.Spectator, spectatorOwner.Role);
         _participantRepository.Verify(repository => repository.Update(spectatorOwner), Times.Never);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(delegatedMaster), Times.Once);
-        _participantRepository.Verify(repository => repository.RemoveGameParticipant(spectatorOwner), Times.Once);
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(delegatedMaster), Times.Once);
+        _participantRepository.Verify(repository => repository.MarkParticipantOffline(spectatorOwner), Times.Once);
         _gameRepository.Verify(repository => repository.Update(game), Times.Once);
     }
 
