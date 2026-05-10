@@ -1,4 +1,5 @@
 using PlanningPoker.BLL.DTOs.Issue;
+using PlanningPoker.Domain.DTOs.Participant;
 using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.Domain.DTOs.Game;

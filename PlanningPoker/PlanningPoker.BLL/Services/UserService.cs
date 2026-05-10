@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using PlanningPoker.BLL.Constants;
 using PlanningPoker.BLL.DTOs.Auth;
+using PlanningPoker.Domain.DTOs.Auth;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Mappers;
@@ -17,6 +18,21 @@ internal class UserService(
     IGuestAccountLinkService guestAccountLinkService)
     : IUserService
 {
+    /// <summary>
+    /// Реєструє нового користувача, створює для нього пару токенів та, за наявності guest-сесії,
+    /// прив’язує гостьового учасника до нового акаунта.
+    /// </summary>
+    /// <param name="dto">Дані для реєстрації користувача.</param>
+    /// <returns>Дані авторизації нового користувача у вигляді <see cref="AuthResponseDto"/>.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Виникає, якщо вхідний DTO дорівнює <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ResourceAlreadyExistsException">
+    /// Виникає, якщо користувач із таким email уже існує.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Виникає, якщо не вдалося створити користувача або зберегти його дані.
+    /// </exception>
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
     {
         ArgumentNullException.ThrowIfNull(dto);
@@ -60,6 +76,18 @@ internal class UserService(
         );
     }
 
+    /// <summary>
+    /// Виконує автентифікацію користувача за email і паролем, генерує нову пару токенів та,
+    /// за наявності guest-сесії, прив’язує гостьового учасника до авторизованого акаунта.
+    /// </summary>
+    /// <param name="dto">Облікові дані користувача для входу.</param>
+    /// <returns>Дані авторизації у вигляді <see cref="AuthResponseDto"/>.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Виникає, якщо вхідний DTO дорівнює <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Виникає, якщо email або пароль некоректні.
+    /// </exception>
     public async Task<AuthResponseDto> LoginAsync(LoginDto dto)
     {
         ArgumentNullException.ThrowIfNull(dto);
@@ -90,6 +118,19 @@ internal class UserService(
         );
     }
 
+    /// <summary>
+    /// Оновлює access token і refresh token на основі чинної пари токенів.
+    /// Перевіряє валідність access token, наявність користувача, відповідність refresh token та його строк дії.
+    /// </summary>
+    /// <param name="dto">Поточні access token і refresh token.</param>
+    /// <returns>Нова пара токенів у вигляді <see cref="AuthResponseDto"/>.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Виникає, якщо вхідний DTO дорівнює <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="SecurityTokenException">
+    /// Виникає, якщо access token некоректний, користувача не знайдено,
+    /// refresh token не збігається або термін його дії завершився.
+    /// </exception>
     public async Task<AuthResponseDto> RefreshTokensAsync(TokenRequestDto dto)
     {
         ArgumentNullException.ThrowIfNull(dto);
@@ -127,6 +168,16 @@ internal class UserService(
         );
     }
 
+    /// <summary>
+    /// Відкликає refresh token поточного авторизованого користувача, очищаючи значення токена та строк його дії.
+    /// </summary>
+    /// <returns>Асинхронна операція без повернення значення.</returns>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Виникає, якщо не вдалося визначити поточного користувача.
+    /// </exception>
+    /// <exception cref="NotFoundException">
+    /// Виникає, якщо поточного користувача не знайдено в сховищі.
+    /// </exception>
     public async Task RevokeTokenAsync()
     {
         var user = await currentUserContext.GetRequiredUserAsync();
@@ -137,6 +188,16 @@ internal class UserService(
         await userManager.UpdateAsync(user);
     }
 
+    /// <summary>
+    /// Повертає профіль поточного авторизованого користувача.
+    /// </summary>
+    /// <returns>Дані поточного користувача у вигляді <see cref="UserDto"/>.</returns>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Виникає, якщо не вдалося визначити поточного користувача.
+    /// </exception>
+    /// <exception cref="NotFoundException">
+    /// Виникає, якщо поточного користувача не знайдено в сховищі.
+    /// </exception>
     public async Task<UserDto> GetCurrentUserAsync()
     {
         var user = await currentUserContext.GetRequiredUserAsync();
@@ -144,10 +205,114 @@ internal class UserService(
         return AuthMapper.ToUserDto(user);
     }
 
+    /// <summary>
+    /// Оновлює глобальне display name поточного авторизованого користувача.
+    /// Це значення використовується як профільне ім'я за замовчуванням,
+    /// але не змінює display name у вже наявних game participants.
+    /// </summary>
+    /// <param name="dto">Нове глобальне display name користувача.</param>
+    /// <returns>Оновлений профіль користувача у вигляді <see cref="UserDto"/>.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Виникає, якщо вхідний DTO дорівнює <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Виникає, якщо нове display name порожнє або складається лише з пробілів,
+    /// або якщо не вдалося зберегти зміни користувача.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Виникає, якщо не вдалося визначити поточного користувача.
+    /// </exception>
+    /// <exception cref="NotFoundException">
+    /// Виникає, якщо поточного користувача не знайдено в сховищі.
+    /// </exception>
+    public async Task<UserDto> UpdateCurrentUserDisplayNameAsync(UpdateUserDisplayNameDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        var displayName = dto.DisplayName?.Trim();
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            throw new InvalidOperationException("Display name is required.");
+        }
+
+        var user = await currentUserContext.GetRequiredUserAsync();
+        if (string.Equals(user.DisplayName, displayName, StringComparison.Ordinal))
+        {
+            return AuthMapper.ToUserDto(user);
+        }
+
+        user.DisplayName = displayName;
+
+        var result = await userManager.UpdateAsync(user);
+        return !result.Succeeded ? throw CreateIdentityOperationException(result) : AuthMapper.ToUserDto(user);
+    }
+
+    /// <summary>
+    /// Змінює пароль поточного авторизованого користувача.
+    /// Після успішної зміни пароля відкликає refresh token, щоб користувач повторно пройшов авторизацію.
+    /// </summary>
+    /// <param name="dto">Старий і новий пароль користувача.</param>
+    /// <returns>Асинхронна операція без повернення значення.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// Виникає, якщо вхідний DTO дорівнює <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Виникає, якщо новий пароль збігається з поточним
+    /// або якщо операція зміни пароля / оновлення користувача завершилася з помилкою.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// Виникає, якщо не вдалося визначити поточного користувача.
+    /// </exception>
+    /// <exception cref="NotFoundException">
+    /// Виникає, якщо поточного користувача не знайдено в сховищі.
+    /// </exception>
+    public async Task ChangePasswordAsync(ChangePasswordDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        if (dto.OldPassword == dto.NewPassword)
+            throw new InvalidOperationException("New password must be different from current password.");
+
+        var user = await currentUserContext.GetRequiredUserAsync();
+
+        var result = await userManager.ChangePasswordAsync(user, dto.OldPassword, dto.NewPassword);
+
+        if (!result.Succeeded)
+            throw CreateIdentityOperationException(result);
+
+        user.RefreshToken = string.Empty;
+        user.RefreshTokenExpiryTime = null;
+
+        var updateResult = await userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+            throw CreateIdentityOperationException(updateResult);
+    }
+
+    /// <summary>
+    /// Повертає email користувача або викидає виняток, якщо email відсутній.
+    /// </summary>
+    /// <param name="user">Користувач, для якого потрібно отримати email.</param>
+    /// <returns>Email користувача.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Виникає, якщо email користувача відсутній.
+    /// </exception>
     private static string GetRequiredEmail(User user)
     {
         return user.Email
             ?? throw new InvalidOperationException("User email is missing.");
+    }
+
+    /// <summary>
+    /// Формує виняток <see cref="InvalidOperationException"/> на основі помилок, повернених Identity-операцією.
+    /// </summary>
+    /// <param name="result">Результат операції Identity.</param>
+    /// <returns>
+    /// Екземпляр <see cref="InvalidOperationException"/> з об’єднаним текстом усіх помилок.
+    /// </returns>
+    private static InvalidOperationException CreateIdentityOperationException(IdentityResult result)
+    {
+        var message = string.Join("; ", result.Errors.Select(error => error.Description));
+        return new InvalidOperationException(message);
     }
 
     private static string ExtractEmailLocalPart(string email)

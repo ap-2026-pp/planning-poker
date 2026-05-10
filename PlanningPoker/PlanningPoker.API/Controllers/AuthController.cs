@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.BLL.DTOs.Auth;
+using PlanningPoker.Domain.DTOs.Auth;
 using PlanningPoker.Domain.Interfaces.Services;
 
 namespace PlanningPoker.API.Controllers
@@ -33,6 +34,14 @@ namespace PlanningPoker.API.Controllers
             return NoContent();
         }
 
+        [Authorize]
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        {
+            await userService.ChangePasswordAsync(dto);
+            return NoContent();
+        }
+
         [AllowAnonymous]
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh([FromBody] TokenRequestDto dto)
@@ -46,6 +55,14 @@ namespace PlanningPoker.API.Controllers
         public async Task<IActionResult> GetCurrentUser()
         {
             var result = await userService.GetCurrentUserAsync();
+            return Ok(result);
+        }
+
+        [Authorize]
+        [HttpPut("me/display-name")]
+        public async Task<IActionResult> UpdateCurrentUserDisplayName([FromBody] UpdateUserDisplayNameDto dto)
+        {
+            var result = await userService.UpdateCurrentUserDisplayNameAsync(dto);
             return Ok(result);
         }
     }

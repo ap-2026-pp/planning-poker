@@ -1,5 +1,6 @@
 using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.DTOs.Game;
+using PlanningPoker.Domain.DTOs.Participant;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
