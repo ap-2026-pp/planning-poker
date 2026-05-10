@@ -41,7 +41,7 @@ internal class GameRepository(AppDbContext context) : BaseRepository<Game>(conte
             .FirstOrDefaultAsync(g => g.InviteCode == inviteCode && !g.IsDeleted);
     }
 
-    public async Task<IEnumerable<Game>?> GetByUserId(Guid currentUserId)
+    public async Task<IEnumerable<Game>?> GetCreatedByUserId(Guid currentUserId)
     {
         return await GetUserGamesQuery()
             .Where(g => g.CreatedBy == currentUserId && !g.IsDeleted)
