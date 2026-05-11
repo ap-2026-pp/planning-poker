@@ -15,7 +15,8 @@ public static class IssueMapper
             Title = issue.Title,
             Description = issue.Description,
             Order = issue.Order,
-            IsCurrent = issue.IsCurrent
+            IsCurrent = issue.IsCurrent,
+            IsRemoved = issue.IsRemoved,
         };
     }
 

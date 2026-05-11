@@ -39,6 +39,8 @@ public class IssueDto
     /// Визначає, чи заадча є поточною для 
     /// </summary>
     public bool IsCurrent { get; set; }
+    
+    public bool IsRemoved { get; set; }
 
     /// <summary>
     /// Фінальна оцінка задачі

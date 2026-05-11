@@ -7,4 +7,5 @@ public static class GameRoomHubEvents
     public const string ParticipantUpdated = "ParticipantUpdated";
     public const string GameUpdated = "GameUpdated";
     public const string IssueCreated = "IssueCreated";
+    public const string IssueUpdated = "IssueUpdated";
 }

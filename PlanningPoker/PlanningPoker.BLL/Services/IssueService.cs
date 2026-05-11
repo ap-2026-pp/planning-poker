@@ -17,7 +17,8 @@ namespace PlanningPoker.BLL.Services;
 public class IssueService(
     IIssueRepository repoIssues,
     IPlaneService planeService,
-    IGameAccessService gameAccessService) : IIssueService
+    IGameAccessService gameAccessService,
+    IGameRoomNotifier gameRoomNotifier) : IIssueService
 {
     /// <summary>
     /// Отримує список усіх активних задач для конкретної гри.
@@ -83,6 +84,7 @@ public class IssueService(
 
         await repoIssues.AddAsync(issue);
         await repoIssues.SaveChangesAsync();
+        await gameRoomNotifier.NotifyIssueAddedAsync(gameId, IssueMapper.ToDto(issue));
 
         return IssueMapper.ToDto(issue);
     }
@@ -121,6 +123,7 @@ public class IssueService(
 
         repoIssues.Update(issue);
         await repoIssues.SaveChangesAsync();
+        await gameRoomNotifier.NotifyIssueUpdatedAsync(gameId, IssueMapper.ToDto(issue));
 
         return IssueMapper.ToDto(issue);
     }
@@ -145,6 +148,7 @@ public class IssueService(
 
         repoIssues.Update(issue);
         await repoIssues.SaveChangesAsync();
+        await gameRoomNotifier.NotifyIssueUpdatedAsync(gameId, IssueMapper.ToDto(issue));
     }
 
     /// <summary>
@@ -157,15 +161,21 @@ public class IssueService(
             AccessControlConstants.DeleteAction,
             AccessControlConstants.IssueResource);
 
-        var issues = await repoIssues.GetByGameIdAsync(gameId);
+        var issues = (await repoIssues.GetByGameIdAsync(gameId)).ToList();
 
         foreach (var issue in issues)
         {
             issue.IsRemoved = true;
             issue.IsCurrent = false;
+            repoIssues.Update(issue);
         }
 
         await repoIssues.SaveChangesAsync();
+
+        foreach (var issue in issues)
+        {
+            await gameRoomNotifier.NotifyIssueUpdatedAsync(gameId, IssueMapper.ToDto(issue));
+        }
     }
 
     /// <summary>
@@ -184,18 +194,27 @@ public class IssueService(
         if (issuesList.Count != dto.IssuesIds.Count)
             throw new InvalidOperationException("Invalid issues list.");
 
+        var changedIssues = new List<Issue>();
+
         for (var i = 0; i < dto.IssuesIds.Count; i++)
         {
             var issue = issuesList.First(x => x.Id == dto.IssuesIds[i]);
-            issue.Order = i + 1;
+            var nextOrder = i + 1;
+
+            if (issue.Order == nextOrder) continue;
+            issue.Order = nextOrder;
+            repoIssues.Update(issue);
+            changedIssues.Add(issue);
         }
 
         await repoIssues.SaveChangesAsync();
+
+        foreach (var issue in changedIssues.OrderBy(x => x.Order))
+        {
+            await gameRoomNotifier.NotifyIssueUpdatedAsync(gameId, IssueMapper.ToDto(issue));
+        }
     }
 
-    /// <summary>
-    /// Встановлює задачу як активну для поточного голосування.
-    /// </summary>
     public async Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId)
     {
         await gameAccessService.EnsureCanManageIssuesAsync(
@@ -205,12 +224,36 @@ public class IssueService(
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
-        await repoIssues.ClearCurrentIssueAsync(gameId);
+        if (issue.IsCurrent)
+        {
+            issue.IsCurrent = false;
+            repoIssues.Update(issue);
+            await repoIssues.SaveChangesAsync();
+            await gameRoomNotifier.NotifyIssueUpdatedAsync(gameId, IssueMapper.ToDto(issue));
+
+            return IssueMapper.ToDto(issue);
+        }
+
+        var currentIssues = await repoIssues.GetByGameIdAsync(gameId);
+        var currentActiveIssues = currentIssues.Where(x => x.IsCurrent && x.Id != issue.Id).ToList();
+
+        foreach (var currentIssue in currentActiveIssues)
+        {
+            currentIssue.IsCurrent = false;
+            repoIssues.Update(currentIssue);
+        }
 
         issue.IsCurrent = true;
-
         repoIssues.Update(issue);
+
         await repoIssues.SaveChangesAsync();
+
+        foreach (var currentIssue in currentActiveIssues)
+        {
+            await gameRoomNotifier.NotifyIssueUpdatedAsync(gameId, IssueMapper.ToDto(currentIssue));
+        }
+
+        await gameRoomNotifier.NotifyIssueUpdatedAsync(gameId, IssueMapper.ToDto(issue));
 
         return IssueMapper.ToDto(issue);
     }

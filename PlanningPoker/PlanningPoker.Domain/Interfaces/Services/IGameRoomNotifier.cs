@@ -14,4 +14,5 @@ public interface IGameRoomNotifier
 
     Task NotifyGameUpdatedAsync(Guid gameId, GameDto game);
     Task NotifyIssueAddedAsync(Guid gameId, IssueDto issue);
+    Task NotifyIssueUpdatedAsync(Guid gameId, IssueDto issue);
 }
