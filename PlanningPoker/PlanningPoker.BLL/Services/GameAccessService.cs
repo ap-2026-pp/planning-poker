@@ -68,9 +68,25 @@ public class GameAccessService(
             gameId,
             AccessControlConstants.RevealCardsAction,
             AccessControlConstants.GameResource);
-        
-        if (participant.Game.RevealPolicy == RevealPolicy.Everyone ||
-            participant.Role == ParticipantRole.Master)
+
+        if (participant.Role == ParticipantRole.Spectator)
+        {
+            throw new ForbiddenException(
+                AccessControlConstants.RevealCardsAction,
+                AccessControlConstants.GameResource);
+        }
+
+        if (participant.Role == ParticipantRole.Master)
+        {
+            return participant;
+        }
+
+        if (participant.Game.RevealPolicy == RevealPolicy.Everyone)
+        {
+            return participant;
+        }
+
+        if (participant.Game.RevealPolicy == RevealPolicy.SpecificParticipants && participant.CanRevealCards)
         {
             return participant;
         }
@@ -110,17 +126,37 @@ public class GameAccessService(
     /// <param name="action">Дія, яку користувач намагається виконати.</param>
     /// <param name="resourceName">Назва ресурсу для повідомлення про помилку доступу.</param>
     /// <returns>Поточний учасник, якщо управління задачами дозволено.</returns>
-    public async Task<GameParticipant> EnsureCanManageIssuesAsync(Guid gameId, string action, string resourceName)
+    public async Task<GameParticipant> EnsureCanManageIssuesAsync(
+        Guid gameId,
+        string action,
+        string resourceName)
     {
         var participant = await GetRequiredParticipantAsync(gameId, action, resourceName);
 
-        if (participant.Role == ParticipantRole.Spectator || 
-            (participant.Game.IssuesPolicy == IssuesPolicy.MasterOnly && participant.Role != ParticipantRole.Master))
+        if (participant.Role == ParticipantRole.Spectator)
         {
             throw new ForbiddenException(action, resourceName);
         }
 
-        return participant;
+        if (participant.Role == ParticipantRole.Master)
+        {
+            return participant;
+        }
+
+        if (participant.Game.IssuesPolicy == IssuesPolicy.Everyone)
+        {
+            return participant;
+        }
+
+        if (
+            participant.Game.IssuesPolicy == IssuesPolicy.SpecificParticipants &&
+            participant.CanManageIssues
+        )
+        {
+            return participant;
+        }
+
+        throw new ForbiddenException(action, resourceName);
     }
 
     /// <summary>

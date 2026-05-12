@@ -37,7 +37,8 @@ public enum VotingSystem
 public enum RevealPolicy
 {
     MasterOnly,
-    Everyone
+    Everyone,
+    SpecificParticipants
 }
 
 /// <summary>
@@ -46,5 +47,6 @@ public enum RevealPolicy
 public enum IssuesPolicy
 {
     MasterOnly,
-    Everyone
+    Everyone,
+    SpecificParticipants
 }

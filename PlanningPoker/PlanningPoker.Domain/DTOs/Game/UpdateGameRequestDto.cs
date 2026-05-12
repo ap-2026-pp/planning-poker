@@ -16,4 +16,8 @@ public class UpdateGameRequestDto
     public bool ShowCountdownAnimation { get; set; } = true;
     public bool EnableFunFeatures { get; set; }
     public bool IsActive { get; set; } = true;
+    
+    public List<Guid> RevealAllowedParticipantIds { get; set; } = [];
+
+    public List<Guid> IssuesAllowedParticipantIds { get; set; } = [];
 }

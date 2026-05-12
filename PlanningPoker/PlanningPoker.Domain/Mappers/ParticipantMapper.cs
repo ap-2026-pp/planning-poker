@@ -14,6 +14,8 @@ public static class ParticipantMapper
             DisplayName = participant.DisplayName,
             Role = participant.Role,
             JoinedAt = participant.JoinedAt,
-            IsConnected = participant.IsConnected
+            IsConnected = participant.IsConnected,
+            CanManageIssues = participant.CanManageIssues,
+            CanRevealCards = participant.CanRevealCards
         };
 }

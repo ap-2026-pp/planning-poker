@@ -191,6 +191,12 @@ namespace PlanningPoker.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("CanManageIssues")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("CanRevealCards")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(200)
