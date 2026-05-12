@@ -11,9 +11,10 @@ namespace PlanningPoker.API.Controllers;
 [Route("api/[controller]")]
 public class GameController(
     IGameService gameService,
-    InviteLinkService inviteLinkService) : ControllerBase
+    InviteLinkService inviteLinkService,
+    IGameAccessService gameAccessService) : ControllerBase
 {
-   
+
     [HttpPost]
     public async Task<ActionResult<GameDto>> CreateGame([FromBody] CreateGameRequestDto createGameRequestDto)
     {
@@ -47,5 +48,12 @@ public class GameController(
     {
         await gameService.DeleteGameAsync(gameId);
         return NoContent();
+    }
+
+    [HttpPut("{gameId:guid}/permissions")]
+    public async Task<IActionResult> UpdateBulkPermission(Guid gameId, [FromBody] UpdateBulkPermissionsRequestDto dto)
+    {
+        await gameAccessService.UpdateBulkPermissionsAsync(gameId, dto);
+        return Ok();
     }
 }

@@ -10,10 +10,11 @@ namespace PlanningPoker.BLL.Services;
 public class ParticipantService(
     IParticipantRepository participantRepository,
     IGameRepository gameRepository,
+    IVoteRepository voteRepository,
     ICurrentUserContext currentUserContext,
     IGameAccessService gameAccessService) : IParticipantService
 {
-    
+
     /// <summary>
     /// Повертає список активних учасників гри.
     /// </summary>
@@ -21,10 +22,11 @@ public class ParticipantService(
     /// <returns>Колекцію учасників гри у вигляді <see cref="GameParticipantDto"/>.</returns>
     public async Task<IEnumerable<GameParticipantDto>> GetGameParticipantsAsync(Guid gameId)
     {
+        await gameAccessService.GetRequiredParticipantAsync(gameId);
         var participants = await participantRepository.GetGameParticipantsAsync(gameId);
         return (participants ?? []).Select(ParticipantMapper.ToGameParticipantDto);
     }
-    
+
     /// <summary>
     /// Додає поточного користувача до гри за інвайт-кодом або відновлює його попередню участь.
     /// Якщо користувач уже є активним учасником гри, оновлює його display name та статус підключення.
@@ -58,6 +60,16 @@ public class ParticipantService(
         var activeParticipant = await participantRepository.GetByUserIdAndGameIdAsync(userId, game.Id);
         var existingParticipant = activeParticipant ??
                                   await participantRepository.GetByUserIdAndGameIdIncludingRemovedAsync(userId, game.Id);
+
+        if (activeParticipant == null)
+        {
+            var currentCount = game.Participants.Count(p => p.RemovedAt == null);
+
+            if (currentCount >= 20)
+            {
+                throw new ForbiddenException("join", "Game is full now, count mustn't over 20 participants!");
+            }
+        }
 
         if (!game.IsActive)
         {
@@ -149,7 +161,7 @@ public class ParticipantService(
         participantRepository.RemoveGameParticipant(participant);
         await participantRepository.SaveChangesAsync();
     }
-    
+
     /// <summary>
     /// Видаляє активного учасника з гри. Операція доступна лише Master у межах цієї гри.
     /// </summary>
@@ -167,19 +179,13 @@ public class ParticipantService(
         await gameAccessService.GetRequiredMasterAsync(gameId);
         await GetGameOrThrowAsync(gameId);
 
-        var currentUserId = currentUserContext.GetRequiredUserId();
+        var currentMaster = await gameAccessService.GetRequiredMasterAsync(gameId);
 
-        var currentUserParticipant = await participantRepository.GetByUserIdAndGameIdAsync(currentUserId, gameId);
-        if (currentUserParticipant is null || currentUserParticipant.Role != ParticipantRole.Master)
-        {
-            throw new ForbiddenException("delete", "participant");
-        }
-
-        if (currentUserParticipant.Id == participantId)
+        if (participantId == currentMaster.Id)
         {
             throw new InvalidOperationException("You cannot delete yourself.");
         }
-        
+
         var participant = await participantRepository.GetActiveByIdAsync(participantId);
         if (participant is null || participant.GameId != gameId)
         {
@@ -214,9 +220,9 @@ public class ParticipantService(
     {
         var currentUser = await currentUserContext.GetRequiredUserAsync();
         await GetGameOrThrowAsync(gameId);
-        
+
         var currentUserParticipant = await gameAccessService.GetRequiredParticipantAsync(gameId);
-        
+
         var resolvedDisplayName = string.IsNullOrWhiteSpace(displayName) ? currentUser.DisplayName : displayName.Trim();
 
         if (!string.Equals(currentUserParticipant.DisplayName, resolvedDisplayName, StringComparison.Ordinal))
@@ -228,7 +234,7 @@ public class ParticipantService(
 
         return ParticipantMapper.ToGameParticipantDto(currentUserParticipant);
     }
-    
+
     /// <summary>
     /// Передає роль Master іншому активному учаснику в межах конкретної гри.
     /// Операцію може виконати лише поточний Master цієї гри.
@@ -262,12 +268,23 @@ public class ParticipantService(
             throw new InvalidOperationException("You cannot transfer master role to yourself.");
         }
 
+        if (newMaster.Role == ParticipantRole.Spectator)
+        {
+            throw new InvalidOperationException("Не вдалося передати роль: Глядач не може бути Майстром.");
+        }
+
         currentMaster.Role = ParticipantRole.Player;
         newMaster.Role = ParticipantRole.Master;
+        
+        newMaster.CanRevealCards = true;
+        newMaster.CanManageIssues = true;
+
+        currentMaster.CanRevealCards = false;
+        currentMaster.CanManageIssues = false;
 
         participantRepository.Update(currentMaster);
         participantRepository.Update(newMaster);
-        
+
         await participantRepository.SaveChangesAsync();
     }
 
@@ -284,7 +301,7 @@ public class ParticipantService(
         return await gameRepository.GetByIdAsync(gameId)
                ?? throw new NotFoundException(nameof(Game), gameId);
     }
-    
+
     /// <summary>
     /// Перевіряє, чи вказане display name вільне в межах конкретної гри.
     /// </summary>
@@ -304,13 +321,13 @@ public class ParticipantService(
     }
 
 
-   /// <summary>
+    /// <summary>
     /// Перемикає режим учасника між Player та Spectator.
     /// Master не може стати Spectator, оскільки він повинен керувати грою.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
     /// <param name="isSpectator">True — увімкнути режим глядача, False — повернутися до ролі гравця.</param>
-   public async Task SetSpectatorModeAsync(Guid gameId, bool isSpectator)
+    public async Task SetSpectatorModeAsync(Guid gameId, bool isSpectator)
     {
         var participant = await gameAccessService.GetRequiredParticipantAsync(gameId);
         var newRole = isSpectator ? ParticipantRole.Spectator : ParticipantRole.Player;
@@ -323,7 +340,17 @@ public class ParticipantService(
 
         participant.Role = newRole;
 
+        if (isSpectator)
+        {
+            await voteRepository.DeleteAllParticipantVotesAsync(gameId, participant.Id);
+            
+            participant.CanRevealCards = false;
+            participant.CanManageIssues = false;
+        }
+
         participantRepository.Update(participant);
         await participantRepository.SaveChangesAsync();
     }
 }
+
+

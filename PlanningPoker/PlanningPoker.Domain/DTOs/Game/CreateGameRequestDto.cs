@@ -12,6 +12,7 @@ public class CreateGameRequestDto
     [MaxLength(200)]
     public string? HostDisplayName { get; set; }
     public VotingSystem VotingSystem { get; set; } = VotingSystem.Custom;
+    public string? CustomValues { get; set; }
     public bool AutoRevealCards { get; set; } = true;
     public bool ShowAverage { get; set; } = true;
     public bool ShowCountdownAnimation { get; set; } = true;

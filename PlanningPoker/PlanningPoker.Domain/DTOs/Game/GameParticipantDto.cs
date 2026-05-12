@@ -10,4 +10,6 @@ public class GameParticipantDto
     public ParticipantRole Role { get; set; } = ParticipantRole.Player;
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
     public bool IsConnected { get; set; }
+    public bool CanRevealCards { get; set; }
+    public bool CanManageIssues { get; set; }
 }

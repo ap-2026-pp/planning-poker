@@ -9,7 +9,7 @@ namespace PlanningPoker.BLL.Services;
 internal class VotingHistoryService : IVotingHistoryService
 {
     private readonly IVotingHistoryRepository _repoVotingHistory;
-    private readonly  IGameAccessService _gameAccessService;
+    private readonly IGameAccessService _gameAccessService;
     public VotingHistoryService(IVotingHistoryRepository repoVotingHistory,
             IGameAccessService gameAccessService)
     {
@@ -148,8 +148,8 @@ internal class VotingHistoryService : IVotingHistoryService
             if (dto.IncludeResults)
             {
                 row.Add(string.Join("; ",
-                    item.PlayerResults.Select(player =>
-                        $"{player.DisplayName} ({player.VoteValue})")));
+                     item.VotingResults.Select(player =>
+                         $"{player.DisplayName} ({player.VoteValue})")));
             }
 
             sb.AppendLine(string.Join(",", row.Select(EscapeCsv)));
@@ -207,8 +207,8 @@ internal class VotingHistoryService : IVotingHistoryService
             return string.Empty;
         }
 
-        if (value.Contains(',') || 
-            value.Contains('"') || 
+        if (value.Contains(',') ||
+            value.Contains('"') ||
             value.Contains('\n') ||
             value.Contains('\r'))
         {

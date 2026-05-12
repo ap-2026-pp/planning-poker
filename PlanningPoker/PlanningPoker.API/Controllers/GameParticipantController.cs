@@ -10,7 +10,8 @@ namespace PlanningPoker.API.Controllers;
 [Authorize]
 [Route("api/games")]
 public class GameParticipantController(
-    IParticipantService participantService) : ControllerBase
+    IParticipantService participantService, 
+    IGameAccessService gameAccessService) : ControllerBase
 {
     [HttpGet("{gameId:guid}/participants")]
     public async Task<ActionResult<IEnumerable<GameParticipantDto>>> GetGameParticipants(Guid gameId)
@@ -18,7 +19,7 @@ public class GameParticipantController(
         return Ok(await participantService.GetGameParticipantsAsync(gameId));
     }
 
-    [HttpDelete("{gameId:guid}/participants/{participantId:guid}")]
+    [HttpDelete("{gameId:guid}/parЙticipants/{participantId:guid}")]
     public async Task<ActionResult> DeleteGameParticipant(Guid gameId, Guid participantId)
     {
         await participantService.DeleteGameParticipantAsync(gameId, participantId);
@@ -62,5 +63,12 @@ public class GameParticipantController(
     {
         await participantService.TransferMasterAsync(gameId, participantId);
         return NoContent();
+    }
+
+    [HttpPut("{gameId:guid}/participants/{participantId}/permissions")]
+    public async Task<IActionResult> UpdatePermissions(Guid gameId, [FromBody] UpdateBulkPermissionsRequestDto dto)
+    {
+        await gameAccessService.UpdateBulkPermissionsAsync(gameId, dto);
+        return Ok();  
     }
 }

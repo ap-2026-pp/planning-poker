@@ -131,6 +131,9 @@ namespace PlanningPoker.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AutoResetTimer")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("AutoRevealCards")
                         .HasColumnType("boolean");
 
@@ -140,7 +143,13 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("EnableFunFeatures")
+                    b.Property<string>("CustomValues")
+                        .HasColumnType("text");
+
+                    b.Property<int>("DefaultTimerMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("EnableFunFeature")
                         .HasColumnType("boolean");
 
                     b.Property<string>("InviteCode")
@@ -190,6 +199,12 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("CanManageIssues")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("CanRevealCards")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -398,13 +413,10 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("FinalEstimate")
+                    b.Property<string>("Estimate")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("GameId")
-                        .HasColumnType("uuid");
 
                     b.Property<Guid>("IssueId")
                         .HasColumnType("uuid");
@@ -416,8 +428,6 @@ namespace PlanningPoker.DAL.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("GameId");
 
                     b.HasIndex("IssueId");
 
@@ -568,10 +578,6 @@ namespace PlanningPoker.DAL.Migrations
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.Vote", b =>
                 {
-                    b.HasOne("PlanningPoker.Domain.Models.Game", null)
-                        .WithMany("Votes")
-                        .HasForeignKey("GameId");
-
                     b.HasOne("PlanningPoker.Domain.Models.Issue", "Issue")
                         .WithMany("Votes")
                         .HasForeignKey("IssueId")
@@ -613,8 +619,6 @@ namespace PlanningPoker.DAL.Migrations
                     b.Navigation("Issues");
 
                     b.Navigation("Participants");
-
-                    b.Navigation("Votes");
                 });
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.GameParticipant", b =>

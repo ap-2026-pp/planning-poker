@@ -6,14 +6,4 @@ public class ResourceAlreadyExistsException: Exception
         : base($"{resourceName} with name '{key}' already exists.")
     {
     }
-
-    public ResourceAlreadyExistsException(string resourceName, string fieldName, object value)
-        : base($"{resourceName} with {fieldName} '{value}' already exists.")
-    {
-    }
-
-    public ResourceAlreadyExistsException(string message)
-        : base(message)
-    {
-    }
 }

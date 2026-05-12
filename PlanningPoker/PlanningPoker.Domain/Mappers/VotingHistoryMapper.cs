@@ -1,3 +1,4 @@
+using PlanningPoker.Domain.DTOs.Vote;
 using PlanningPoker.Domain.DTOs.VotingHistory;
 using PlanningPoker.Domain.Models;
 
@@ -31,7 +32,7 @@ public static class VotingHistoryMapper
             CompletedAt = result.CreatedAt,
             VotedCount = votes.Count,
             TotalPlayers = votes.Select(vote => vote.ParticipantId).Distinct().Count(),
-            PlayerResults = playerResults
+            VotingResults = playerResults
         };
     }
 
@@ -54,7 +55,7 @@ public static class VotingHistoryMapper
             CompletedAt = item.CompletedAt,
             VotedCount = item.VotedCount,
             TotalPlayers = item.TotalPlayers,
-            PlayerResults = item.PlayerResults
+            VotingResults = item.VotingResults
         };
     }
 
@@ -64,7 +65,7 @@ public static class VotingHistoryMapper
         {
             ParticipantId = vote.ParticipantId,
             DisplayName = vote.Participant.DisplayName,
-            VoteValue = vote.FinalEstimate
+            VoteValue = vote.Estimate
         };
     }
 

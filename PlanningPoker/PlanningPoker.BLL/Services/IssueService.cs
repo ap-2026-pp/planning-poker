@@ -6,6 +6,7 @@ using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Mappers;
 using PlanningPoker.Domain.Models;
+using System.Data;
 using System.Text;
 
 namespace PlanningPoker.BLL.Services;
@@ -23,7 +24,7 @@ public class IssueService(
     {
         await gameAccessService.GetRequiredParticipantAsync(gameId);
         var issues = await repoIssues.GetByGameIdAsync(gameId);
-        return issues.Select(IssueMapper.ToDto);
+        return issues.Select(i => IssueMapper.ToDto(i, i.VotingResults?.FirstOrDefault()));
     }
 
     public async Task<IssueDetailsDto> GetIssueByIdAsync(Guid gameId, Guid issueId)
@@ -32,7 +33,7 @@ public class IssueService(
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
-        return IssueMapper.ToDetailsDto(issue);
+        return IssueMapper.ToDetailsDto(issue, issue.VotingResults?.FirstOrDefault());
     }
 
     public async Task<IssueDto> CreateIssueAsync(Guid gameId, CreateIssueDto dto)
@@ -79,7 +80,7 @@ public class IssueService(
         {
             if (issue.Title != dto.Title.Trim())
                 throw new ForbiddenException("Ви не маєте права змінювати заголовок задачі, що була імпортована з Plane.");
-            
+
             issue.Description = dto.Description?.Trim() ?? string.Empty;
         }
         else
@@ -88,8 +89,8 @@ public class IssueService(
             issue.Description = dto.Description?.Trim() ?? string.Empty;
             issue.Url = dto.Url?.Trim() ?? string.Empty;
         }
-        
-        if(!string.IsNullOrWhiteSpace(dto.Code))
+
+        if (!string.IsNullOrWhiteSpace(dto.Code))
         {
             issue.Code = dto.Code?.Trim() ?? issue.Code;
         }
@@ -165,12 +166,36 @@ public class IssueService(
         return IssueMapper.ToDto(issue);
     }
 
+    public async Task<Issue> GetAndValidateActiveIssueAsync(Guid gameId, Guid issueId)
+    {
+        var issue = await repoIssues.GetByIdAsync(issueId)
+            ?? throw new NotFoundException("Issue", issueId);
+
+        if (issue.GameId != gameId)
+        {
+            // Якщо ID правильний, але гра не та — це теж по суті NotFound для цієї гри
+            throw new NotFoundException($"Issue {issueId} не знайдено в межах поточної гри.");
+        }
+
+        if (!issue.IsCurrent)
+        {
+            throw new InvalidOperationException("Голосування можливе тільки для активного питання (IsCurrent).");
+        }
+
+        if (issue.IsRemoved)
+        {
+            throw new NotFoundException("Issue", issueId);
+        }
+
+        return issue;
+    }
+
     public async Task<IEnumerable<IssueDto>> ImportIssueByPlaneAsync(Guid gameId, ImportPlaneIssuesDto dto)
     {
         var participant = await gameAccessService.EnsureCanManageIssuesAsync(gameId);
-        
+
         var (workspaceSlug, projectId) = ParsePlaneUrl(dto.ProjectUrl);
-        
+
         var planeIssues = await planeService.GetIssuesAsync(gameId, workspaceSlug, projectId, dto.ApiKey);
         var nextOrder = await repoIssues.GetNextOrderAsync(gameId);
 
@@ -182,8 +207,8 @@ public class IssueService(
                 continue;
 
             var lastIssue = await repoIssues.GetLastCreatedIssueAsync(gameId);
-            var nextNumber = lastIssue == null 
-                ? 1 
+            var nextNumber = lastIssue == null
+                ? 1
                 : int.Parse(lastIssue.Code.Replace("PP-", "")) + 1;
 
             var issue = new Issue
@@ -207,7 +232,7 @@ public class IssueService(
         await repoIssues.SaveChangesAsync();
 
         var allIssues = await repoIssues.GetByGameIdAsync(gameId);
-        return allIssues.Select(IssueMapper.ToDto);
+        return allIssues.Select(i => IssueMapper.ToDto(i, i.VotingResults?.FirstOrDefault()));
     }
 
     public async Task<ExportIssuesFileDto> ExportToCsvAsync(Guid gameId, ExportIssuesRequestDto dto)
@@ -244,7 +269,7 @@ public class IssueService(
             FileName = $"issues-{gameId}.csv"
         };
     }
-    
+
     private static string FormatCode(int number) => $"PP-{number}";
 
     private async Task<string> GenerateIssueCodeAsync(Guid gameId)
@@ -282,8 +307,8 @@ public class IssueService(
     {
         if (string.IsNullOrWhiteSpace(value)) return string.Empty;
         var escaped = value.Replace("\"", "\"\"");
-        return (escaped.Contains(',') || escaped.Contains('\n') || escaped.Contains('\r')) 
-            ? $"\"{escaped}\"" 
+        return (escaped.Contains(',') || escaped.Contains('\n') || escaped.Contains('\r'))
+            ? $"\"{escaped}\""
             : escaped;
     }
 }

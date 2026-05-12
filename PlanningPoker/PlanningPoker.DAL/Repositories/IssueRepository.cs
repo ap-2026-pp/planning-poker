@@ -94,4 +94,9 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
             .OrderBy(i => i.Order)
             .ToListAsync();
     }
+
+    public async Task<Issue?> GetActiveIssueByGameIdAsync(Guid gameId)
+    {
+        return await _dbSet.FirstOrDefaultAsync(i => i.GameId == gameId && i.IsCurrent == true);
+    }
 }

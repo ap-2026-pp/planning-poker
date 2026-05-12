@@ -240,7 +240,7 @@ public static class DbInitializer
                     Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1"),
                     IssueId = FirstIssueId,
                     ParticipantId = MasterParticipantId,
-                    FinalEstimate = "3",
+                    Estimate = "3",
                     CreatedAt = DateTime.UtcNow.AddMinutes(-30),
                     UpdatedAt = DateTime.UtcNow.AddMinutes(-28)
                 },
@@ -249,7 +249,7 @@ public static class DbInitializer
                     Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2"),
                     IssueId = FirstIssueId,
                     ParticipantId = PlayerParticipantId,
-                    FinalEstimate = "3",
+                    Estimate = "3",
                     CreatedAt = DateTime.UtcNow.AddMinutes(-29),
                     UpdatedAt = DateTime.UtcNow.AddMinutes(-27)
                 },
@@ -258,7 +258,7 @@ public static class DbInitializer
                     Id = Guid.Parse("cccccccc-cccc-cccc-cccc-ccccccccccc1"),
                     IssueId = SecondIssueId,
                     ParticipantId = MasterParticipantId,
-                    FinalEstimate = "5",
+                    Estimate = "5",
                     CreatedAt = DateTime.UtcNow.AddMinutes(-20),
                     UpdatedAt = DateTime.UtcNow.AddMinutes(-18)
                 },
@@ -267,7 +267,7 @@ public static class DbInitializer
                     Id = Guid.Parse("cccccccc-cccc-cccc-cccc-ccccccccccc2"),
                     IssueId = SecondIssueId,
                     ParticipantId = PlayerParticipantId,
-                    FinalEstimate = "8",
+                    Estimate = "8",
                     CreatedAt = DateTime.UtcNow.AddMinutes(-19),
                     UpdatedAt = DateTime.UtcNow.AddMinutes(-17)
                 });

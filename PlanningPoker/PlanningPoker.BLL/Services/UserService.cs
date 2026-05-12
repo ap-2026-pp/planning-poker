@@ -15,18 +15,28 @@ internal class UserService : IUserService
     private readonly UserManager<User> _userManager;
     private readonly IJwtService _jwtService;
     private readonly ICurrentUserAccessor  _currentUser;
+    private readonly ICookieService _cookieService;
     
     public UserService(
         UserManager<User> userManager,
         IJwtService jwtService,
-        ICurrentUserAccessor  currentUser)
+        ICurrentUserAccessor  currentUser,
+        ICookieService cookieService)
     {
         _userManager = userManager;
         _jwtService = jwtService;
         _currentUser = currentUser;
+        _cookieService = cookieService;
+    }
+    private void SetAuthCookies(string accessToken, string refreshToken, DateTime refreshTokenExpiry)
+    {
+        var refreshMinutes = (int)Math.Floor((refreshTokenExpiry - DateTime.UtcNow).TotalMinutes);
+        
+        _cookieService.SetTokenCookie("accessToken", accessToken, (int)JwtDefaults.ExpiresInMinutes);
+        _cookieService.SetTokenCookie("refreshToken", refreshToken, refreshMinutes);
     }
 
-    public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
+    public async Task<UserDto> RegisterAsync(RegisterDto dto)
     {
         if (dto is null)
             throw new ArgumentNullException(nameof(dto));
@@ -58,16 +68,11 @@ internal class UserService : IUserService
 
         var roles = await _userManager.GetRolesAsync(user);
         var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
-
-        return AuthMapper.ToAuthResponseDto(
-            accessToken,
-            refreshToken,
-            DateTime.UtcNow.AddMinutes(JwtDefaults.ExpiresInMinutes),
-            user
-        );
+        SetAuthCookies(accessToken, refreshToken, user.RefreshTokenExpiryTime.Value);
+        return AuthMapper.ToUserDto(user);
     }
 
-    public async Task<AuthResponseDto> LoginAsync(LoginDto dto)
+    public async Task<UserDto> LoginAsync(LoginDto dto)
     {
         if (dto is null)
             throw new ArgumentNullException(nameof(dto));
@@ -86,37 +91,27 @@ internal class UserService : IUserService
 
         user.RefreshToken = refreshToken;
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(JwtDefaults.RefreshTokenExpiresInDays);
-
         await _userManager.UpdateAsync(user);
 
-        return AuthMapper.ToAuthResponseDto(
-            accessToken,
-            refreshToken,
-            DateTime.UtcNow.AddMinutes(JwtDefaults.ExpiresInMinutes),
-            user
-        );
+        SetAuthCookies(accessToken, refreshToken, user.RefreshTokenExpiryTime.Value);
+        return AuthMapper.ToUserDto(user);
     }
 
-    public async Task<AuthResponseDto> RefreshTokensAsync(TokenRequestDto dto)
+    public async Task RefreshTokenAsync()
     {
-        if (dto is null)
-            throw new ArgumentNullException(nameof(dto));
+        var accessToken = _cookieService.GetCookie("accessToken") 
+                          ?? throw new SecurityTokenException("Access token not found in cookies.");
+        var refreshToken = _cookieService.GetCookie("refreshToken") 
+                           ?? throw new SecurityTokenException("Refresh token not found in cookies.");
 
-        var principal = _jwtService.GetPrincipalFromExpiredToken(dto.AccessToken);
+        var principal = _jwtService.GetPrincipalFromExpiredToken(accessToken);
         var email = principal.FindFirstValue(ClaimTypes.Email);
 
-        if (string.IsNullOrWhiteSpace(email))
-            throw new SecurityTokenException("Invalid token.");
+        var user = await _userManager.FindByEmailAsync(email!) 
+                   ?? throw new SecurityTokenException("User not found.");
 
-        var user = await _userManager.FindByEmailAsync(email);
-        if (user is null)
-            throw new SecurityTokenException("User not found.");
-
-        if (user.RefreshToken != dto.RefreshToken)
-            throw new SecurityTokenException("Invalid refresh token.");
-
-        if (user.RefreshTokenExpiryTime is null || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
-            throw new SecurityTokenException("Refresh token expired.");
+        if (user.RefreshToken != refreshToken || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+            throw new SecurityTokenException("Invalid or expired refresh token.");
 
         var roles = await _userManager.GetRolesAsync(user);
         var newAccessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
@@ -124,15 +119,9 @@ internal class UserService : IUserService
 
         user.RefreshToken = newRefreshToken;
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(JwtDefaults.RefreshTokenExpiresInDays);
-
         await _userManager.UpdateAsync(user);
 
-        return AuthMapper.ToAuthResponseDto(
-            newAccessToken,
-            newRefreshToken,
-            DateTime.UtcNow.AddMinutes(JwtDefaults.ExpiresInMinutes),
-            user
-        );
+        SetAuthCookies(newAccessToken, newRefreshToken, user.RefreshTokenExpiryTime.Value);
     }
 
     public async Task RevokeTokenAsync()
@@ -143,7 +132,11 @@ internal class UserService : IUserService
             throw new NotFoundException(nameof(User), userId.ToString());
 
         user.RefreshToken = string.Empty;
-        user.RefreshTokenExpiryTime = null;
+        user.RefreshTokenExpiryTime = null; 
+        await _userManager.UpdateAsync(user);
+        
+        _cookieService.DeleteCookie("accessToken");
+        _cookieService.DeleteCookie("refreshToken");
 
         await _userManager.UpdateAsync(user);
     }
@@ -156,11 +149,5 @@ internal class UserService : IUserService
             throw new NotFoundException(nameof(User), userId.ToString());
 
         return AuthMapper.ToUserDto(user);
-    }
-
-    public async Task<Guid> GetCurrentUserIdAsync()
-    {
-        return _currentUser.GetRequiredUserId();
-
     }
 }

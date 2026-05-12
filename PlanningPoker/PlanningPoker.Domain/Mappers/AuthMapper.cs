@@ -10,16 +10,4 @@ public static class AuthMapper
             user.Id,
             user.Email ?? string.Empty
         );
-
-    public static AuthResponseDto ToAuthResponseDto(
-        string accessToken,
-        string refreshToken,
-        DateTime expiration,
-        User user) =>
-        new(
-            accessToken,
-            refreshToken,
-            expiration,
-            user.Email ?? string.Empty
-        );
 }

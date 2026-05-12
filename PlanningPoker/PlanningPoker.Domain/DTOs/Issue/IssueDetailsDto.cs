@@ -1,3 +1,5 @@
+using PlanningPoker.Domain.Models;
+
 namespace PlanningPoker.BLL.DTOs.Issue;
 
 /// <summary>
@@ -36,6 +38,8 @@ public class IssueDetailsDto
     /// Фінальна оцінка задачі
     /// </summary>
     public string? FinalEstimate { get; set; }
+
+    public IssueStatus Status { get; set; }
 
     /// <summary>
     /// Визначає, чи задача є поточною для голосування

@@ -35,10 +35,10 @@ namespace PlanningPoker.API.Controllers
 
         [AllowAnonymous]
         [HttpPost("refresh")]
-        public async Task<IActionResult> Refresh([FromBody] TokenRequestDto dto)
+        public async Task<IActionResult> Refresh()
         {
-            var result = await userService.RefreshTokensAsync(dto);
-            return Ok(result);
+            await userService.RefreshTokenAsync();
+            return Ok();
         }
 
         [Authorize]

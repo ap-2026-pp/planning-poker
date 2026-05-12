@@ -30,3 +30,10 @@ public class Issue
 
     public ICollection<VotingResult> VotingResults { get; set; } = new List<VotingResult>();
 }
+
+public enum IssueStatus
+{
+    Pending = 0,
+    Voting = 1,
+    Completed = 2
+}

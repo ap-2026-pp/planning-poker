@@ -38,4 +38,9 @@ internal class VotingHistoryRepository : BaseRepository<VotingResult>, IVotingHi
                     .ThenInclude(vote => vote.Participant)
             .FirstOrDefaultAsync();
     }
+
+    public async Task<VotingResult?> GetByIssueIdAsync(Guid issueId)
+    {
+        return await _dbSet.FirstOrDefaultAsync(r => r.IssueId == issueId);
+    }
 }

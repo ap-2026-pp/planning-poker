@@ -15,6 +15,9 @@ public static class DependencyInjection
         services.AddScoped<IIssueService, IssueService>();
         services.AddScoped<IVotingHistoryService, VotingHistoryService>();
         services.AddScoped<IGameAccessService, GameAccessService>();
+        services.AddScoped<IVoteService, VoteService>();
+        services.AddScoped<IRoomStateService, RoomStateService>();
+        services.AddScoped<ICookieService, CookieService>();
         
         services.AddHttpClient<IPlaneService,PlaneService>(client =>
         {
