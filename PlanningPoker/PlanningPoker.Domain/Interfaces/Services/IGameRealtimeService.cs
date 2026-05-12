@@ -1,3 +1,4 @@
+using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.DTOs.Participant;
 using PlanningPoker.Domain.Models;
 
@@ -9,4 +10,7 @@ public interface IGameRealtimeService
     Task NotifyParticipantKickedAsync(Game game, Guid participantId);
     Task NotifyParticipantUpdatedAsync(Game game, GameParticipantDto participant);
     Task NotifyGameUpdatedAsync(Game game);
+    Task NotifyIssueAddedAsync(Game gameId, IssueDto toDto);
+    Task NotifyIssueUpdatedAsync(Game game, IssueDto toDto);
+    Task NotifyIssuesImportedAsync(Game game, IEnumerable<IssueDto> select);
 }

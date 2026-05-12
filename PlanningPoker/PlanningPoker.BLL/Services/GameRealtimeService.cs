@@ -1,3 +1,4 @@
+using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.DTOs.Participant;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
@@ -14,25 +15,37 @@ public class GameRealtimeService(
     public async Task NotifyParticipantJoinedAsync(Game game, GameParticipantDto participant)
     {
         await gameRoomNotifier.NotifyParticipantJoinedAsync(game.Id, participant);
-        await NotifyAuthorizedUsersAboutGameUpdateAsync(game);
     }
 
     public async Task NotifyParticipantKickedAsync(Game game, Guid participantId)
     {
         await gameRoomNotifier.NotifyParticipantKickedAsync(game.Id, participantId);
-        await NotifyAuthorizedUsersAboutGameUpdateAsync(game);
     }
 
     public async Task NotifyParticipantUpdatedAsync(Game game, GameParticipantDto participant)
     {
         await gameRoomNotifier.NotifyParticipantUpdatedAsync(game.Id, participant);
-        await NotifyAuthorizedUsersAboutGameUpdateAsync(game);
     }
 
     public async Task NotifyGameUpdatedAsync(Game game)
     {
         await gameRoomNotifier.NotifyGameUpdatedAsync(game.Id, GameMapper.ToGameDto(game));
         await NotifyAuthorizedUsersAboutGameUpdateAsync(game);
+    }
+
+    public async Task NotifyIssueAddedAsync(Game game, IssueDto toDto)
+    {
+        await gameRoomNotifier.NotifyIssueAddedAsync(game.Id, toDto);
+    }
+
+    public async Task NotifyIssueUpdatedAsync(Game game, IssueDto toDto)
+    {
+        await gameRoomNotifier.NotifyIssueUpdatedAsync(game.Id, toDto);
+    }
+
+    public async Task NotifyIssuesImportedAsync(Game game, IEnumerable<IssueDto> select)
+    {
+        await gameRoomNotifier.NotifyIssuesImportedAsync(game.Id, select);
     }
 
     private async Task NotifyAuthorizedUsersAboutGameUpdateAsync(Game game)

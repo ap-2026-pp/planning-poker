@@ -94,4 +94,21 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
             .OrderBy(i => i.Order)
             .ToListAsync();
     }
+
+    public async Task<Issue?> GetByUrlAsync(Guid gameId, string url)
+    {
+        return await _context.Issues
+            .FirstOrDefaultAsync(issue =>
+                issue.GameId == gameId &&
+                issue.Url == url);
+    }
+
+    public async Task<Issue?> GetByPlaneIssueIdAsync(Guid gameId, string planeIssueId)
+    {
+        return await _context.Issues
+            .FirstOrDefaultAsync(issue =>
+                issue.GameId == gameId &&
+                issue.Url != null &&
+                issue.Url.Contains(planeIssueId));
+    }
 }

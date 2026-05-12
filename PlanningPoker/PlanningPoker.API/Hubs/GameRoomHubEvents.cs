@@ -8,4 +8,5 @@ public static class GameRoomHubEvents
     public const string GameUpdated = "GameUpdated";
     public const string IssueCreated = "IssueCreated";
     public const string IssueUpdated = "IssueUpdated";
+    public const string IssuesImported = "IssuesImported";
 }

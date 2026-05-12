@@ -26,7 +26,10 @@ public class GameRoomNotifier(IHubContext<GameRoomHub> hubContext) : IGameRoomNo
     
     public Task NotifyIssueUpdatedAsync(Guid gameId, IssueDto issue)
         => NotifyGroupAsync(gameId, GameRoomHubEvents.IssueUpdated, issue);
-    
+
+    public Task NotifyIssuesImportedAsync(Guid gameId, IEnumerable<IssueDto> issues) 
+        => NotifyGroupAsync(gameId, GameRoomHubEvents.IssuesImported, issues);
+
     private Task NotifyGroupAsync(Guid gameId, string eventName, object payload)
     {
         return hubContext.Clients

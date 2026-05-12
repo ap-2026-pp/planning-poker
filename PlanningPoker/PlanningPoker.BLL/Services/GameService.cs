@@ -42,6 +42,8 @@ public class GameService(
             : createGameRequestDto.HostDisplayName.Trim();
         
         game.CreatedBy = currentUser.Id;
+        game.IssuesPolicy = createGameRequestDto.IssuesPolicy;
+        game.RevealPolicy = createGameRequestDto.RevealPolicy;
         game.InviteCode = await GenerateInviteCodeAsync();
         game.Participants =
         [
@@ -101,30 +103,49 @@ public class GameService(
     /// <exception cref="ResourceAlreadyExistsException">
     /// Виникає, якщо нова назва гри вже використовується поточним власником в іншій грі.
     /// </exception>
-    public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto updateGameRequestDto)
+    public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto dto)
     {
-        var existingGame = await GetGameOrThrowAsync(gameId);
+        var game = await GetGameOrThrowAsync(gameId);
 
-        await gameAccessService.EnsureCanUpdateGameAsync(existingGame);
+        await gameAccessService.EnsureCanUpdateGameAsync(game);
 
-        var updatedGame = GameMapper.ToGame(updateGameRequestDto);
-        await EnsureUniqueGameNameAsync(updatedGame.Name, existingGame.CreatedBy, gameId);
+        game.Name = dto.Name.Trim();
+        game.VotingSystem = dto.VotingSystem;
+        game.RevealPolicy = dto.RevealPolicy;
+        game.IssuesPolicy = dto.IssuesPolicy;
+        game.AutoRevealCards = dto.AutoRevealCards;
+        game.ShowAverage = dto.ShowAverage;
+        game.ShowCountdownAnimation = dto.ShowCountdownAnimation;
+        game.IsActive = dto.IsActive;
+        game.EnableFunFeatures = dto.EnableFunFeatures;
 
-        existingGame.Name = updatedGame.Name;
-        existingGame.AutoRevealCards = updatedGame.AutoRevealCards;
-        existingGame.IsActive = updatedGame.IsActive;
-        existingGame.RevealPolicy = updatedGame.RevealPolicy;
-        existingGame.IssuesPolicy = updatedGame.IssuesPolicy;
-        existingGame.ShowAverage = updatedGame.ShowAverage;
-        existingGame.VotingSystem = updatedGame.VotingSystem;
-        existingGame.ShowCountdownAnimation = updatedGame.ShowCountdownAnimation;
-        existingGame.EnableFunFeatures = updatedGame.EnableFunFeatures;
-        
-        gameRepository.Update(existingGame);
+        var revealAllowedIds = dto.RevealAllowedParticipantIds.ToHashSet();
+        var issuesAllowedIds = dto.IssuesAllowedParticipantIds.ToHashSet();
+
+        foreach (var participant in game.Participants.Where(x => x.RemovedAt == null))
+        {
+            participant.CanRevealCards =
+                dto.RevealPolicy == RevealPolicy.SpecificParticipants &&
+                revealAllowedIds.Contains(participant.Id);
+
+            participant.CanManageIssues =
+                dto.IssuesPolicy == IssuesPolicy.SpecificParticipants &&
+                issuesAllowedIds.Contains(participant.Id);
+        }
+
+        gameRepository.Update(game);
         await gameRepository.SaveChangesAsync();
-        await gameRealtimeService.NotifyGameUpdatedAsync(existingGame);
-        
-        return GameMapper.ToGameDto(existingGame);
+
+        await gameRealtimeService.NotifyGameUpdatedAsync(game);
+
+        foreach (var participant in game.Participants.Where(x => x.RemovedAt == null))
+        {
+            await gameRealtimeService.NotifyParticipantUpdatedAsync(
+                game,
+                ParticipantMapper.ToGameParticipantDto(participant));
+        }
+
+        return GameMapper.ToGameDto(game);
     }
 
     /// <summary>
