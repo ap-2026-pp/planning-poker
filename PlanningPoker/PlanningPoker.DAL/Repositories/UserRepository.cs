@@ -5,12 +5,8 @@ using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.DAL.Repositories;
 
-internal class UserRepository : BaseRepository<User>, IUserRepository
+internal class UserRepository(AppDbContext context) : BaseRepository<User>(context), IUserRepository
 {
-    public UserRepository(AppDbContext context) : base(context)
-    {
-    }
-
     public async Task<User?> GetByEmailAsync(string email)
     {
         return await _dbSet.FirstOrDefaultAsync(u => u.Email == email);

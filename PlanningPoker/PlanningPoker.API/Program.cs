@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -8,6 +9,7 @@ using PlanningPoker.API.Services;
 using PlanningPoker.BLL;
 using PlanningPoker.DAL;
 using PlanningPoker.DAL.Data;
+using PlanningPoker.Domain.Constants;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
 using Serilog;
@@ -70,8 +72,33 @@ builder.Services
         {
             OnMessageReceived = context =>
             {
-                context.Token = context.Request.Cookies["accessToken"];
-                return Task.CompletedTask;  
+                var token = context.Request.Cookies["accessToken"];
+                if (!string.IsNullOrEmpty(token))
+                {
+                    context.Token = token;
+                }
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = async context =>
+            {
+                var tokenType = context.Principal?.FindFirstValue(GuestSessionDefaults.TokenTypeClaimType);
+                if (!string.Equals(tokenType, GuestSessionDefaults.GuestAccessTokenType, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                const string bearerPrefix = "Bearer ";
+                var authorizationHeader = context.Request.Headers.Authorization.ToString();
+                if (authorizationHeader.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    var accessToken = authorizationHeader[bearerPrefix.Length..].Trim();
+                    var guestSessionService = context.HttpContext.RequestServices.GetRequiredService<IGuestSessionService>();
+                    var isActive = await guestSessionService.IsGuestAccessTokenActiveAsync(accessToken);
+                    if (!isActive)
+                    {
+                        context.Fail("Guest access token is invalid or expired.");
+                    }
+                }
             }
         };
     });

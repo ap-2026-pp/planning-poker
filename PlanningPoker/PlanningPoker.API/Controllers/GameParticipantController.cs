@@ -19,7 +19,7 @@ public class GameParticipantController(
         return Ok(await participantService.GetGameParticipantsAsync(gameId));
     }
 
-    [HttpDelete("{gameId:guid}/parЙticipants/{participantId:guid}")]
+    [HttpDelete("{gameId:guid}/participants/{participantId:guid}")]
     public async Task<ActionResult> DeleteGameParticipant(Guid gameId, Guid participantId)
     {
         await participantService.DeleteGameParticipantAsync(gameId, participantId);
@@ -27,11 +27,12 @@ public class GameParticipantController(
     }
 
     [HttpPost("join/{inviteCode}")]
-    public async Task<ActionResult<GameDto>> JoinGameByInviteCode(
+    [AllowAnonymous]
+    public async Task<ActionResult<JoinGameResponseDto>> JoinGameByInviteCode(
         string inviteCode,
         [FromBody] JoinGameRequestDto joinGameRequestDto)
     {
-        var game = await participantService.JoinGameByInviteCodeAsync(inviteCode, joinGameRequestDto.DisplayName);
+        var game = await participantService.JoinGameByInviteCodeAsync(inviteCode, joinGameRequestDto);
         return Ok(game);
     }
 
@@ -65,7 +66,7 @@ public class GameParticipantController(
         return NoContent();
     }
 
-    [HttpPut("{gameId:guid}/participants/{participantId}/permissions")]
+    [HttpPut("{gameId:guid}/participants/permissions")]
     public async Task<IActionResult> UpdatePermissions(Guid gameId, [FromBody] UpdateBulkPermissionsRequestDto dto)
     {
         await gameAccessService.UpdateBulkPermissionsAsync(gameId, dto);

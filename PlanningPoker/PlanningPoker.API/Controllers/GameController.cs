@@ -55,5 +55,5 @@ public class GameController(
     {
         await gameAccessService.UpdateBulkPermissionsAsync(gameId, dto);
         return Ok();
-    }
+    }    
 }

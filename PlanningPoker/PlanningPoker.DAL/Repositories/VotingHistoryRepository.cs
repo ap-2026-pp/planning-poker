@@ -9,7 +9,7 @@ internal class VotingHistoryRepository : BaseRepository<VotingResult>, IVotingHi
 {
     public VotingHistoryRepository(AppDbContext context) : base(context)
     {
-       
+
     }
 
     public async Task<List<VotingResult>> GetHistoryRawAsync(Guid gameId)

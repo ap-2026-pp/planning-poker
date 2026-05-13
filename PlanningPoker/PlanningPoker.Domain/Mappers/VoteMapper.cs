@@ -14,7 +14,7 @@ public static class VoteMapper
             IssueId = vote.IssueId,
             ParticipantId = vote.ParticipantId,
             DisplayName = vote.Participant?.User?.DisplayName,
-            Estimate = vote.FinalEstimate,
+            Estimate = vote.Estimate,
             CreatedAt = vote.CreatedAt
         };
     }

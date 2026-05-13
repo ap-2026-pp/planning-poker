@@ -22,19 +22,46 @@ internal class ParticipantRepository(AppDbContext context) : BaseRepository<Game
             participant.RemovedAt == null);
     }
 
-    public async Task<GameParticipant?> GetByUserIdAndGameIdAsync(Guid userId, Guid gameId)
+    public async Task<GameParticipant?> GetCurrentParticipantAsync(Guid gameId, Guid? userId, Guid? guestParticipantId)
     {
-        return await _dbSet.Include(p => p.Game).FirstOrDefaultAsync(participant =>
-            participant.UserId == userId &&
-            participant.GameId == gameId &&
-            participant.RemovedAt == null);
+        return await GetCurrentParticipantQuery(gameId, userId, guestParticipantId, includeRemoved: false)
+            .FirstOrDefaultAsync();
     }
 
-    public async Task<GameParticipant?> GetByUserIdAndGameIdIncludingRemovedAsync(Guid userId, Guid gameId)
+    public async Task<GameParticipant?> GetCurrentParticipantIncludingRemovedAsync(Guid gameId, Guid? userId, Guid? guestParticipantId)
     {
-        return await _dbSet.FirstOrDefaultAsync(participant =>
-            participant.UserId == userId &&
-            participant.GameId == gameId);
+        return await GetCurrentParticipantQuery(gameId, userId, guestParticipantId, includeRemoved: true)
+            .FirstOrDefaultAsync();
+    }
+
+    private IQueryable<GameParticipant> GetCurrentParticipantQuery(
+        Guid gameId,
+        Guid? userId,
+        Guid? guestParticipantId,
+        bool includeRemoved)
+    {
+        var query = _dbSet
+            .Include(participant => participant.Game)
+            .Where(participant => participant.GameId == gameId);
+
+        if (!includeRemoved)
+        {
+            query = query.Where(participant => participant.RemovedAt == null);
+        }
+
+        if (userId.HasValue)
+        {
+            return query.Where(participant => participant.UserId == userId.Value);
+        }
+
+        if (guestParticipantId.HasValue)
+        {
+            return query.Where(participant =>
+                participant.Id == guestParticipantId.Value &&
+                participant.UserId == null);
+        }
+
+        return _dbSet.Where(_ => false);
     }
 
     public void RemoveGameParticipant(GameParticipant participant)
@@ -42,15 +69,20 @@ internal class ParticipantRepository(AppDbContext context) : BaseRepository<Game
         participant.IsConnected = false;
         participant.RemovedAt = DateTime.UtcNow;
         _dbSet.Update(participant);
-    } 
+    }
 
     public async Task<GameParticipant?> GetByGameAndUserAsync(Guid gameId, Guid userId)
     {
         return await _dbSet.FirstOrDefaultAsync(x => x.GameId == gameId && x.UserId == userId);
     }
 
-    public async Task<bool> ExistsByDisplayNameAsync(string displayName,  Guid gameId)
+    public async Task<bool> ExistsByDisplayNameAsync(string? displayName, Guid gameId)
     {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return false;
+        }
+
         return await _dbSet.AnyAsync(participant =>
             participant.DisplayName == displayName &&
             participant.GameId == gameId &&

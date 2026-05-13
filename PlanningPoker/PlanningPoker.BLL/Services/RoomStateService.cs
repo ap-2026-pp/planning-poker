@@ -1,9 +1,11 @@
+using PlanningPoker.Domain.DTOs.Room;
 using PlanningPoker.Domain.DTOs.Vote;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
 using PlanningPoker.Domain.Mappers;
+using PlanningPoker.BLL.Constants;
 using System.Globalization;
 
 namespace PlanningPoker.BLL.Services;
@@ -14,8 +16,8 @@ public class RoomStateService : IRoomStateService
     private readonly IVoteRepository _repoVotes;
     private readonly IIssueRepository _repoIssues;
     private readonly IVotingHistoryRepository _repoResults;
-    private readonly IIssueService _issueService;
     private readonly IGameAccessService _gameAccessService;
+    private readonly ITimerService _timerService; 
 
     public RoomStateService(
         IGameRepository gameRepo,
@@ -23,30 +25,33 @@ public class RoomStateService : IRoomStateService
         IIssueRepository repoIssues,
         IVotingHistoryRepository resultRepo,
         IGameAccessService gameAccess,
-        IIssueService issueService)
+        ITimerService timerService) 
     {
         _repoGames = gameRepo;
         _repoVotes = votesRepo;
         _repoResults = resultRepo;
         _repoIssues = repoIssues;
         _gameAccessService = gameAccess;
-        _issueService = issueService;
+        _timerService = timerService;
     }
 
     public async Task<RoomStateDto> GetRoomStateAsync(Guid gameId)
     {
-        var currentParticipant = await _gameAccessService.GetRequiredParticipantAsync(gameId);
+        var currentParticipant = await _gameAccessService.GetRequiredParticipantAsync(gameId, AccessControlConstants.UpdateAction, AccessControlConstants.GameResource);
         var game = await _repoGames.GetByIdAsync(gameId) ?? throw new NotFoundException("Game", gameId);
-
+        
+        var timerDto = await _timerService.GetActiveTimerAsync(gameId);
         bool isMaster = currentParticipant.Role == ParticipantRole.Master;
 
-        bool canReveal = game.RevealPolicy switch
+        bool timerIsRunning = timerDto != null && !timerDto.IsExpired;
+
+        bool canReveal = !timerIsRunning && (game.RevealPolicy switch
         {
             RevealPolicy.Everyone => true,
             RevealPolicy.MasterOnly => isMaster,
             RevealPolicy.SpecificParticipants => isMaster || currentParticipant.CanRevealCards,
             _ => isMaster
-        };
+        });
 
         bool canManage = game.IssuesPolicy switch
         {
@@ -65,6 +70,7 @@ public class RoomStateService : IRoomStateService
             AvailableCards = GetAvailableCards(game),
             CanReveal = canReveal,
             CanManage = canManage,
+            Timer = timerDto, 
             TotalPlayers = game.Participants.Count(p => p.RemovedAt == null && p.Role != ParticipantRole.Spectator),
             Participants = game.Participants
                 .Where(p => p.RemovedAt == null)
@@ -80,7 +86,8 @@ public class RoomStateService : IRoomStateService
 
         var votes = await _repoVotes.GetVotesByIssueIdAsync(issue.Id);
         var result = await _repoResults.GetByIssueIdAsync(issue.Id);
-        bool isRevealed = result != null;
+
+        bool isRevealed = result != null || (timerDto != null && timerDto.IsExpired);
 
         roomState.ActiveIssue = IssueMapper.ToDto(issue);
         roomState.IsRevealed = isRevealed;
@@ -95,7 +102,7 @@ public class RoomStateService : IRoomStateService
             pDto.VoteValue = isRevealed ? vote?.Estimate : null;
         }
 
-        if (isRevealed)
+        if (isRevealed && result != null)
         {
             roomState.Result = new RoundResultDto
             {
@@ -110,6 +117,12 @@ public class RoomStateService : IRoomStateService
 
     public async Task<RoomStateDto> RevealCardsAsync(Guid gameId)
     {
+        var timer = await _timerService.GetActiveTimerAsync(gameId);
+        if (timer != null && !timer.IsExpired)
+        {
+            throw new ConflictException("Неможливо відкрити карти: триває таймер обговорення.");
+        }
+
         await _gameAccessService.EnsureCanRevealCardsAsync(gameId);
         var issue = await _repoIssues.GetActiveIssueByGameIdAsync(gameId)
                 ?? throw new NotFoundException("Active issue not found for this game.");
@@ -141,7 +154,6 @@ public class RoomStateService : IRoomStateService
         };
 
         await _repoResults.AddAsync(votingResult);
-
         await _repoResults.SaveChangesAsync();
 
         return await GetRoomStateAsync(gameId);
@@ -149,7 +161,10 @@ public class RoomStateService : IRoomStateService
 
     public async Task<RoomStateDto> ResetRoundAsync(Guid gameId)
     {
-        await _gameAccessService.GetRequiredMasterAsync(gameId);
+        await _gameAccessService.GetRequiredMasterAsync(gameId, AccessControlConstants.UpdateAction, AccessControlConstants.GameResource);
+        
+        await _timerService.StopTimerAsync(gameId);
+
         var issue = await _repoIssues.GetActiveIssueByGameIdAsync(gameId)
                 ?? throw new NotFoundException("Active issue not found.");
 
@@ -170,22 +185,12 @@ public class RoomStateService : IRoomStateService
     {
         if (game.VotingSystem == VotingSystem.Custom)
         {
-            if (string.IsNullOrWhiteSpace(game.CustomValues))
-            {
-                return ["?", "coffee"];
-            }
-
-            var cards = game.CustomValues
-            .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(v => v.Trim())
-            .ToList();
-
+            if (string.IsNullOrWhiteSpace(game.CustomValues)) return ["?", "coffee"];
+            var cards = game.CustomValues.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(v => v.Trim()).ToList();
             if (!cards.Contains("?")) cards.Add("?");
             if (!cards.Contains("coffee")) cards.Add("coffee");
-
             return cards;
         }
-
         return game.VotingSystem switch
         {
             VotingSystem.Fibonacci => ["0", "1", "2", "3", "5", "8", "13", "21", "34", "55", "89", "?", "coffee"],
@@ -197,51 +202,21 @@ public class RoomStateService : IRoomStateService
 
     public async Task<RoundResultDto> GetFinalEstimateAsync(Guid gameId, Guid issueId)
     {
-        await _gameAccessService.GetRequiredParticipantAsync(gameId);
-        await _issueService.GetAndValidateActiveIssueAsync(gameId, issueId);
-
+        await _gameAccessService.GetRequiredParticipantAsync(gameId, AccessControlConstants.UpdateAction, AccessControlConstants.GameResource);
         var result = await _repoResults.GetByIssueIdAsync(issueId);
-
-        if (result == null)
-        {
-            throw new ConflictException("Результати голосування ще недоступні. Спочатку потрібно відкрити карти.");
-        }
-
-        return new RoundResultDto
-        {
-            Average = result.Average,
-            Agreement = result.Agreement,
-            FinalEstimate = result.FinalEstimate
-        };
+        if (result == null) throw new ConflictException("Результати ще недоступні.");
+        return new RoundResultDto { Average = result.Average, Agreement = result.Agreement, FinalEstimate = result.FinalEstimate };
     }
 
     public async Task<(string FinalEstimate, double? Average, double? Agreement)> CalculateSystemEstimate(List<Vote> votes)
     {
-        var numericVotes = votes
-            .Select(vote => double.TryParse(
-                vote.Estimate,
-                NumberStyles.Float,
-                CultureInfo.InvariantCulture,
-                out var value)
-                    ? value
-                    : (double?)null)
-            .Where(value => value.HasValue)
-            .Select(value => value!.Value)
-            .ToList();
-
-        if (!numericVotes.Any())
-        {
-            return ("?", null, null);
-        }
-
+        var numericVotes = votes.Select(vote => double.TryParse(vote.Estimate, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : (double?)null)
+            .Where(v => v.HasValue).Select(v => v!.Value).ToList();
         if (!numericVotes.Any()) return ("?", null, null);
-
         var average = Math.Round(numericVotes.Average(), 1);
         var finalEstimate = Math.Round(average).ToString(CultureInfo.InvariantCulture);
-
         var sameVotesCount = numericVotes.Count(v => Math.Abs(v - average) < 0.1);
         var agreement = Math.Round((double)sameVotesCount / numericVotes.Count * 100);
-
         return (finalEstimate, average, agreement);
     }
 }

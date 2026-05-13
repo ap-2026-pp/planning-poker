@@ -1,5 +1,4 @@
 using PlanningPoker.Domain.DTOs.Vote;
-
 namespace PlanningPoker.Domain.DTOs.VotingHistory;
 
 /// <summary>

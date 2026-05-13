@@ -1,4 +1,3 @@
-using PlanningPoker.Domain.DTOs.Vote;
 using PlanningPoker.Domain.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +14,7 @@ public class RoomController : ControllerBase
     {
         _roomService = roomService;
     }
+
     [HttpGet("round")]
     public async Task<IActionResult> GetRoomState([FromRoute] Guid gameId)
     {
@@ -35,5 +35,4 @@ public class RoomController : ControllerBase
         var state = await _roomService.ResetRoundAsync(gameId);
         return Ok(state);
     }
-
 }

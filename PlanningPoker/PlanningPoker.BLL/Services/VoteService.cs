@@ -1,14 +1,19 @@
-using System.Globalization;
 using System.ComponentModel.DataAnnotations;
 using PlanningPoker.Domain.DTOs.Vote;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.Mappers;
 using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.BLL.Services;
 
+/// <summary>
+/// Сервіс для керування голосуванням учасників у грі Planning Poker.
+/// Відповідає за створення, оновлення та видалення голосів,
+/// а також перевірку доступу та валідності голосування.
+/// </summary>
 internal class VoteService : IVoteService
 {
     private readonly IVoteRepository _repoVotes;
@@ -82,7 +87,7 @@ internal class VoteService : IVoteService
 
     public async Task DeleteVoteAsync(Guid gameId, Guid issueId)
     {
-        var participant = await _gameAccessService.GetRequiredParticipantAsync(gameId);
+        var participant = await _gameAccessService.GetRequiredParticipantAsync(gameId, AccessControlConstants.UpdateAction, AccessControlConstants.GameResource);
         await _issueService.GetAndValidateActiveIssueAsync(gameId, issueId);
 
         var vote = await _repoVotes.GetVoteAsync(issueId, participant.Id);

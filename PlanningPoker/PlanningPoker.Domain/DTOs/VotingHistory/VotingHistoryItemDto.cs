@@ -2,7 +2,7 @@ using PlanningPoker.Domain.DTOs.Vote;
 namespace PlanningPoker.Domain.DTOs.VotingHistory;
 
 /// <summary>
-/// Один запис історії абоо завершеного результату
+/// Один запис історії або завершеного результату
 /// </summary>
 public class VotingHistoryItemDto
 {

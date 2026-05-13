@@ -5,5 +5,5 @@ public class ParticipantVoteStatusDto
     public Guid ParticipantId { get; set; }
     public string DisplayName { get; set; } = null!;
     public bool HasVoted { get; set; }
-    public string? VoteValue { get; set; } // null якщо !IsRevealed
+    public string? VoteValue { get; set; } 
 }

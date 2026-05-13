@@ -1,10 +1,5 @@
-using  PlanningPoker.Domain.Models;
+namespace PlanningPoker.Domain.DTOs.Room;
 
-namespace PlanningPoker.Domain.DTOs.Vote;
-
-/// <summary>
-/// 
-/// </summary>
 public class RoundResultDto 
 {
     public double? Average { get; set; } 

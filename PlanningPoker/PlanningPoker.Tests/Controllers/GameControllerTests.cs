@@ -159,6 +159,42 @@ public class GameControllerTests
         _gameService.Verify(service => service.DeleteGameAsync(gameId), Times.Once);
     }
 
+    [Fact]
+    public async Task GetUserGames_WhenGamesExist_ReturnsOkWithUserGames()
+    {
+        var expectedGames = new List<UserGameDto>
+        {
+            new()
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = "Created game",
+                JoinedAt = DateTime.UtcNow.AddDays(-1),
+                SessionRole = ParticipantRole.Master,
+                IsActive = true
+            },
+            new()
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = "Spectator game",
+                JoinedAt = DateTime.UtcNow,
+                SessionRole = ParticipantRole.Spectator,
+                IsActive = false
+            }
+        };
+
+        _gameService
+            .Setup(service => service.GetUserGamesAsync(UserGamesScope.All))
+            .ReturnsAsync(expectedGames);
+
+        var result = await _controller.GetUserGames(UserGamesScope.All);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsAssignableFrom<IEnumerable<UserGameDto>>(okResult.Value);
+
+        Assert.Same(expectedGames, payload);
+        _gameService.Verify(service => service.GetUserGamesAsync(UserGamesScope.All), Times.Once);
+    }
+
     private static CreateGameRequestDto CreateGameRequest(
         string name,
         string hostDisplayName,
@@ -170,9 +206,12 @@ public class GameControllerTests
             Name = name,
             HostDisplayName = hostDisplayName,
             VotingSystem = votingSystem,
+            RevealPolicy = RevealPolicy.Everyone,
+            IssuesPolicy = IssuesPolicy.Everyone,
             AutoRevealCards = autoReveal,
             ShowAverage = true,
-            ShowCountdownAnimation = true
+            ShowCountdownAnimation = true,
+            EnableFunFeatures = true
         };
     }
 
@@ -188,9 +227,12 @@ public class GameControllerTests
         {
             Name = name,
             VotingSystem = votingSystem,
+            RevealPolicy = RevealPolicy.Everyone,
+            IssuesPolicy = IssuesPolicy.Everyone,
             AutoRevealCards = autoReveal,
             ShowAverage = showAverage,
             ShowCountdownAnimation = showCountdownAnimation,
+            EnableFunFeatures = true,
             IsActive = isActive,
         };
     }
@@ -209,9 +251,12 @@ public class GameControllerTests
             Name = name,
             VotingSystem = votingSystem,
             InviteCode = "INVITE-CODE-123",
+            RevealPolicy = RevealPolicy.Everyone,
+            IssuesPolicy = IssuesPolicy.Everyone,
             AutoRevealCards = autoReveal,
             ShowAverage = showAverage,
             ShowCountdownAnimation = showCountdownAnimation,
+            EnableFunFeatures = true,
             IsActive = isActive,
             CreatedBy = Guid.NewGuid(),
             Participants = []

@@ -1,4 +1,4 @@
-using PlanningPoker.Domain.DTOs.Vote;
+using PlanningPoker.Domain.DTOs.Room;
 using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.Domain.Interfaces.Services;

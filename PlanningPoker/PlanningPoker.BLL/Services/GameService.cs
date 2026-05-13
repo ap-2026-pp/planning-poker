@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
@@ -9,6 +10,10 @@ using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.BLL.Services;
 
+/// <summary>
+/// Керує життєвим циклом ігрових сесій:
+/// створенням, переглядом, оновленням, видаленням та запрошеннями.
+/// </summary>
 public class GameService(
     IGameRepository gameRepository,
     ICurrentUserContext currentUserContext,
@@ -43,9 +48,9 @@ public class GameService(
         var game = GameMapper.ToGame(createGameRequestDto);
         await EnsureUniqueGameNameAsync(game.Name, currentUser.Id);
 
-        var hostDisplayName = string.IsNullOrWhiteSpace(createGameRequestDto.HostDisplayName)
+        var hostDisplayName = string.IsNullOrWhiteSpace(createGameRequestDto.DisplayName)
             ? currentUser.DisplayName
-            : createGameRequestDto.HostDisplayName.Trim();
+            : createGameRequestDto.DisplayName.Trim();
 
         game.CreatedBy = currentUser.Id;
         game.InviteCode = await GenerateInviteCodeAsync();
@@ -81,7 +86,6 @@ public class GameService(
     /// </exception>
     public async Task<GameDto> GetGameByIdAsync(Guid gameId)
     {
-        await gameAccessService.GetRequiredParticipantAsync(gameId);
         var game = await GetGameOrThrowAsync(gameId);
         await gameAccessService.GetRequiredParticipantAsync(
             gameId,
@@ -106,33 +110,48 @@ public class GameService(
     /// <exception cref="ResourceAlreadyExistsException">
     /// Виникає, якщо нова назва гри вже використовується поточним власником в іншій грі.
     /// </exception>
-    public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto updateGameRequestDto)
+    public async Task<GameDto> UpdateGameAsync(Guid gameId, UpdateGameRequestDto dto)
     {
-        var existingGame = await GetGameOrThrowAsync(gameId);
+        var game = await GetGameOrThrowAsync(gameId);
+
         await gameAccessService.GetRequiredMasterAsync(
             gameId,
             AccessControlConstants.UpdateAction,
             AccessControlConstants.GameResource);
 
-        var updatedGame = GameMapper.ToGame(updateGameRequestDto);
-        await EnsureUniqueGameNameAsync(updatedGame.Name, existingGame.CreatedBy, gameId);
+        if (dto.VotingSystem == VotingSystem.Custom)
+        {
+            ValidateCustomValues(dto.CustomValues);
 
-        existingGame.Name = updatedGame.Name;
-        existingGame.AutoRevealCards = updatedGame.AutoRevealCards;
-        existingGame.IsActive = updatedGame.IsActive;
-        existingGame.RevealPolicy = updatedGame.RevealPolicy;
-        existingGame.IssuesPolicy = updatedGame.IssuesPolicy;
-        existingGame.ShowAverage = updatedGame.ShowAverage;
-        existingGame.VotingSystem = updatedGame.VotingSystem;
-        existingGame.ShowCountdownAnimation = updatedGame.ShowCountdownAnimation;
-        existingGame.EnableFunFeatures = updatedGame.EnableFunFeatures;
-        
-        gameRepository.Update(existingGame);
+            dto.CustomValues = string.Join(", ",
+                dto.CustomValues!
+                    .Split(',')
+                    .Select(x => x.Trim())
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase));
+        }
+        else
+        {
+            dto.CustomValues = null;
+        }
+
+        await EnsureUniqueGameNameAsync(dto.Name, game.CreatedBy, gameId);
+
+        game.Name = dto.Name;
+        game.VotingSystem = dto.VotingSystem;
+        game.RevealPolicy = dto.RevealPolicy;
+        game.IssuesPolicy = dto.IssuesPolicy;
+        game.AutoRevealCards = dto.AutoRevealCards; // Авто-розкриття
+        game.DefaultTimerMinutes = dto.DefaultTimerMinutes; // Час таймера
+        game.AutoResetTimer = dto.AutoResetTimer;
+        game.ShowAverage = dto.ShowAverage;
+        game.ShowCountdownAnimation = dto.ShowCountdownAnimation;
+
+        gameRepository.Update(game);
         await gameRepository.SaveChangesAsync();
-        
-        return GameMapper.ToGameDto(existingGame);
-    }
 
+        return GameMapper.ToGameDto(game);
+    }
 
     /// <summary>
     /// Виконує soft delete гри, позначаючи її неактивною та видаленою.
@@ -146,7 +165,7 @@ public class GameService(
     public async Task DeleteGameAsync(Guid gameId)
     {
         var game = await gameRepository.GetByIdAsync(gameId);
-        
+
         if (game is null)
         {
             return;
@@ -156,7 +175,7 @@ public class GameService(
             gameId,
             AccessControlConstants.DeleteAction,
             AccessControlConstants.GameResource);
-        
+
         game.IsActive = false;
         game.IsDeleted = true;
         gameRepository.Update(game);
@@ -176,11 +195,14 @@ public class GameService(
     /// </exception>
     public async Task<Game> GetGameInviteAsync(Guid gameId)
     {
-        await gameAccessService.GetRequiredParticipantAsync(gameId);
+        await gameAccessService.GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.ViewAction,
+            AccessControlConstants.GameResource);
         return await GetGameOrThrowAsync(gameId);
     }
-    
-     /// <summary>
+
+
     /// Повертає список ігор поточного користувача відповідно до вибраного типу вибірки.
     /// Може повертати лише створені ігри, лише ігри, у яких користувач брав участь (крім створених),
     /// або всі разом.
@@ -209,7 +231,7 @@ public class GameService(
             _ => throw new InvalidOperationException()
         };
     }
-    
+
     /// <summary>
     /// Повертає повний список ігор, пов’язаних з поточним користувачем:
     /// як створених ним, так і тих, у яких він брав участь.
@@ -221,7 +243,7 @@ public class GameService(
         var games = await gameRepository.GetAllByUserId(currentUserId);
         return (games ?? []).Select(game => GameMapper.ToUserGameDto(game, currentUserId));
     }
-    
+
     /// <summary>
     /// Повертає список ігор, у яких поточний користувач брав участь,
     /// але не обов’язково був їхнім творцем.
@@ -233,7 +255,7 @@ public class GameService(
         var games = await gameRepository.GetByUserIdParticipated(currentUserId);
         return (games ?? []).Select(game => GameMapper.ToUserGameDto(game, currentUserId));
     }
-    
+
     /// <summary>
     /// Повертає список ігор, створених поточним користувачем.
     /// </summary>
@@ -310,6 +332,11 @@ public class GameService(
         }
     }
 
+    /// <summary>
+    /// Перевіряє коректність значень карт, введеним користувачем.
+    /// </summary>
+    /// <param name="customValues"></param>
+    /// <exception cref="ValidationException"></exception>
     private void ValidateCustomValues(string? customValues)
     {
         if (string.IsNullOrWhiteSpace(customValues))

@@ -17,17 +17,16 @@ public class IssueDetailsDto
     /// </summary>
     public string Code { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Посилання на задачу у зовнішній системі
+    /// </summary>
+
     public string  Url { get; set; } = string.Empty;
 
     /// <summary>
     /// Назва задачі
     /// </summary>
     public string Title { get; set; }
-
-    /// <summary>
-    /// Посилання на задачу у зовнішній системі
-    /// </summary>
-    public string? Link { get; set; }
 
     /// <summary>
     /// Опис задачі
