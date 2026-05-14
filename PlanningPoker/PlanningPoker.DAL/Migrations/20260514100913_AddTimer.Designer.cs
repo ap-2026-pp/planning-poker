@@ -12,8 +12,8 @@ using PlanningPoker.DAL.Data;
 namespace PlanningPoker.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260514085848_FixMigrations")]
-    partial class FixMigrations
+    [Migration("20260514100913_AddTimer")]
+    partial class AddTimer
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

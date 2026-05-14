@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace PlanningPoker.DAL.Migrations
 {
     /// <inheritdoc />
-    public partial class FixMigrations : Migration
+    public partial class AddTimer : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -27,52 +27,70 @@ namespace PlanningPoker.DAL.Migrations
                 name: "GameId",
                 table: "Votes");
 
+            migrationBuilder.RenameColumn(
+                name: "FinalEstimate",
+                table: "Votes",
+                newName: "Estimate");
+
+            migrationBuilder.AddColumn<bool>(
+                name: "AutoResetTimer",
+                table: "Games",
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
+
+            migrationBuilder.AddColumn<string>(
+                name: "CustomValues",
+                table: "Games",
+                type: "text",
+                nullable: true);
+
+            migrationBuilder.AddColumn<int>(
+                name: "DefaultTimerMinutes",
+                table: "Games",
+                type: "integer",
+                nullable: false,
+                defaultValue: 0);
+
             migrationBuilder.AddColumn<DateTime>(
                 name: "TimerEndsAt",
                 table: "Games",
                 type: "timestamp with time zone",
                 nullable: true);
 
-            migrationBuilder.AlterColumn<Guid>(
-                name: "UserId",
+            migrationBuilder.AddColumn<bool>(
+                name: "CanManageIssues",
                 table: "GameParticipants",
-                type: "uuid",
-                nullable: true,
-                oldClrType: typeof(Guid),
-                oldType: "uuid");
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
+
+            migrationBuilder.AddColumn<bool>(
+                name: "CanRevealCards",
+                table: "GameParticipants",
+                type: "boolean",
+                nullable: false,
+                defaultValue: false);
 
             migrationBuilder.CreateTable(
-                name: "GuestSessions",
+                name: "GameTimer",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    ParticipantId = table.Column<Guid>(type: "uuid", nullable: false),
-                    TokenHash = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    ExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    IsRevoked = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    GameId = table.Column<Guid>(type: "uuid", nullable: false),
+                    StartedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    EndsAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    AutoReset = table.Column<bool>(type: "boolean", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_GuestSessions", x => x.Id);
+                    table.PrimaryKey("PK_GameTimer", x => x.GameId);
                     table.ForeignKey(
-                        name: "FK_GuestSessions_GameParticipants_ParticipantId",
-                        column: x => x.ParticipantId,
-                        principalTable: "GameParticipants",
+                        name: "FK_GameTimer_Games_GameId",
+                        column: x => x.GameId,
+                        principalTable: "Games",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_GuestSessions_ParticipantId",
-                table: "GuestSessions",
-                column: "ParticipantId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_GuestSessions_TokenHash",
-                table: "GuestSessions",
-                column: "TokenHash",
-                unique: true);
 
             migrationBuilder.AddForeignKey(
                 name: "FK_VotingResults_Issues_IssueId",
@@ -93,28 +111,40 @@ namespace PlanningPoker.DAL.Migrations
             migrationBuilder.DropTable(
                 name: "GameTimer");
 
-            migrationBuilder.DropTable(
-                name: "GuestSessions");
+            migrationBuilder.DropColumn(
+                name: "AutoResetTimer",
+                table: "Games");
+
+            migrationBuilder.DropColumn(
+                name: "CustomValues",
+                table: "Games");
+
+            migrationBuilder.DropColumn(
+                name: "DefaultTimerMinutes",
+                table: "Games");
 
             migrationBuilder.DropColumn(
                 name: "TimerEndsAt",
                 table: "Games");
+
+            migrationBuilder.DropColumn(
+                name: "CanManageIssues",
+                table: "GameParticipants");
+
+            migrationBuilder.DropColumn(
+                name: "CanRevealCards",
+                table: "GameParticipants");
+
+            migrationBuilder.RenameColumn(
+                name: "Estimate",
+                table: "Votes",
+                newName: "FinalEstimate");
 
             migrationBuilder.AddColumn<Guid>(
                 name: "GameId",
                 table: "Votes",
                 type: "uuid",
                 nullable: true);
-
-            migrationBuilder.AlterColumn<Guid>(
-                name: "UserId",
-                table: "GameParticipants",
-                type: "uuid",
-                nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"),
-                oldClrType: typeof(Guid),
-                oldType: "uuid",
-                oldNullable: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Votes_GameId",
