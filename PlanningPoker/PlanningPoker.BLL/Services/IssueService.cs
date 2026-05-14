@@ -275,7 +275,7 @@ public class IssueService(
     public async Task<Issue> GetAndValidateActiveIssueAsync(Guid gameId, Guid issueId)
     {
         var issue = await repoIssues.GetByIdAsync(issueId)
-            ?? throw new NotFoundException("Issue", issueId);
+                    ?? throw new NotFoundException("Issue", issueId);
 
         if (issue.GameId != gameId)
         {
@@ -297,6 +297,11 @@ public class IssueService(
 
     /// <summary>
     /// Імпортує задачі із зовнішньої системи Plane.
+    /// </summary>
+    /// <summary>
+    /// Імпортує задачі із зовнішньої системи Plane.
+    /// Якщо задача вже була імпортована раніше, вона оновлюється.
+    /// Якщо задачі ще немає — створюється нова з наступним PP-кодом.
     /// </summary>
     /// <summary>
     /// Імпортує задачі із зовнішньої системи Plane.
@@ -353,7 +358,7 @@ public class IssueService(
                 Id = Guid.NewGuid(),
                 GameId = gameId,
                 Url = planeUrl,
-                Code = FormatCode(nextNumber),
+                Code = FormatCode(nextCodeNumber++),
                 Title = planeIssue.Name.Trim(),
                 Description = planeIssue.DescriptionHtml?.Trim() ?? string.Empty,
                 Order = nextOrder++,
@@ -372,15 +377,13 @@ public class IssueService(
             .OrderBy(issue => issue.Order)
             .ToList();
 
-        await gameRealtimeService.NotifyIssuesImportedAsync(
-            game,
-            allIssues.Select(IssueMapper.ToDto));
+        var issueDtos = allIssues
+            .Select(issue => IssueMapper.ToDto(issue, issue.VotingResults?.FirstOrDefault()))
+            .ToList();
 
-        return allIssues.Select(IssueMapper.ToDto);
-        
-        //TODO
-        var allIssues = await repoIssues.GetByGameIdAsync(gameId);
-        return allIssues.Select(i => IssueMapper.ToDto(i, i.VotingResults?.FirstOrDefault()));
+        await gameRealtimeService.NotifyIssuesImportedAsync(game, issueDtos);
+
+        return issueDtos;
     }
 
     /// <summary>
@@ -423,7 +426,7 @@ public class IssueService(
             FileName = $"issues-{gameId}.csv"
         };
     }
-    
+
     private static string FormatCode(int number) => $"PP-{number}";
 
     private async Task<string> GenerateIssueCodeAsync(Guid gameId)
@@ -471,7 +474,7 @@ public class IssueService(
         return await gameRepository.GetByIdAsync(gameId)
                ?? throw new NotFoundException(nameof(Game), gameId);
     }
-    
+
     private async Task<int> GetNextIssueCodeNumberAsync(Guid gameId)
     {
         var issues = await repoIssues.GetByGameIdAsync(gameId);

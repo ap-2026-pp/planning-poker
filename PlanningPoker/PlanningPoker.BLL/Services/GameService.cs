@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
 using PlanningPoker.BLL.Constants;
 using PlanningPoker.Domain.DTOs.Game;

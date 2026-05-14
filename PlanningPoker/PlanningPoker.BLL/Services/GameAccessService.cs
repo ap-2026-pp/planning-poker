@@ -196,6 +196,46 @@ public class GameAccessService(
     }
 
     /// <summary>
+    /// Встановлює дозволи для учасників гри.
+    /// </summary>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="dto">Дані для масового оновлення дозволів учасників.</param>
+    /// <returns>Без повернення значення.</returns>
+    public async Task UpdateBulkPermissionsAsync(Guid gameId, UpdateBulkPermissionsRequestDto dto)
+    {
+        await GetRequiredMasterAsync(gameId, AccessControlConstants.VoteAction, AccessControlConstants.GameResource);
+
+        var participants = await participantRepository.GetGameParticipantsAsync(gameId);
+
+        if (participants == null)
+            return;
+
+        var permissionsById = dto.Participants
+            .ToDictionary(x => x.ParticipantId);
+
+        foreach (var participant in participants)
+        {
+            if (participant.Role == ParticipantRole.Master)
+                continue;
+
+            if (permissionsById.TryGetValue(participant.Id, out var perm))
+            {
+                participant.CanRevealCards = perm.CanRevealCards;
+                participant.CanManageIssues = perm.CanManageIssues;
+            }
+            else
+            {
+                participant.CanRevealCards = false;
+                participant.CanManageIssues = false;
+            }
+
+            participantRepository.Update(participant);
+        }
+        await participantRepository.SaveChangesAsync();
+    }
+
+
+    /// <summary>
     /// Повертає активного учасника гри, який не має ролі Spectator.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>

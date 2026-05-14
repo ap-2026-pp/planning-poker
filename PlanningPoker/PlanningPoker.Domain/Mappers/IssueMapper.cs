@@ -21,7 +21,7 @@ public static class IssueMapper
             FinalEstimate = result?.FinalEstimate,
             Status = result != null
                 ? IssueStatus.Completed
-                : (issue.IsCurrent ? IssueStatus.Voting : IssueStatus.Pending)
+                : (issue.IsCurrent ? IssueStatus.Voting : IssueStatus.Pending),
             IsRemoved = issue.IsRemoved,
         };
     }
