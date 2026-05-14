@@ -1,6 +1,7 @@
 using PlanningPoker.Domain.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PlanningPoker.Domain.DTOs.Timer;
 
 namespace PlanningPoker.API.Controllers;
 
@@ -18,9 +19,9 @@ public class TimerController : ControllerBase
     }
 
     [HttpPost("timer-start")]
-    public async Task<IActionResult> Start([FromRoute] Guid gameId)
+    public async Task<IActionResult> Start([FromRoute] Guid gameId, [FromBody] StartTimerRequestDto request)
     {
-        var result = await _timerService.StartTimerAsync(gameId);
+        var result = await _timerService.StartTimerAsync(gameId, request.DurationSeconds);
         return Ok(result);
     }
 

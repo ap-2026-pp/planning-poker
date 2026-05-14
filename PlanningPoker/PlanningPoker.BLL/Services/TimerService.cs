@@ -4,6 +4,7 @@ using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
 using PlanningPoker.Domain.Mappers;
 using PlanningPoker.Domain.Exceptions;
+using System.ComponentModel.DataAnnotations;
 
 namespace PlanningPoker.BLL.Services;
 
@@ -36,7 +37,7 @@ public class TimerService : ITimerService
     /// <returns>Інформація про запущений таймер.</returns>
     /// <exception cref="InvalidOperationException">Виникає, якщо не вибрано активну задачу для обговорення.</exception>
     /// <exception cref="NotFoundException">Виникає, якщо гра не знайдена.</exception>
-    public async Task<TimerDto> StartTimerAsync(Guid gameId)
+    public async Task<TimerDto> StartTimerAsync(Guid gameId, int durationSeconds)
     {
         await _accessService.GetRequiredMasterAsync(gameId, "Start", "Timer");
 
@@ -59,8 +60,13 @@ public class TimerService : ITimerService
             await _timerRepository.AddAsync(timer);
         }
 
+        if (durationSeconds <= 0)
+        {
+            throw new ValidationException("Timer duration must be greater than zero.");
+        }
+
         timer.StartedAt = DateTime.UtcNow;
-        timer.EndsAt = DateTime.UtcNow.AddMinutes(game.DefaultTimerMinutes);
+        timer.EndsAt = DateTime.UtcNow.AddSeconds(durationSeconds);
         timer.AutoReset = game.AutoResetTimer;
 
         await _timerRepository.SaveChangesAsync();
