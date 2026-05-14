@@ -13,11 +13,22 @@ internal class JwtService : IJwtService
 {
     private readonly IConfiguration _configuration;
 
+    /// <summary>
+    /// Ініціалізує сервіс JWT з конфігурації застосунку.
+    /// </summary>
+    /// <param name="configuration">Конфігурація (Jwt Key, Issuer, Audience тощо).</param>
     public JwtService(IConfiguration configuration)
     {
         _configuration = configuration;
     }
 
+    /// <summary>
+    /// Генерує access JWT токен для користувача.
+    /// </summary>
+    /// <param name="userId">Id користувача.</param>
+    /// <param name="email">Email користувача.</param>
+    /// <param name="roles">Список ролей користувача.</param>
+    /// <returns>JWT access token.</returns>
     public string GenerateAccessToken(Guid userId, string email, IList<string> roles)
     {
         var keyString = GetRequiredConfig("Jwt:Key");
@@ -53,6 +64,10 @@ internal class JwtService : IJwtService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    /// <summary>
+    /// Генерує refresh token для користувача.
+    /// </summary>
+    /// <returns>Base64 refresh token.</returns>
     public string GenerateRefreshToken()
     {
         var bytes = new byte[JwtDefaults.RefreshTokenBytesLength];
@@ -63,6 +78,13 @@ internal class JwtService : IJwtService
         return Convert.ToBase64String(bytes);
     }
 
+    /// <summary>
+    /// Отримує ClaimsPrincipal із простроченого JWT токена.
+    /// Використовується для оновлення access token.
+    /// </summary>
+    /// <param name="token">JWT access token.</param>
+    /// <returns>ClaimsPrincipal з токена.</returns>
+    /// <exception cref="SecurityTokenException">Якщо токен невалідний.</exception>
     public ClaimsPrincipal GetPrincipalFromExpiredToken(string token)
     {
         var keyString = GetRequiredConfig("Jwt:Key");
@@ -101,6 +123,12 @@ internal class JwtService : IJwtService
         return principal;
     }
 
+    /// <summary>
+    /// Отримує обов’язкову конфігурацію за ключем.
+    /// </summary>
+    /// <param name="key">Ключ конфігурації.</param>
+    /// <returns>Значення конфігурації.</returns>
+    /// <exception cref="InvalidOperationException">Якщо ключ відсутній.</exception>
     private string GetRequiredConfig(string key)
     {
         return _configuration[key]

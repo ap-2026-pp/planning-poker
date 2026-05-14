@@ -12,8 +12,8 @@ using PlanningPoker.DAL.Data;
 namespace PlanningPoker.DAL.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260513170326_AddTimerEntity")]
-    partial class AddTimerEntity
+    [Migration("20260426125603_AddRemovedAtToGameParticipant")]
+    partial class AddRemovedAtToGameParticipant
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,33 @@ namespace PlanningPoker.DAL.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("NormalizedName")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("RoleNameIndex");
+
+                    b.ToTable("AspNetRoles", (string)null);
+                });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
@@ -134,9 +161,6 @@ namespace PlanningPoker.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("AutoResetTimer")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("AutoRevealCards")
                         .HasColumnType("boolean");
 
@@ -145,15 +169,6 @@ namespace PlanningPoker.DAL.Migrations
 
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("CustomValues")
-                        .HasColumnType("text");
-
-                    b.Property<int>("DefaultTimerMinutes")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("EnableFunFeatures")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("InviteCode")
                         .IsRequired()
@@ -166,25 +181,16 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("IssuesPolicy")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<int>("RevealPolicy")
-                        .HasColumnType("integer");
 
                     b.Property<bool>("ShowAverage")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("ShowCountdownAnimation")
                         .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("TimerEndsAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("VotingSystem")
                         .HasColumnType("integer");
@@ -205,12 +211,6 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
-
-                    b.Property<bool>("CanManageIssues")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("CanRevealCards")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -233,70 +233,16 @@ namespace PlanningPoker.DAL.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("UserId")
+                    b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("GameId");
 
                     b.HasIndex("UserId");
 
-                    b.HasIndex("GameId", "DisplayName")
-                        .IsUnique()
-                        .HasFilter("\"RemovedAt\" IS NULL");
-
                     b.ToTable("GameParticipants", (string)null);
-                });
-
-            modelBuilder.Entity("PlanningPoker.Domain.Models.GameTimer", b =>
-                {
-                    b.Property<Guid>("GameId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("AutoReset")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("EndsAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("GameId");
-
-                    b.ToTable("GameTimer");
-                });
-
-            modelBuilder.Entity("PlanningPoker.Domain.Models.GuestSession", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsRevoked")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("ParticipantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TokenHash")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ParticipantId");
-
-                    b.HasIndex("TokenHash")
-                        .IsUnique();
-
-                    b.ToTable("GuestSessions", (string)null);
                 });
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.Issue", b =>
@@ -304,10 +250,6 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -341,6 +283,7 @@ namespace PlanningPoker.DAL.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<string>("Url")
+                        .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
@@ -353,33 +296,6 @@ namespace PlanningPoker.DAL.Migrations
                     b.HasIndex("GameParticipantId");
 
                     b.ToTable("Issues", (string)null);
-                });
-
-            modelBuilder.Entity("PlanningPoker.Domain.Models.Role", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ConcurrencyStamp")
-                        .IsConcurrencyToken()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("NormalizedName")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NormalizedName")
-                        .IsUnique()
-                        .HasDatabaseName("RoleNameIndex");
-
-                    b.ToTable("AspNetRoles", (string)null);
                 });
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.User", b =>
@@ -434,6 +350,7 @@ namespace PlanningPoker.DAL.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("RefreshToken")
+                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
@@ -471,10 +388,13 @@ namespace PlanningPoker.DAL.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Estimate")
+                    b.Property<string>("FinalEstimate")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("GameId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("IssueId")
                         .HasColumnType("uuid");
@@ -486,6 +406,8 @@ namespace PlanningPoker.DAL.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("GameId");
 
                     b.HasIndex("IssueId");
 
@@ -532,7 +454,7 @@ namespace PlanningPoker.DAL.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
-                    b.HasOne("PlanningPoker.Domain.Models.Role", null)
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -559,7 +481,7 @@ namespace PlanningPoker.DAL.Migrations
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserRole<System.Guid>", b =>
                 {
-                    b.HasOne("PlanningPoker.Domain.Models.Role", null)
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -603,33 +525,12 @@ namespace PlanningPoker.DAL.Migrations
                     b.HasOne("PlanningPoker.Domain.Models.User", "User")
                         .WithMany("Participants")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Game");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("PlanningPoker.Domain.Models.GameTimer", b =>
-                {
-                    b.HasOne("PlanningPoker.Domain.Models.Game", "Game")
-                        .WithOne("Timer")
-                        .HasForeignKey("PlanningPoker.Domain.Models.GameTimer", "GameId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Game");
-                });
-
-            modelBuilder.Entity("PlanningPoker.Domain.Models.GuestSession", b =>
-                {
-                    b.HasOne("PlanningPoker.Domain.Models.GameParticipant", "Participant")
-                        .WithMany()
-                        .HasForeignKey("ParticipantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Participant");
                 });
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.Issue", b =>
@@ -657,6 +558,10 @@ namespace PlanningPoker.DAL.Migrations
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.Vote", b =>
                 {
+                    b.HasOne("PlanningPoker.Domain.Models.Game", null)
+                        .WithMany("Votes")
+                        .HasForeignKey("GameId");
+
                     b.HasOne("PlanningPoker.Domain.Models.Issue", "Issue")
                         .WithMany("Votes")
                         .HasForeignKey("IssueId")
@@ -699,7 +604,7 @@ namespace PlanningPoker.DAL.Migrations
 
                     b.Navigation("Participants");
 
-                    b.Navigation("Timer");
+                    b.Navigation("Votes");
                 });
 
             modelBuilder.Entity("PlanningPoker.Domain.Models.GameParticipant", b =>

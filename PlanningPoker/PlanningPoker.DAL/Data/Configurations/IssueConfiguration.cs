@@ -46,6 +46,6 @@ public class IssueConfiguration : IEntityTypeConfiguration<Issue>
         builder.HasMany(x => x.VotingResults)
             .WithOne(x => x.Issue)
             .HasForeignKey(x => x.IssueId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -5,24 +5,37 @@ using PlanningPoker.Domain.Interfaces.Services;
 
 namespace PlanningPoker.BLL.Services;
 
+/// <summary>
+/// Сервіс для інтеграції з Plane API та отримання задач (issues) з проєктів.
+/// </summary>
 internal class PlaneService : IPlaneService
 {
     private const string ApiKeyHeaderName = "X-API-Key";
     private readonly IGameAccessService _gameAccessService;
     private readonly HttpClient _httpClient;
     private const int PageSize = 100;
+
     public PlaneService(IGameAccessService gameAccessService,
         HttpClient httpClient)
     {
         _gameAccessService = gameAccessService;
         _httpClient = httpClient;
     }
+
     private static readonly HashSet<string> AllowedGroups = new()
     {
         "backlog",
         "unstarted"
     };
 
+    /// <summary>
+    /// Отримує список задач (issues) з Plane для вказаного проєкту та воркспейсу.
+    /// </summary>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="workspaceSlug">Slug робочого простору Plane.</param>
+    /// <param name="projectId">Ідентифікатор проєкту в Plane.</param>
+    /// <param name="apiKey">API ключ для доступу до Plane API.</param>
+    /// <returns>Список задач, відфільтрованих за дозволеними групами станів.</returns>
     public async Task<List<PlaneIssueDto>> GetIssuesAsync(Guid gameId, string workspaceSlug, string projectId, string apiKey)
     {
         await _gameAccessService.GetRequiredMasterAsync(
@@ -70,7 +83,6 @@ internal class PlaneService : IPlaneService
                         Status = state.Name,
                         CreatedAt = issue.CreatedAt
                     };
-
                 })
                 .ToList();
 
@@ -82,6 +94,13 @@ internal class PlaneService : IPlaneService
         return issues.OrderBy(i => i.CreatedAt).ToList();
     }
 
+    /// <summary>
+    /// Отримує мапу станів задач для проєкту Plane.
+    /// </summary>
+    /// <param name="workspace">Slug воркспейсу Plane.</param>
+    /// <param name="project">Ідентифікатор проєкту Plane.</param>
+    /// <param name="apiKey">API ключ для доступу до Plane API.</param>
+    /// <returns>Словник станів, де ключ — це ID стану.</returns>
     private async Task<Dictionary<string, PlaneStateDetail>> GetStatesMap(string workspace, string project, string apiKey)
     {
         var url = $"/api/v1/workspaces/{workspace}/projects/{project}/states/";
@@ -99,6 +118,14 @@ internal class PlaneService : IPlaneService
         return page?.Results?.ToDictionary(s => s.Id, s => s) ?? new();
     }
 
+    /// <summary>
+    /// Формує URL для отримання списку задач з підтримкою пагінації.
+    /// </summary>
+    /// <param name="workspace">Slug воркспейсу Plane.</param>
+    /// <param name="project">Ідентифікатор проєкту Plane.</param>
+    /// <param name="pageSize">Кількість елементів на сторінку.</param>
+    /// <param name="cursor">Курсор для наступної сторінки.</param>
+    /// <returns>Згенерований URL для запиту до API.</returns>
     private static string BuildIssuesUrl(string workspace, string project, int pageSize, string? cursor)
     {
         var url =
@@ -109,6 +136,12 @@ internal class PlaneService : IPlaneService
             : $"{url}&cursor={Uri.EscapeDataString(cursor)}";
     }
 
+    /// <summary>
+    /// Перевіряє відповідь Plane API та кидає виняток у випадку помилки.
+    /// </summary>
+    /// <param name="response">HTTP відповідь від Plane API.</param>
+    /// <returns>Асинхронна операція перевірки.</returns>
+    /// <exception cref="Exception">Виникає, якщо API повернув помилку.</exception>
     private static async Task EnsureSuccessfulPlaneResponseAsync(HttpResponseMessage response)
     {
         if (response.IsSuccessStatusCode) return;
@@ -117,7 +150,9 @@ internal class PlaneService : IPlaneService
         throw new Exception($"Plane API error: {body}");
     }
 
-
+    /// <summary>
+    /// Відповідь API зі списком задач Plane.
+    /// </summary>
     private sealed class PlaneIssuesPage
     {
         [JsonPropertyName("next_cursor")]
@@ -130,12 +165,18 @@ internal class PlaneService : IPlaneService
         public List<PlaneIssueItem> Results { get; set; } = [];
     }
 
+    /// <summary>
+    /// Відповідь API зі списком станів задач Plane.
+    /// </summary>
     private sealed class PlaneStatesPage
     {
         [JsonPropertyName("results")]
         public List<PlaneStateDetail> Results { get; set; } = [];
     }
 
+    /// <summary>
+    /// Модель задачі Plane.
+    /// </summary>
     private sealed class PlaneIssueItem
     {
         [JsonPropertyName("id")]
@@ -157,6 +198,9 @@ internal class PlaneService : IPlaneService
         public DateTime CreatedAt { get; set; }
     }
 
+    /// <summary>
+    /// Деталі стану задачі Plane.
+    /// </summary>
     private sealed class PlaneStateDetail
     {
         [JsonPropertyName("id")]

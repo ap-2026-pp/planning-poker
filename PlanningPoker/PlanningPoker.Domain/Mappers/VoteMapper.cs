@@ -7,6 +7,7 @@ public static class VoteMapper
 {
     public static VoteDto ToDto(Vote vote)
     {
+        ArgumentNullException.ThrowIfNull(vote);
         if (vote == null) return null!;
         return new VoteDto
         {
