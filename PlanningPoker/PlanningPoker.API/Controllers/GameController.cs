@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.API.Services;
 using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.Interfaces.Services;
+using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.API.Controllers;
 
@@ -56,4 +57,11 @@ public class GameController(
         await gameAccessService.UpdateBulkPermissionsAsync(gameId, dto);
         return Ok();
     }    
+    
+    [HttpGet("~/api/games/my")]
+    public async Task<ActionResult<IEnumerable<UserGameDto>?>> GetUserGames([FromQuery] UserGamesScope scope)
+    {
+        var games = await gameService.GetUserGamesAsync(scope);
+        return Ok(games);
+    }
 }
