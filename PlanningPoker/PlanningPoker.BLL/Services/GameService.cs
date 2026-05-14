@@ -333,14 +333,14 @@ public class GameService(
     }
 
     /// <summary>
-    /// Перевіряє коректність значень карт, введеним користувачем.
+    /// Перевіряє коректність значень карт, введених користувачем.
     /// </summary>
-    /// <param name="customValues"></param>
-    /// <exception cref="ValidationException"></exception>
+    /// <param name="customValues">Рядок із значеннями карт, розділеними комами.</param>
+    /// <exception cref="ValidationException">Виникає, якщо значення карт некоректні.</exception>
     private void ValidateCustomValues(string? customValues)
     {
         if (string.IsNullOrWhiteSpace(customValues))
-            throw new ValidationException("Custom values can't be empty");
+            throw new ValidationException("Значення карт не можуть бути порожніми");
 
         var cards = customValues.Split(',')
             .Select(v => v.Trim())
@@ -348,22 +348,24 @@ public class GameService(
             .ToList();
 
         if (cards.Count < 2)
-            throw new ValidationException("You need at least 2 cards");
+            throw new ValidationException("Потрібно щонайменше 2 карти");
 
         if (cards.Count > 13)
-            throw new ValidationException("Maximum 15 cards allowed, you can write 13 and also break and question cards.");
+            throw new ValidationException("Максимум дозволено 13 карт (можна також додати break та question cards)");
 
         if (cards.Distinct(StringComparer.OrdinalIgnoreCase).Count() != cards.Count)
-            throw new ValidationException("Dublicate card values aren't allowed!");
+            throw new ValidationException("Значення карт не можуть повторюватися");
 
         var regex = new System.Text.RegularExpressions.Regex(@"^[a-zA-Z0-9.\-\s]+$");
+
         foreach (var card in cards)
         {
             if (card.Length > 3)
-                throw new ValidationException($"Card '{card}' is too long. Max 3 characters!");
+                throw new ValidationException($"Карта '{card}' занадто довга. Максимум 3 символи.");
 
             if (!regex.IsMatch(card))
-                throw new ValidationException($"Card '{card}' contains forbidden characters. Use only letters, numbers, dots or dashes.");
+                throw new ValidationException(
+                    $"Карта '{card}' містить заборонені символи. Дозволені лише літери, цифри, крапки та дефіси.");
         }
     }
 }

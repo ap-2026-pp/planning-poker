@@ -32,10 +32,10 @@ public class TimerService : ITimerService
     /// <summary>
     /// Запускає таймер гри та за потреби вмикає автоматичне відкриття карт після завершення таймера.
     /// </summary>
-    /// <param name="gameId"></param>
-    /// <returns></returns>
-    /// <exception cref="InvalidOperationException"></exception>
-    /// <exception cref="NotFoundException"></exception>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <returns>Інформація про запущений таймер.</returns>
+    /// <exception cref="InvalidOperationException">Виникає, якщо не вибрано активну задачу для обговорення.</exception>
+    /// <exception cref="NotFoundException">Виникає, якщо гра не знайдена.</exception>
     public async Task<TimerDto> StartTimerAsync(Guid gameId)
     {
         await _accessService.GetRequiredMasterAsync(gameId, "Start", "Timer");
@@ -44,10 +44,13 @@ public class TimerService : ITimerService
 
         if (activeIssue == null)
         {
-            throw new InvalidOperationException("Cannot start the timer: please select an active issue for discussion first.");
+            throw new InvalidOperationException(
+                "Cannot start the timer: please select an active issue for discussion first.");
         }
+
         var game = await _gameRepository.GetByIdAsync(gameId)
             ?? throw new NotFoundException(nameof(Game), gameId);
+
         GameTimer? timer = await _timerRepository.GetByIdAsync(gameId);
 
         if (timer == null)
@@ -68,8 +71,7 @@ public class TimerService : ITimerService
     /// <summary>
     /// Зупиняє активний таймер гри.
     /// </summary>
-    /// <param name="gameId"></param>
-    /// <returns></returns>
+    /// <param name="gameId">Ідентифікатор гри.</param>
     public async Task StopTimerAsync(Guid gameId)
     {
         await _accessService.GetRequiredMasterAsync(gameId, "Stop", "Timer");
@@ -85,8 +87,8 @@ public class TimerService : ITimerService
     /// <summary>
     /// Отримує інформацію про активний таймер гри.
     /// </summary>
-    /// <param name="gameId"></param>
-    /// <returns></returns>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <returns>DTO активного таймера або null, якщо таймер не запущено.</returns>
     public async Task<TimerDto?> GetActiveTimerAsync(Guid gameId)
     {
         GameTimer? timer = await _timerRepository.GetByIdAsync(gameId);

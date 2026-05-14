@@ -158,9 +158,9 @@ public class GameAccessService(
     /// <summary>
     /// Встановлює дозволи для учасників гри.
     /// </summary>
-    /// <param name="gameId"></param>
-    /// <param name="dto"></param>
-    /// <returns></returns>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="dto">Дані для масового оновлення дозволів учасників.</param>
+    /// <returns>Без повернення значення.</returns>
     public async Task UpdateBulkPermissionsAsync(Guid gameId, UpdateBulkPermissionsRequestDto dto)
     {
         await GetRequiredMasterAsync(gameId, AccessControlConstants.VoteAction, AccessControlConstants.GameResource);

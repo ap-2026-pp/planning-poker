@@ -10,7 +10,7 @@ using PlanningPoker.Domain.Models;
 namespace PlanningPoker.BLL.Services;
 
 /// <summary>
-/// Сервіс для керування голосуванням учасників у грі Planning Poker.
+/// Сервіс для керування голосуванням учасників у грі.
 /// Відповідає за створення, оновлення та видалення голосів,
 /// а також перевірку доступу та валідності голосування.
 /// </summary>
@@ -22,6 +22,7 @@ internal class VoteService : IVoteService
     private readonly IRoomStateService _roomService;
     private readonly IGameAccessService _gameAccessService;
     private readonly IGameRepository _gameRepository;
+
     public VoteService(
         IVoteRepository repoVotes,
         IVotingHistoryRepository repoResults,
@@ -38,12 +39,22 @@ internal class VoteService : IVoteService
         _gameRepository = gameRepository;
     }
 
+    /// <summary>
+    /// Створює або оновлює голос учасника в грі.
+    /// </summary>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="issueId">Ідентифікатор активної задачі.</param>
+    /// <param name="dto">Дані голосу учасника.</param>
+    /// <returns>Створений або оновлений голос.</returns>
+    /// <exception cref="NotFoundException">Виникає, якщо гра не знайдена.</exception>
+    /// <exception cref="ValidationException">Виникає, якщо значення голосу недопустиме.</exception>
+    /// <exception cref="ConflictException">Виникає, якщо карти вже відкриті.</exception>
     public async Task<VoteDto> CreateVoteByGameIdAsync(Guid gameId, Guid issueId, CreateVoteDto dto)
     {
         var participant = await _gameAccessService.EnsureCanVoteAsync(gameId);
 
         var game = await _gameRepository.GetByIdAsync(gameId)
-               ?? throw new NotFoundException(nameof(Game), gameId);
+            ?? throw new NotFoundException(nameof(Game), gameId);
 
         await _issueService.GetAndValidateActiveIssueAsync(gameId, issueId);
 
@@ -51,7 +62,8 @@ internal class VoteService : IVoteService
 
         if (!allowedCards.Contains(dto.Estimate))
         {
-            throw new ValidationException($"Значення '{dto.Estimate}' недопустиме для цієї системи голосування.");
+            throw new ValidationException(
+                $"Значення '{dto.Estimate}' недопустиме для цієї системи голосування.");
         }
 
         var existingResult = await _repoResults.GetByIssueIdAsync(issueId);
@@ -85,12 +97,22 @@ internal class VoteService : IVoteService
         return VoteMapper.ToDto(vote);
     }
 
+    /// <summary>
+    /// Видаляє голос учасника для активної задачі.
+    /// </summary>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="issueId">Ідентифікатор задачі.</param>
     public async Task DeleteVoteAsync(Guid gameId, Guid issueId)
     {
-        var participant = await _gameAccessService.GetRequiredParticipantAsync(gameId, AccessControlConstants.UpdateAction, AccessControlConstants.GameResource);
+        var participant = await _gameAccessService.GetRequiredParticipantAsync(
+            gameId,
+            AccessControlConstants.UpdateAction,
+            AccessControlConstants.GameResource);
+
         await _issueService.GetAndValidateActiveIssueAsync(gameId, issueId);
 
         var vote = await _repoVotes.GetVoteAsync(issueId, participant.Id);
+
         if (vote != null)
         {
             _repoVotes.Delete(vote);
@@ -98,4 +120,3 @@ internal class VoteService : IVoteService
         }
     }
 }
-

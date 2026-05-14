@@ -81,7 +81,7 @@ public class ParticipantService(
             if (currentCount >= 20)
             {
                 throw new ForbiddenException(
-                    "join",
+                    AccessControlConstants.JoinAction,
                     "Game is full now, count mustn't over 20 participants!");
             }
         }
@@ -95,7 +95,7 @@ public class ParticipantService(
         if (!game.IsActive)
         {
             throw new ForbiddenException(
-                "join",
+                AccessControlConstants.JoinAction,
                 "Game is inactive.");
         }
 

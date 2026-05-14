@@ -47,7 +47,7 @@ public enum RevealPolicy
     SpecificParticipants
 }
 
-/// <summary>Ф
+/// <summary>
 /// Політика доступу до управління задачами (issues) у грі.
 /// </summary>
 public enum IssuesPolicy

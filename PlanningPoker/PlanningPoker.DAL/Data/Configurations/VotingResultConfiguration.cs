@@ -27,6 +27,6 @@ public class VotingResultConfiguration : IEntityTypeConfiguration<VotingResult>
         builder.HasOne(x => x.Issue)
             .WithMany(x => x.VotingResults)
             .HasForeignKey(x => x.IssueId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

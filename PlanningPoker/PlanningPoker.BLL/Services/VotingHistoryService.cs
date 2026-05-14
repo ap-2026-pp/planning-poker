@@ -8,14 +8,17 @@ using PlanningPoker.Domain.Mappers;
 namespace PlanningPoker.BLL.Services;
 
 /// <summary>
-/// Сервіс для роботи з історією голосувань.
+/// Сервіс для роботи з історією голосувань у грі.
+/// Забезпечує отримання, перегляд деталей та експорт історії голосувань у CSV.
 /// </summary>
 internal class VotingHistoryService : IVotingHistoryService
 {
     private readonly IVotingHistoryRepository _repoVotingHistory;
     private readonly IGameAccessService _gameAccessService;
-    public VotingHistoryService(IVotingHistoryRepository repoVotingHistory,
-            IGameAccessService gameAccessService)
+
+    public VotingHistoryService(
+        IVotingHistoryRepository repoVotingHistory,
+        IGameAccessService gameAccessService)
     {
         _repoVotingHistory = repoVotingHistory;
         _gameAccessService = gameAccessService;
@@ -25,10 +28,8 @@ internal class VotingHistoryService : IVotingHistoryService
     /// Отримує список історії голосувань для гри з підтримкою сортування та пагінації.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
-    /// <param name="query">
-    /// Параметри запиту, включаючи сторінку, розмір сторінки та налаштування сортування.
-    /// </param>
-    /// <returns>Список записів історії голосувань.</returns>
+    /// <param name="query">Параметри запиту (сторінка, розмір сторінки, сортування).</param>
+    /// <returns>Сторінкований список історії голосувань.</returns>
     public async Task<VotingHistoryListDto> GetHistoryAsync(
         Guid gameId,
         VotingHistoryQueryDto query)
@@ -64,15 +65,14 @@ internal class VotingHistoryService : IVotingHistoryService
             Items = pagedItems
         };
     }
+
     /// <summary>
     /// Отримує детальну інформацію про конкретний запис історії голосування.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
     /// <param name="entryId">Ідентифікатор запису історії голосування.</param>
-    /// <returns>Детальна інформація про голосування.</returns>
-    /// <exception cref="KeyNotFoundException">
-    /// Виникає, якщо запис історії голосування не знайдено.
-    /// </exception>
+    /// <returns>Детальна інформація про запис історії голосування.</returns>
+    /// <exception cref="KeyNotFoundException">Виникає, якщо запис історії не знайдено.</exception>
     public async Task<VotingHistoryDetailsDto> GetHistoryDetailsAsync(
         Guid gameId,
         Guid entryId)
@@ -93,11 +93,11 @@ internal class VotingHistoryService : IVotingHistoryService
     }
     
     /// <summary>
-    /// Отримує детальну інформацію про конкретний запис історії голосування.
+    /// Експортує історію голосувань у CSV формат відповідно до вибраних полів.
     /// </summary>
-    /// <param name="gameId"></param>
-    /// <param name="dto"></param>
-    /// <returns></returns>
+    /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="dto">Налаштування експорту (які поля включати).</param>
+    /// <returns>Масив байтів CSV файлу.</returns>
     public async Task<byte[]> ExportHistoryCsvAsync(
         Guid gameId,
         ExportVotingHistoryDto dto)
@@ -183,8 +183,8 @@ internal class VotingHistoryService : IVotingHistoryService
             if (dto.IncludeResults)
             {
                 row.Add(string.Join("; ",
-                     item.VotingResults.Select(player =>
-                         $"{player.DisplayName} ({player.VoteValue})")));
+                    item.VotingResults.Select(player =>
+                        $"{player.DisplayName} ({player.VoteValue})")));
             }
 
             sb.AppendLine(string.Join(",", row.Select(EscapeCsv)));
@@ -194,12 +194,12 @@ internal class VotingHistoryService : IVotingHistoryService
     }
     
     /// <summary>
-    /// Застосовує сортування до списку записів історії голосувань.
+    /// Застосовує сортування до списку історії голосувань.
     /// </summary>
-    /// <param name="items"></param>
-    /// <param name="sortBy"></param>
-    /// <param name="sortDirection"></param>
-    /// <returns></returns>
+    /// <param name="items">Список елементів історії голосувань.</param>
+    /// <param name="sortBy">Поле для сортування.</param>
+    /// <param name="sortDirection">Напрямок сортування (asc/desc).</param>
+    /// <returns>Відсортований список історії голосувань.</returns>
     private static List<VotingHistoryItemDto> ApplySorting(
         List<VotingHistoryItemDto> items,
         string? sortBy,
@@ -243,18 +243,14 @@ internal class VotingHistoryService : IVotingHistoryService
     }
 
     /// <summary>
-    /// Форматує значення для коректного експорту в CSV.
+    /// Екранує значення для коректного запису в CSV файл.
     /// </summary>
-    /// <param name="value"></param>
-    /// <returns></returns>
-    /// 
+    /// <param name="value">Значення для форматування.</param>
+    /// <returns>CSV-безпечний рядок.</returns>
     private static string EscapeCsv(string value)
     {
         if (string.IsNullOrEmpty(value))
-        {
             return string.Empty;
-        }
-
 
         if (value.Contains(',') ||
             value.Contains('"') ||
