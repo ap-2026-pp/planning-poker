@@ -112,6 +112,11 @@ public class GameAccessService(
             AccessControlConstants.VoteAction,
             AccessControlConstants.GameResource);
 
+        if (participant.Game.TimerEndsAt.HasValue && participant.Game.TimerEndsAt <= DateTime.UtcNow)
+        {
+            throw new ConflictException("Time is over");
+        }
+
         return participant.Role == ParticipantRole.Spectator
             ? throw new ForbiddenException(
                 AccessControlConstants.VoteAction,
