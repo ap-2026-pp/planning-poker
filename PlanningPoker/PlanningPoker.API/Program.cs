@@ -25,6 +25,7 @@ builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddScoped<IGameRoomNotifier, GameRoomNotifier>();
 builder.Services.AddScoped<IUserNotifier, UserNotifier>();
 builder.Services.AddScoped<InviteLinkService>();
+builder.Services.AddSingleton<GameRoomConnectionTracker>();
 
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
@@ -184,7 +185,10 @@ app.UseCors("ClientPolicy");
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapHub<GameRoomHub>(GameRoomHub.HubRoute);
+app.MapHub<GameRoomHub>(GameRoomHub.HubRoute, options =>
+{
+    options.CloseOnAuthenticationExpiration = true;
+});
 app.MapHub<UserHub>(UserHub.HubRoute);
 app.MapControllers();
 

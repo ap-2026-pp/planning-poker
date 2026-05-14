@@ -3,11 +3,17 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using PlanningPoker.Domain.Constants;
 using PlanningPoker.Domain.Interfaces.Repositories;
+using PlanningPoker.Domain.Interfaces.Services;
+using PlanningPoker.Domain.Mappers;
+using PlanningPoker.API.Services;
 
 namespace PlanningPoker.API.Hubs;
 
 [Authorize]
-public class GameRoomHub(IParticipantRepository participantRepository) : Hub
+public class GameRoomHub(
+    IParticipantRepository participantRepository,
+    IGameRoomNotifier gameRoomNotifier,
+    GameRoomConnectionTracker connectionTracker) : Hub
 {
     public const string HubRoute = "/hubs/game-room";
 
@@ -32,15 +38,40 @@ public class GameRoomHub(IParticipantRepository participantRepository) : Hub
             return;
         }
 
+        var isFirstConnection = connectionTracker.RegisterConnection(participant.Id, Context.ConnectionId);
+
+        if (isFirstConnection && !participant.IsConnected)
+        {
+            participant.IsConnected = true;
+            await participantRepository.SaveChangesAsync();
+            await gameRoomNotifier.NotifyParticipantUpdatedAsync(gameId, ParticipantMapper.ToGameParticipantDto(participant));
+        }
+
         await Groups.AddToGroupAsync(Context.ConnectionId, GetGroupName(gameId));
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        var connectionStateChange = connectionTracker.UnregisterConnection(Context.ConnectionId);
+
         if (TryGetGameId(out var gameId))
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, GetGroupName(gameId));
+        }
+
+        if (connectionStateChange is { IsLastConnection: true } stateChange)
+        {
+            var participant = await participantRepository.GetActiveByIdAsync(stateChange.ParticipantId);
+
+            if (participant is not null && participant.IsConnected)
+            {
+                participantRepository.MarkParticipantOffline(participant);
+                await participantRepository.SaveChangesAsync();
+                await gameRoomNotifier.NotifyParticipantUpdatedAsync(
+                    participant.GameId,
+                    ParticipantMapper.ToGameParticipantDto(participant));
+            }
         }
 
         await base.OnDisconnectedAsync(exception);
