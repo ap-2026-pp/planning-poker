@@ -54,6 +54,8 @@ public class GameService(
             : createGameRequestDto.DisplayName.Trim();
 
         game.CreatedBy = currentUser.Id;
+        game.AutoResetTimer = createGameRequestDto.AutoResetTimer;
+        game.AutoRevealCards = createGameRequestDto.AutoRevealCards;
         game.IssuesPolicy = createGameRequestDto.IssuesPolicy;
         game.RevealPolicy = createGameRequestDto.RevealPolicy;
         game.InviteCode = await GenerateInviteCodeAsync();

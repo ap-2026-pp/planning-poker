@@ -12,6 +12,7 @@ public class CreateGameRequestDto
     public string? CustomValues { get; set; }
     public RevealPolicy RevealPolicy { get; set; } = RevealPolicy.MasterOnly;
     public IssuesPolicy IssuesPolicy { get; set; } = IssuesPolicy.MasterOnly;
+    public bool AutoResetTimer { get; set; } = true;
     public bool AutoRevealCards { get; set; } = true;
     public bool ShowAverage { get; set; } = true;
     public bool ShowCountdownAnimation { get; set; } = true;

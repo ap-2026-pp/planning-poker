@@ -21,6 +21,7 @@ public class GameDto
     public Guid? CreatedBy { get; set; }
     public int DefaultTimerMinutes { get; set; } = 1;
     public bool AutoRevealCards { get; set; }
+    public bool AutoResetTimer { get; set; }
     public ICollection<GameParticipantDto>? Participants { get; set; }
     public ICollection<IssueDto>? Issues { get; set; }
 }
