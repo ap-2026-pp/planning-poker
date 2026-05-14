@@ -1,3 +1,4 @@
+using PlanningPoker.BLL.Constants;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.BLL.DTOs.Issue.Export;
 using PlanningPoker.BLL.DTOs.Plane;
@@ -7,7 +8,6 @@ using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Mappers;
 using PlanningPoker.Domain.Models;
 using System.Text;
-using PlanningPoker.BLL.Constants;
 
 namespace PlanningPoker.BLL.Services;
 
@@ -31,9 +31,13 @@ public class IssueService(
             gameId,
             AccessControlConstants.ViewAction,
             AccessControlConstants.IssuesResource);
-        var issues = await repoIssues.GetByGameIdAsync(gameId);
 
-        return issues.Select(issue => IssueMapper.ToDto(issue));
+        var issues = await repoIssues.GetByGameIdWithVotingResultsAsync(gameId);
+
+        return issues
+            .OrderBy(issue => issue.Order)
+            .Select(MapIssueWithLatestResult)
+            .ToList();
     }
 
     /// <summary>
@@ -42,14 +46,18 @@ public class IssueService(
     public async Task<IssueDetailsDto> GetIssueByIdAsync(Guid gameId, Guid issueId)
     {
         await GetGameOrThrowAsync(gameId);
+
         await gameAccessService.GetRequiredParticipantAsync(
             gameId,
             AccessControlConstants.ViewAction,
             AccessControlConstants.IssueResource);
+
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
-        return IssueMapper.ToDetailsDto(issue, issue.VotingResults?.FirstOrDefault());
+        var latestResult = GetLatestResult(issue);
+
+        return IssueMapper.ToDetailsDto(issue, latestResult);
     }
 
     /// <summary>
@@ -58,6 +66,7 @@ public class IssueService(
     public async Task<IssueDto> CreateIssueAsync(Guid gameId, CreateIssueDto dto)
     {
         var game = await GetGameOrThrowAsync(gameId);
+
         var participant = await gameAccessService.EnsureCanManageIssuesAsync(
             gameId,
             AccessControlConstants.CreateAction,
@@ -88,14 +97,18 @@ public class IssueService(
 
         await repoIssues.AddAsync(issue);
         await repoIssues.SaveChangesAsync();
-        await gameRealtimeService.NotifyIssueAddedAsync(game, IssueMapper.ToDto(issue));
 
-        return IssueMapper.ToDto(issue);
+        var issueDto = IssueMapper.ToDto(issue);
+
+        await gameRealtimeService.NotifyIssueAddedAsync(game, issueDto);
+
+        return issueDto;
     }
 
     public async Task<IssueDto> UpdateIssueAsync(Guid gameId, Guid issueId, UpdateIssueDto dto)
     {
         var game = await GetGameOrThrowAsync(gameId);
+
         await gameAccessService.EnsureCanManageIssuesAsync(
             gameId,
             AccessControlConstants.UpdateAction,
@@ -104,11 +117,16 @@ public class IssueService(
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
+        if (dto == null || string.IsNullOrWhiteSpace(dto.Title))
+        {
+            throw new InvalidOperationException("Title is required");
+        }
+
         var isImportedFromPlane = !string.IsNullOrWhiteSpace(issue.Url);
 
         if (isImportedFromPlane)
         {
-            if (issue.Title != dto.Title.Trim())
+            if (!string.Equals(issue.Title, dto.Title.Trim(), StringComparison.Ordinal))
             {
                 throw new ForbiddenException("You cannot update the title of the imported issue.");
             }
@@ -124,23 +142,27 @@ public class IssueService(
 
         if (!string.IsNullOrWhiteSpace(dto.Code))
         {
-            issue.Code = dto.Code?.Trim() ?? issue.Code;
+            issue.Code = dto.Code.Trim();
         }
 
         repoIssues.Update(issue);
         await repoIssues.SaveChangesAsync();
-        await gameRealtimeService.NotifyIssueUpdatedAsync(game, IssueMapper.ToDto(issue));
 
-        return IssueMapper.ToDto(issue);
+        var issueDto = MapIssueWithLatestResult(issue);
+
+        await gameRealtimeService.NotifyIssueUpdatedAsync(game, issueDto);
+
+        return issueDto;
     }
 
     /// <summary>
-    /// Позначає задачу як видалену (Soft delete),
-    /// якщо видаляємо поточну активну задачу — скидаємо статус
+    /// Позначає задачу як видалену (Soft delete).
+    /// Якщо видаляємо поточну активну задачу — скидаємо статус.
     /// </summary>
     public async Task DeleteIssueAsync(Guid gameId, Guid issueId)
     {
         var game = await GetGameOrThrowAsync(gameId);
+
         await gameAccessService.EnsureCanManageIssuesAsync(
             gameId,
             AccessControlConstants.DeleteAction,
@@ -150,26 +172,27 @@ public class IssueService(
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
         issue.IsRemoved = true;
-
-        if (issue.IsCurrent) issue.IsCurrent = false;
+        issue.IsCurrent = false;
 
         repoIssues.Update(issue);
         await repoIssues.SaveChangesAsync();
-        await gameRealtimeService.NotifyIssueUpdatedAsync(game, IssueMapper.ToDto(issue));
+
+        await gameRealtimeService.NotifyIssueUpdatedAsync(game, MapIssueWithLatestResult(issue));
     }
 
     /// <summary>
-    /// видаляємо всі задачі до однієї гри
+    /// Видаляє всі задачі гри.
     /// </summary>
     public async Task DeleteAllIssuesAsync(Guid gameId)
     {
         var game = await GetGameOrThrowAsync(gameId);
+
         await gameAccessService.EnsureCanManageIssuesAsync(
             gameId,
             AccessControlConstants.DeleteAction,
             AccessControlConstants.IssueResource);
 
-        var issues = (await repoIssues.GetByGameIdAsync(gameId)).ToList();
+        var issues = (await repoIssues.GetByGameIdWithVotingResultsAsync(gameId)).ToList();
 
         foreach (var issue in issues)
         {
@@ -182,7 +205,7 @@ public class IssueService(
 
         foreach (var issue in issues)
         {
-            await gameRealtimeService.NotifyIssueUpdatedAsync(game, IssueMapper.ToDto(issue));
+            await gameRealtimeService.NotifyIssueUpdatedAsync(game, MapIssueWithLatestResult(issue));
         }
     }
 
@@ -192,6 +215,7 @@ public class IssueService(
     public async Task ReorderIssuesAsync(Guid gameId, ReorderIssueDto dto)
     {
         var game = await GetGameOrThrowAsync(gameId);
+
         await gameAccessService.EnsureCanManageIssuesAsync(
             gameId,
             AccessControlConstants.ReorderAction,
@@ -210,7 +234,11 @@ public class IssueService(
             var issue = issuesList.First(x => x.Id == dto.IssuesIds[i]);
             var nextOrder = i + 1;
 
-            if (issue.Order == nextOrder) continue;
+            if (issue.Order == nextOrder)
+            {
+                continue;
+            }
+
             issue.Order = nextOrder;
             repoIssues.Update(issue);
             changedIssues.Add(issue);
@@ -226,14 +254,17 @@ public class IssueService(
 
     /// <summary>
     /// Встановлює задачу як активну для поточного голосування.
+    /// Якщо задача вже активна — вимикає її.
     /// </summary>
     public async Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId)
     {
         var game = await GetGameOrThrowAsync(gameId);
+
         await gameAccessService.EnsureCanManageIssuesAsync(
             gameId,
             AccessControlConstants.SetAction,
             AccessControlConstants.IssueResource);
+        
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
@@ -242,13 +273,19 @@ public class IssueService(
             issue.IsCurrent = false;
             repoIssues.Update(issue);
             await repoIssues.SaveChangesAsync();
-            await gameRealtimeService.NotifyIssueUpdatedAsync(game, IssueMapper.ToDto(issue));
 
-            return IssueMapper.ToDto(issue);
+            var issueDto = MapIssueWithLatestResult(issue);
+
+            await gameRealtimeService.NotifyIssueUpdatedAsync(game, issueDto);
+
+            return issueDto;
         }
 
-        var currentIssues = await repoIssues.GetByGameIdAsync(gameId);
-        var currentActiveIssues = currentIssues.Where(x => x.IsCurrent && x.Id != issue.Id).ToList();
+        var currentIssues = await repoIssues.GetByGameIdWithVotingResultsAsync(gameId);
+
+        var currentActiveIssues = currentIssues
+            .Where(x => x.IsCurrent && x.Id != issue.Id)
+            .ToList();
 
         foreach (var currentIssue in currentActiveIssues)
         {
@@ -257,19 +294,20 @@ public class IssueService(
         }
 
         issue.IsCurrent = true;
-
         repoIssues.Update(issue);
 
         await repoIssues.SaveChangesAsync();
 
         foreach (var currentIssue in currentActiveIssues)
         {
-            await gameRealtimeService.NotifyIssueUpdatedAsync(game, IssueMapper.ToDto(currentIssue));
+            await gameRealtimeService.NotifyIssueUpdatedAsync(game, MapIssueWithLatestResult(currentIssue));
         }
 
-        await gameRealtimeService.NotifyIssueUpdatedAsync(game, IssueMapper.ToDto(issue));
+        var activeIssueDto = MapIssueWithLatestResult(issue);
 
-        return IssueMapper.ToDto(issue);
+        await gameRealtimeService.NotifyIssueUpdatedAsync(game, activeIssueDto);
+
+        return activeIssueDto;
     }
 
     public async Task<Issue> GetAndValidateActiveIssueAsync(Guid gameId, Guid issueId)
@@ -295,14 +333,6 @@ public class IssueService(
         return issue;
     }
 
-    /// <summary>
-    /// Імпортує задачі із зовнішньої системи Plane.
-    /// </summary>
-    /// <summary>
-    /// Імпортує задачі із зовнішньої системи Plane.
-    /// Якщо задача вже була імпортована раніше, вона оновлюється.
-    /// Якщо задачі ще немає — створюється нова з наступним PP-кодом.
-    /// </summary>
     /// <summary>
     /// Імпортує задачі із зовнішньої системи Plane.
     /// Якщо задача вже була імпортована раніше, вона оновлюється.
@@ -373,12 +403,12 @@ public class IssueService(
 
         await repoIssues.SaveChangesAsync();
 
-        var allIssues = (await repoIssues.GetByGameIdAsync(gameId))
+        var allIssues = (await repoIssues.GetByGameIdWithVotingResultsAsync(gameId))
             .OrderBy(issue => issue.Order)
             .ToList();
 
         var issueDtos = allIssues
-            .Select(issue => IssueMapper.ToDto(issue, issue.VotingResults?.FirstOrDefault()))
+            .Select(MapIssueWithLatestResult)
             .ToList();
 
         await gameRealtimeService.NotifyIssuesImportedAsync(game, issueDtos);
@@ -387,7 +417,7 @@ public class IssueService(
     }
 
     /// <summary>
-    /// Eкспортуємо задачі у CSV формат
+    /// Eкспортує задачі у CSV формат.
     /// </summary>
     public async Task<ExportIssuesFileDto> ExportToCsvAsync(Guid gameId, ExportIssuesRequestDto dto)
     {
@@ -408,9 +438,7 @@ public class IssueService(
 
         foreach (var issue in issues)
         {
-            var votingResult = issue.VotingResults
-                .OrderByDescending(x => x.CreatedAt)
-                .FirstOrDefault();
+            var votingResult = GetLatestResult(issue);
 
             builder.AppendLine(string.Join(",",
                 EscapeCsv(issue.Title),
@@ -427,6 +455,18 @@ public class IssueService(
         };
     }
 
+    private static VotingResult? GetLatestResult(Issue issue)
+    {
+        return issue.VotingResults
+            .OrderByDescending(result => result.CreatedAt)
+            .FirstOrDefault();
+    }
+
+    private static IssueDto MapIssueWithLatestResult(Issue issue)
+    {
+        return IssueMapper.ToDto(issue, GetLatestResult(issue));
+    }
+
     private static string FormatCode(int number) => $"PP-{number}";
 
     private async Task<string> GenerateIssueCodeAsync(Guid gameId)
@@ -437,7 +477,8 @@ public class IssueService(
             return "PP-1";
 
         var parts = lastIssue.Code.Split('-');
-        if (parts.Length == 2 && int.TryParse(parts[1], out int lastNumber))
+
+        if (parts.Length == 2 && int.TryParse(parts[1], out var lastNumber))
             return FormatCode(lastNumber + 1);
 
         return FormatCode(1);

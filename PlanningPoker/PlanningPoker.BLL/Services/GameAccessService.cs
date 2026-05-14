@@ -141,6 +141,7 @@ public class GameAccessService(
         }
 
         if (participant.Game.IssuesPolicy == IssuesPolicy.Everyone ||
+            participant.Role == ParticipantRole.Master ||
             participant.CanManageIssues)
         {
             return participant;

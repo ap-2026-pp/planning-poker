@@ -1,5 +1,3 @@
-using System.Net;
-using Microsoft.EntityFrameworkCore.Query;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.Models;
 
@@ -18,15 +16,17 @@ public static class IssueMapper
             Description = issue.Description,
             Order = issue.Order,
             IsCurrent = issue.IsCurrent,
+            IsRemoved = issue.IsRemoved,
             FinalEstimate = result?.FinalEstimate,
             Status = result != null
                 ? IssueStatus.Completed
-                : (issue.IsCurrent ? IssueStatus.Voting : IssueStatus.Pending),
-            IsRemoved = issue.IsRemoved,
+                : issue.IsCurrent
+                    ? IssueStatus.Voting
+                    : IssueStatus.Pending
         };
     }
 
-    public static IssueDetailsDto ToDetailsDto(Issue issue, VotingResult? result)
+    public static IssueDetailsDto ToDetailsDto(Issue issue, VotingResult? result = null)
     {
         return new IssueDetailsDto
         {
@@ -35,10 +35,12 @@ public static class IssueMapper
             Url = issue.Url,
             Title = issue.Title,
             Description = issue.Description,
-            FinalEstimate = result.FinalEstimate,
+            FinalEstimate = result?.FinalEstimate,
             Status = result != null
-            ? IssueStatus.Completed
-            : (issue.IsCurrent ? IssueStatus.Voting : IssueStatus.Pending),
+                ? IssueStatus.Completed
+                : issue.IsCurrent
+                    ? IssueStatus.Voting
+                    : IssueStatus.Pending,
             IsCurrent = issue.IsCurrent,
         };
     }

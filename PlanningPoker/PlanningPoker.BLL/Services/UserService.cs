@@ -44,7 +44,7 @@ internal class UserService : IUserService
     {
         var refreshMinutes = (int)Math.Floor((refreshTokenExpiry - DateTime.UtcNow).TotalMinutes);
 
-        _cookieService.SetTokenCookie("accessToken", accessToken, (int)JwtDefaults.ExpiresInMinutes);
+        _cookieService.SetTokenCookie("accessToken", accessToken, refreshMinutes);
         _cookieService.SetTokenCookie("refreshToken", refreshToken, refreshMinutes);
     }
 

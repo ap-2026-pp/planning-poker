@@ -1,5 +1,6 @@
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.DTOs.Participant;
+using PlanningPoker.Domain.DTOs.Room;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Mappers;
@@ -46,6 +47,11 @@ public class GameRealtimeService(
     public async Task NotifyIssuesImportedAsync(Game game, IEnumerable<IssueDto> select)
     {
         await gameRoomNotifier.NotifyIssuesImportedAsync(game.Id, select);
+    }
+
+    public async Task NotifyRoundStateUpdatedAsync(Game game, RoomStateDto toDto)
+    {
+        await gameRoomNotifier.NotifyRoundStateUpdatedAsync(game.Id, toDto);
     }
 
     private async Task NotifyAuthorizedUsersAboutGameUpdateAsync(Game game)

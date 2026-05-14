@@ -29,10 +29,12 @@ public class RoomController : ControllerBase
         return Ok(state);
     }
 
-    [HttpPost("reset-round")]
-    public async Task<IActionResult> ResetRound([FromRoute] Guid gameId)
+    [HttpPost("issues/{issueId:guid}/reset-round")]
+    public async Task<IActionResult> ResetIssueRound(
+        [FromRoute] Guid gameId,
+        [FromRoute] Guid issueId)
     {
-        var state = await _roomService.ResetRoundAsync(gameId);
+        var state = await _roomService.ResetRoundAsync(gameId, issueId);
         return Ok(state);
     }
 }

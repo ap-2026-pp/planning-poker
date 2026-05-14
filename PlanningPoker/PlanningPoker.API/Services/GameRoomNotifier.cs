@@ -3,6 +3,7 @@ using PlanningPoker.API.Hubs;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.DTOs.Participant;
+using PlanningPoker.Domain.DTOs.Room;
 using PlanningPoker.Domain.Interfaces.Services;
 
 namespace PlanningPoker.API.Services;
@@ -29,6 +30,9 @@ public class GameRoomNotifier(IHubContext<GameRoomHub> hubContext) : IGameRoomNo
 
     public Task NotifyIssuesImportedAsync(Guid gameId, IEnumerable<IssueDto> issues) 
         => NotifyGroupAsync(gameId, GameRoomHubEvents.IssuesImported, issues);
+
+    public Task NotifyRoundStateUpdatedAsync(Guid gameId, RoomStateDto roomState)
+        => NotifyGroupAsync(gameId, GameRoomHubEvents.RoundStateUpdated, roomState);
 
     private Task NotifyGroupAsync(Guid gameId, string eventName, object payload)
     {

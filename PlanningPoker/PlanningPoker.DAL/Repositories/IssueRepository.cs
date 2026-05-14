@@ -22,12 +22,13 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
     public async Task<Issue?> GetByGameAndIssueAsync(Guid gameId, Guid issueId)
     {
         return await _dbSet
+            .Include(i => i.VotingResults)
             .FirstOrDefaultAsync(i =>
                 i.GameId == gameId &&
                 i.Id == issueId &&
                 !i.IsRemoved);
     }
-    
+
     public async Task<Issue?> GetLastCreatedIssueAsync(Guid gameId)
     {
         return await _dbSet
@@ -58,13 +59,14 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
 
     public async Task ClearCurrentIssueAsync(Guid gameId)
     {
-        var issue = await _dbSet
-            .FirstOrDefaultAsync(i =>
+        var currentIssues = await _dbSet
+            .Where(i =>
                 i.GameId == gameId &&
                 i.IsCurrent &&
-                !i.IsRemoved);
+                !i.IsRemoved)
+            .ToListAsync();
 
-        if (issue != null)
+        foreach (var issue in currentIssues)
         {
             issue.IsCurrent = false;
         }
@@ -97,7 +99,8 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
 
     public async Task<Issue?> GetByUrlAsync(Guid gameId, string url)
     {
-        return await _context.Issues
+        return await _dbSet
+            .Include(i => i.VotingResults)
             .FirstOrDefaultAsync(issue =>
                 issue.GameId == gameId &&
                 issue.Url == url);
@@ -105,7 +108,8 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
 
     public async Task<Issue?> GetByPlaneIssueIdAsync(Guid gameId, string planeIssueId)
     {
-        return await _context.Issues
+        return await _dbSet
+            .Include(i => i.VotingResults)
             .FirstOrDefaultAsync(issue =>
                 issue.GameId == gameId &&
                 issue.Url != null &&
@@ -114,6 +118,11 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
 
     public async Task<Issue?> GetActiveIssueByGameIdAsync(Guid gameId)
     {
-        return await _dbSet.FirstOrDefaultAsync(i => i.GameId == gameId && i.IsCurrent == true);
+        return await _dbSet
+            .Include(i => i.VotingResults)
+            .FirstOrDefaultAsync(i =>
+                i.GameId == gameId &&
+                i.IsCurrent &&
+                !i.IsRemoved);
     }
 }

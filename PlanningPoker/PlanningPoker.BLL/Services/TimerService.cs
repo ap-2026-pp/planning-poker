@@ -42,18 +42,18 @@ public class TimerService : ITimerService
 
         var activeIssue = await _issueRepository.GetActiveIssueByGameIdAsync(gameId);
 
-        if (activeIssue == null)
+        if (activeIssue is null)
         {
             throw new InvalidOperationException(
                 "Cannot start the timer: please select an active issue for discussion first.");
         }
 
         var game = await _gameRepository.GetByIdAsync(gameId)
-            ?? throw new NotFoundException(nameof(Game), gameId);
+                   ?? throw new NotFoundException(nameof(Game), gameId);
 
-        GameTimer? timer = await _timerRepository.GetByIdAsync(gameId);
+        var timer = await _timerRepository.GetByIdAsync(gameId);
 
-        if (timer == null)
+        if (timer is null)
         {
             timer = new GameTimer { GameId = gameId };
             await _timerRepository.AddAsync(timer);
@@ -76,8 +76,9 @@ public class TimerService : ITimerService
     {
         await _accessService.GetRequiredMasterAsync(gameId, "Stop", "Timer");
 
-        GameTimer? timer = await _timerRepository.GetByIdAsync(gameId);
-        if (timer != null)
+        var timer = await _timerRepository.GetByIdAsync(gameId);
+
+        if (timer is not null)
         {
             _timerRepository.Delete(timer);
             await _timerRepository.SaveChangesAsync();
@@ -91,7 +92,8 @@ public class TimerService : ITimerService
     /// <returns>DTO активного таймера або null, якщо таймер не запущено.</returns>
     public async Task<TimerDto?> GetActiveTimerAsync(Guid gameId)
     {
-        GameTimer? timer = await _timerRepository.GetByIdAsync(gameId);
-        return timer != null ? TimerMapper.ToDto(timer) : null;
+        var timer = await _timerRepository.GetByIdAsync(gameId);
+
+        return timer is not null ? TimerMapper.ToDto(timer) : null;
     }
 }

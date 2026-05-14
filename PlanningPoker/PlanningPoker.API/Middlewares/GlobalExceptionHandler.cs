@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+using System.Security;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using PlanningPoker.Domain.Exceptions;
@@ -10,6 +12,8 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
     {
         var (statusCode, title) = exception switch
         {
+            SecurityException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
+            ValidationException => (StatusCodes.Status400BadRequest, "Bad Request"),
             UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
             ResourceAlreadyExistsException => (StatusCodes.Status409Conflict, "Resource already exists"),
             InvalidOperationException => (StatusCodes.Status400BadRequest, "Bad Request"),

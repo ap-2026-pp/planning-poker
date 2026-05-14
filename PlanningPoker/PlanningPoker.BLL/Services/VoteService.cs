@@ -22,6 +22,7 @@ internal class VoteService : IVoteService
     private readonly IRoomStateService _roomService;
     private readonly IGameAccessService _gameAccessService;
     private readonly IGameRepository _gameRepository;
+    private readonly IGameRealtimeService _realtimeService;
 
     public VoteService(
         IVoteRepository repoVotes,
@@ -29,7 +30,8 @@ internal class VoteService : IVoteService
         IRoomStateService roomService,
         IIssueService issueService,
         IGameAccessService gameAccessService,
-        IGameRepository gameRepository)
+        IGameRepository gameRepository,
+        IGameRealtimeService realtimeService)
     {
         _repoVotes = repoVotes;
         _repoResults = repoResults;
@@ -37,6 +39,7 @@ internal class VoteService : IVoteService
         _roomService = roomService;
         _issueService = issueService;
         _gameRepository = gameRepository;
+        _realtimeService = realtimeService;
     }
 
     /// <summary>
@@ -67,8 +70,11 @@ internal class VoteService : IVoteService
         }
 
         var existingResult = await _repoResults.GetByIssueIdAsync(issueId);
-        if (existingResult != null)
+
+        if (existingResult is not null)
+        {
             throw new ConflictException("Неможливо змінити голос: карти вже відкриті.");
+        }
 
         var vote = await _repoVotes.GetVoteAsync(issueId, participant.Id);
 
@@ -94,6 +100,9 @@ internal class VoteService : IVoteService
 
         await _repoVotes.SaveChangesAsync();
 
+        var roomState = await _roomService.GetRoomStateAsync(gameId);
+        await _realtimeService.NotifyRoundStateUpdatedAsync(game, roomState);
+
         return VoteMapper.ToDto(vote);
     }
 
@@ -109,6 +118,9 @@ internal class VoteService : IVoteService
             AccessControlConstants.UpdateAction,
             AccessControlConstants.GameResource);
 
+        var game = await _gameRepository.GetByIdAsync(gameId)
+                   ?? throw new NotFoundException(nameof(Game), gameId);
+
         await _issueService.GetAndValidateActiveIssueAsync(gameId, issueId);
 
         var vote = await _repoVotes.GetVoteAsync(issueId, participant.Id);
@@ -118,5 +130,8 @@ internal class VoteService : IVoteService
             _repoVotes.Delete(vote);
             await _repoVotes.SaveChangesAsync();
         }
+
+        var roomState = await _roomService.GetRoomStateAsync(gameId);
+        await _realtimeService.NotifyRoundStateUpdatedAsync(game, roomState);
     }
 }

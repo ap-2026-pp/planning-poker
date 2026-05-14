@@ -594,6 +594,12 @@ public class ParticipantService(
         }
 
         game.IsActive = false;
+        
+        foreach (var issue in game.Issues.Where(issue => issue.IsCurrent))
+        {
+            issue.IsCurrent = false;
+        }
+        
         gameRepository.Update(game);
         await participantRepository.SaveChangesAsync();
 

@@ -22,7 +22,8 @@ public class RoomStateService : IRoomStateService
     private readonly IIssueRepository _repoIssues;
     private readonly IVotingHistoryRepository _repoResults;
     private readonly IGameAccessService _gameAccessService;
-    private readonly ITimerService _timerService; 
+    private readonly ITimerService _timerService;
+    private readonly IGameRealtimeService _realtimeService;
 
     public RoomStateService(
         IGameRepository gameRepo,
@@ -30,7 +31,8 @@ public class RoomStateService : IRoomStateService
         IIssueRepository repoIssues,
         IVotingHistoryRepository resultRepo,
         IGameAccessService gameAccess,
-        ITimerService timerService) 
+        ITimerService timerService,
+        IGameRealtimeService realtimeService)
     {
         _repoGames = gameRepo;
         _repoVotes = votesRepo;
@@ -38,6 +40,7 @@ public class RoomStateService : IRoomStateService
         _repoIssues = repoIssues;
         _gameAccessService = gameAccess;
         _timerService = timerService;
+        _realtimeService = realtimeService;
     }
 
     /// <summary>
@@ -53,8 +56,8 @@ public class RoomStateService : IRoomStateService
             AccessControlConstants.GameResource);
 
         var game = await _repoGames.GetByIdAsync(gameId)
-            ?? throw new NotFoundException("Game", gameId);
-        
+                   ?? throw new NotFoundException("Game", gameId);
+
         var timerDto = await _timerService.GetActiveTimerAsync(gameId);
         bool isMaster = currentParticipant.Role == ParticipantRole.Master;
 
@@ -85,7 +88,7 @@ public class RoomStateService : IRoomStateService
             AvailableCards = GetAvailableCards(game),
             CanReveal = canReveal,
             CanManage = canManage,
-            Timer = timerDto, 
+            Timer = timerDto,
             TotalPlayers = game.Participants.Count(p => p.RemovedAt == null && p.Role != ParticipantRole.Spectator),
             Participants = game.Participants
                 .Where(p => p.RemovedAt == null)
@@ -146,68 +149,92 @@ public class RoomStateService : IRoomStateService
 
         await _gameAccessService.EnsureCanRevealCardsAsync(gameId);
 
-        var issue = await _repoIssues.GetActiveIssueByGameIdAsync(gameId)
-            ?? throw new NotFoundException("Active issue not found for this game.");
+        var game = await _repoGames.GetByIdAsync(gameId)
+                   ?? throw new NotFoundException(nameof(Game), gameId);
 
-        var issueId = issue.Id;
-        var existingResult = await _repoResults.GetByIssueIdAsync(issueId);
-        if (existingResult != null)
+        var issue = await _repoIssues.GetActiveIssueByGameIdAsync(gameId) 
+                    ?? throw new NotFoundException("Active issue not found for this game.");
+
+        var existingResult = await _repoResults.GetByIssueIdAsync(issue.Id);
+
+        if (existingResult is null)
         {
-            return await GetRoomStateAsync(gameId);
+            var votes = await _repoVotes.GetVotesByIssueIdAsync(issue.Id);
+            if (votes.Count == 0)
+            {
+                throw new ConflictException("Неможливо відкрити карти, ще ніхто не проголосував.");
+            }
+
+            var result = await CalculateSystemEstimate(votes);
+
+            var votingResult = new VotingResult
+            {
+                Id = Guid.NewGuid(),
+                GameId = gameId,
+                IssueId = issue.Id,
+                FinalEstimate = result.FinalEstimate,
+                Average = result.Average,
+                Agreement = result.Agreement,
+                CreatedAt = DateTime.UtcNow
+            };
+            
+            await _repoResults.AddAsync(votingResult);
+            await _repoResults.SaveChangesAsync();
         }
 
-        var votes = await _repoVotes.GetVotesByIssueIdAsync(issueId);
-        if (!votes.Any())
-        {
-            throw new ConflictException("Неможливо відкрити карти, ще ніхто не проголосував.");
-        }
+        var roomState = await GetRoomStateAsync(gameId);
+        await _realtimeService.NotifyRoundStateUpdatedAsync(game, roomState);
 
-        var result = await CalculateSystemEstimate(votes);
-
-        var votingResult = new VotingResult
-        {
-            Id = Guid.NewGuid(),
-            GameId = gameId,
-            IssueId = issueId,
-            FinalEstimate = result.FinalEstimate,
-            Average = result.Average,
-            Agreement = result.Agreement,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        await _repoResults.AddAsync(votingResult);
-        await _repoResults.SaveChangesAsync();
-
-        return await GetRoomStateAsync(gameId);
+        return roomState;
     }
 
     /// <summary>
     /// Скидає поточний раунд голосування.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
+    /// <param name="issueId">Ідентифікатор issue</param>
     /// <returns>Оновлений стан кімнати після скидання раунду.</returns>
-    public async Task<RoomStateDto> ResetRoundAsync(Guid gameId)
+    public async Task<RoomStateDto> ResetRoundAsync(Guid gameId, Guid issueId)
     {
         await _gameAccessService.GetRequiredMasterAsync(
             gameId,
             AccessControlConstants.UpdateAction,
             AccessControlConstants.GameResource);
         
+        var game = await _repoGames.GetByIdAsync(gameId)
+                   ?? throw new NotFoundException(nameof(Game), gameId);
+
         await _timerService.StopTimerAsync(gameId);
 
-        var issue = await _repoIssues.GetActiveIssueByGameIdAsync(gameId)
-            ?? throw new NotFoundException("Active issue not found.");
+        _ = await _repoIssues.GetByGameAndIssueAsync(gameId, issueId)
+            ?? throw new NotFoundException(nameof(Issue), issueId);
 
-        var issueId = issue.Id;
+        var allIssues = (await _repoIssues.GetByGameIdAsync(gameId)).ToList();
+
+        foreach (var currentIssue in allIssues)
+        {
+            currentIssue.IsCurrent = currentIssue.Id == issueId;
+            _repoIssues.Update(currentIssue);
+        }
+
         var votes = await _repoVotes.GetVotesByIssueIdAsync(issueId);
         var result = await _repoResults.GetByIssueIdAsync(issueId);
 
-        if (result != null) _repoResults.Delete(result);
-        if (votes.Any()) await _repoVotes.DeleteRangeAsync(votes);
+        if (result is not null)
+        {
+            _repoResults.Delete(result);
+        }
+
+        if (votes.Count != 0)
+        {
+            await _repoVotes.DeleteRangeAsync(votes);
+        }
 
         await _repoResults.SaveChangesAsync();
+        var roomState = await GetRoomStateAsync(gameId);
+        await _realtimeService.NotifyRoundStateUpdatedAsync(game, roomState);
 
-        return await GetRoomStateAsync(gameId);
+        return roomState;
     }
 
     /// <summary>
@@ -272,12 +299,14 @@ public class RoomStateService : IRoomStateService
     /// </summary>
     /// <param name="votes">Список голосів учасників.</param>
     /// <returns>Кортеж із фінальною оцінкою, середнім значенням та рівнем узгодженості.</returns>
-    public async Task<(string FinalEstimate, double? Average, double? Agreement)> CalculateSystemEstimate(List<Vote> votes)
+    public async Task<(string FinalEstimate, double? Average, double? Agreement)> CalculateSystemEstimate(
+        List<Vote> votes)
     {
         var numericVotes = votes
-            .Select(vote => double.TryParse(vote.Estimate, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
-                ? value
-                : (double?)null)
+            .Select(vote =>
+                double.TryParse(vote.Estimate, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+                    ? value
+                    : (double?)null)
             .Where(v => v.HasValue)
             .Select(v => v!.Value)
             .ToList();
