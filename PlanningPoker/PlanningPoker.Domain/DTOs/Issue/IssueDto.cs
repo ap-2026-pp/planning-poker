@@ -1,3 +1,5 @@
+using PlanningPoker.Domain.Models;
+
 namespace PlanningPoker.BLL.DTOs.Issue;
 
 /// <summary>
@@ -46,7 +48,7 @@ public class IssueDto
     /// Фінальна оцінка задачі
     /// </summary>
     public string? FinalEstimate { get; set; } 
-    public string? Status { get; set;}
+    public IssueStatus Status { get; set;}
 }
 
 

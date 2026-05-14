@@ -1,4 +1,4 @@
-namespace PlanningPoker.Domain.DTOs.VotingHistory;
+namespace PlanningPoker.Domain.DTOs.Vote;
 
 /// <summary>
 /// Голос одного учасника в конкретному раунді

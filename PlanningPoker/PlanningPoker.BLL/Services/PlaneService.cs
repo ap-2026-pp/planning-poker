@@ -1,7 +1,4 @@
 using System.Text.Json.Serialization;
-using System.Net;
-using System.Net.Http.Json;
-using Microsoft.Extensions.Configuration;
 using PlanningPoker.BLL.Constants;
 using PlanningPoker.BLL.DTOs.Plane;
 using PlanningPoker.Domain.Interfaces.Services;
@@ -11,7 +8,7 @@ namespace PlanningPoker.BLL.Services;
 internal class PlaneService : IPlaneService
 {
     private const string ApiKeyHeaderName = "X-API-Key";
-    private readonly  IGameAccessService _gameAccessService;
+    private readonly IGameAccessService _gameAccessService;
     private readonly HttpClient _httpClient;
     private const int PageSize = 100;
     public PlaneService(IGameAccessService gameAccessService,
@@ -63,7 +60,7 @@ internal class PlaneService : IPlaneService
                 .Select(issue =>
                 {
                     var state = statesMap[issue.State!];
-                   
+
                     return new PlaneIssueDto
                     {
                         Id = issue.Id,
@@ -73,7 +70,7 @@ internal class PlaneService : IPlaneService
                         Status = state.Name,
                         CreatedAt = issue.CreatedAt
                     };
-                    
+
                 })
                 .ToList();
 
@@ -81,7 +78,7 @@ internal class PlaneService : IPlaneService
             cursor = page.NextPageResults ? page.NextCursor : null;
 
         } while (!string.IsNullOrWhiteSpace(cursor));
-        
+
         return issues.OrderBy(i => i.CreatedAt).ToList();
     }
 
@@ -96,7 +93,7 @@ internal class PlaneService : IPlaneService
         await EnsureSuccessfulPlaneResponseAsync(response);
 
         var rawJson = await response.Content.ReadAsStringAsync();
-     
+
         var page = System.Text.Json.JsonSerializer.Deserialize<PlaneStatesPage>(rawJson);
 
         return page?.Results?.ToDictionary(s => s.Id, s => s) ?? new();
@@ -123,13 +120,13 @@ internal class PlaneService : IPlaneService
 
     private sealed class PlaneIssuesPage
     {
-        [JsonPropertyName("next_cursor")] 
+        [JsonPropertyName("next_cursor")]
         public string? NextCursor { get; set; }
-        
-        [JsonPropertyName("next_page_results")] 
+
+        [JsonPropertyName("next_page_results")]
         public bool NextPageResults { get; set; }
-        
-        [JsonPropertyName("results")] 
+
+        [JsonPropertyName("results")]
         public List<PlaneIssueItem> Results { get; set; } = [];
     }
 
@@ -141,20 +138,20 @@ internal class PlaneService : IPlaneService
 
     private sealed class PlaneIssueItem
     {
-        [JsonPropertyName("id")] 
+        [JsonPropertyName("id")]
         public string Id { get; set; } = string.Empty;
 
-        [JsonPropertyName("sequence_id")] 
+        [JsonPropertyName("sequence_id")]
         public int? SequenceId { get; set; }
 
-        [JsonPropertyName("name")] 
+        [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
 
-        [JsonPropertyName("description_html")] 
+        [JsonPropertyName("description_html")]
         public string? DescriptionHtml { get; set; }
 
         [JsonPropertyName("state")]
-        public string? State { get; set; } 
+        public string? State { get; set; }
 
         [JsonPropertyName("created_at")]
         public DateTime CreatedAt { get; set; }
@@ -162,13 +159,13 @@ internal class PlaneService : IPlaneService
 
     private sealed class PlaneStateDetail
     {
-        [JsonPropertyName("id")] 
+        [JsonPropertyName("id")]
         public string Id { get; set; } = string.Empty;
-        
-        [JsonPropertyName("name")] 
+
+        [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
-        
-        [JsonPropertyName("group")] 
+
+        [JsonPropertyName("group")]
         public string Group { get; set; } = string.Empty;
     }
 }

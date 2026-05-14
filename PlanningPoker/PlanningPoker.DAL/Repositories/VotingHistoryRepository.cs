@@ -9,7 +9,7 @@ internal class VotingHistoryRepository : BaseRepository<VotingResult>, IVotingHi
 {
     public VotingHistoryRepository(AppDbContext context) : base(context)
     {
-       
+
     }
 
     public async Task<List<VotingResult>> GetHistoryRawAsync(Guid gameId)
@@ -37,5 +37,10 @@ internal class VotingHistoryRepository : BaseRepository<VotingResult>, IVotingHi
                 .ThenInclude(issue => issue.Votes)
                     .ThenInclude(vote => vote.Participant)
             .FirstOrDefaultAsync();
+    }
+
+    public async Task<VotingResult?> GetByIssueIdAsync(Guid issueId)
+    {
+        return await _dbSet.FirstOrDefaultAsync(r => r.IssueId == issueId);
     }
 }

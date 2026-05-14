@@ -8,10 +8,6 @@ using PlanningPoker.Domain.Interfaces.Services;
 
 namespace PlanningPoker.API.Controllers;
 
-/// <summary>
-/// Контролер для управління задачами (issues) в межах конкретної гри.
-/// Всі операції прив’язані до gameId.
-/// </summary>
 [ApiController]
 [Route("api/games/{gameId:guid}/issues")]
 [Authorize]
@@ -24,9 +20,6 @@ public class IssuesController : ControllerBase
         _issueService = issueService;
     }
 
-    /// <summary>
-    /// Отримати всі задачі гри.
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetIssuesByGame([FromRoute] Guid gameId)
     {
@@ -34,9 +27,6 @@ public class IssuesController : ControllerBase
         return Ok(issues);
     }
 
-    /// <summary>
-    /// Отримати задачу за Id.
-    /// </summary>
     [HttpGet("{issueId:guid}")]
     public async Task<IActionResult> GetIssueById(
         [FromRoute] Guid gameId,
@@ -46,9 +36,6 @@ public class IssuesController : ControllerBase
         return Ok(issue);
     }
 
-    /// <summary>
-    /// Створити нову задачу в межах гри.
-    /// </summary>
     [HttpPost]
     public async Task<IActionResult> CreateIssue(
         [FromRoute] Guid gameId,
@@ -62,9 +49,6 @@ public class IssuesController : ControllerBase
             issue);
     }
 
-    /// <summary>
-    /// Оновити задачу.
-    /// </summary>
     [HttpPut("{issueId:guid}")]
     public async Task<IActionResult> UpdateIssue(
         [FromRoute] Guid gameId,
@@ -75,9 +59,6 @@ public class IssuesController : ControllerBase
         return Ok(issue);
     }
 
-    /// <summary>
-    /// Видалити задачу.
-    /// </summary>
     [HttpDelete("{issueId:guid}")]
     public async Task<IActionResult> DeleteIssue(
         [FromRoute] Guid gameId,
@@ -87,9 +68,6 @@ public class IssuesController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>
-    /// Оновлює порядок задач у грі.
-    /// </summary>
     [HttpPatch("reorder")]
     public async Task<IActionResult> ReorderIssues(
         [FromRoute] Guid gameId,
@@ -99,9 +77,6 @@ public class IssuesController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>
-    /// Зробити задачу активною для голосування.
-    /// </summary>
     [HttpPatch("{issueId:guid}/set-active")]
     public async Task<IActionResult> SetActiveIssue(
         [FromRoute] Guid gameId,
@@ -111,9 +86,6 @@ public class IssuesController : ControllerBase
         return Ok(issue);
     }
 
-    /// <summary>
-    /// Імпорт задач із Plane.
-    /// </summary>
     [HttpPost("import-plane")]
     public async Task<IActionResult> ImportIssuesFromPlane(
         [FromRoute] Guid gameId,
@@ -123,9 +95,6 @@ public class IssuesController : ControllerBase
         return Ok(issues);
     }
 
-    /// <summary>
-    /// Експорт задач у CSV файл.
-    /// </summary>
     [HttpPost("export-csv")]
     public async Task<IActionResult> ExportIssues(
         [FromRoute] Guid gameId,
@@ -136,9 +105,6 @@ public class IssuesController : ControllerBase
         return File(fileResult.Content, "text/csv", fileResult.FileName);
     }
 
-    /// <summary>
-    /// Видалити всі задачі гри.
-    /// </summary>
     [HttpDelete]
     public async Task<IActionResult> DeleteAllIssuesAsync([FromRoute] Guid gameId)
     {

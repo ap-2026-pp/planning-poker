@@ -1,3 +1,4 @@
+using PlanningPoker.Domain.DTOs.Vote;
 namespace PlanningPoker.Domain.DTOs.VotingHistory;
 
 /// <summary>
@@ -32,5 +33,5 @@ public class VotingHistoryDetailsDto
 
     public int TotalPlayers { get; set; }
 
-    public List<VoteResultDto> PlayerResults { get; set; } = new();
+    public List<VoteResultDto> VotingResults { get; set; } = new();
 }

@@ -3,6 +3,7 @@ using PlanningPoker.Domain.Exceptions;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
+using PlanningPoker.Domain.DTOs.Game;
 
 namespace PlanningPoker.BLL.Services;
 
@@ -76,17 +77,18 @@ public class GameAccessService(
                 AccessControlConstants.GameResource);
         }
 
-        if (participant.Role == ParticipantRole.Master)
+        if (participant.Game.TimerEndsAt.HasValue)
         {
-            return participant;
+            bool isTimerFinished = participant.Game.TimerEndsAt <= DateTime.UtcNow;
+            
+            if (isTimerFinished && participant.Game.AutoRevealCards)
+            {
+                return participant;
+            }
         }
-
-        if (participant.Game.RevealPolicy == RevealPolicy.Everyone)
-        {
-            return participant;
-        }
-
-        if (participant.Game.RevealPolicy == RevealPolicy.SpecificParticipants && participant.CanRevealCards)
+        if (participant.Game.RevealPolicy == RevealPolicy.Everyone ||
+            participant.Role == ParticipantRole.Master ||
+            participant.CanRevealCards)
         {
             return participant;
         }
@@ -110,7 +112,7 @@ public class GameAccessService(
             AccessControlConstants.VoteAction,
             AccessControlConstants.GameResource);
 
-        return participant.Role == ParticipantRole.Spectator 
+        return participant.Role == ParticipantRole.Spectator
             ? throw new ForbiddenException(
                 AccessControlConstants.VoteAction,
                 AccessControlConstants.GameResource)
@@ -138,20 +140,8 @@ public class GameAccessService(
             throw new ForbiddenException(action, resourceName);
         }
 
-        if (participant.Role == ParticipantRole.Master)
-        {
-            return participant;
-        }
-
-        if (participant.Game.IssuesPolicy == IssuesPolicy.Everyone)
-        {
-            return participant;
-        }
-
-        if (
-            participant.Game.IssuesPolicy == IssuesPolicy.SpecificParticipants &&
-            participant.CanManageIssues
-        )
+        if (participant.Game.IssuesPolicy == IssuesPolicy.Everyone ||
+            participant.CanManageIssues)
         {
             return participant;
         }

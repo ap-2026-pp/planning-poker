@@ -19,8 +19,11 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IIssueRepository, IssueRepository>();
         services.AddScoped<IParticipantRepository, ParticipantRepository>();
+        services.AddScoped<IVoteRepository, VoteRepository>();
+        services.AddScoped<IVotingHistoryRepository, VotingHistoryRepository>();
         services.AddScoped<IVotingHistoryRepository, VotingHistoryRepository>();
         services.AddScoped<IGuestSessionRepository, GuestSessionRepository>();
+        services.AddScoped<ITimerRepository, TimerRepository>();
         return services;
     }
 }

@@ -70,7 +70,7 @@ public class CurrentUserContext(
 
         return await userRepository.GetByIdAsync(userId.Value);
     }
-    
+
     /// <summary>
     /// Повертає ідентифікатор поточного авторизованого користувача, якщо він присутній у контексті запиту.
     /// Якщо користувач неавторизований, повертає <see langword="null"/>.

@@ -5,21 +5,23 @@ namespace PlanningPoker.Domain.Mappers;
 
 public static class GameMapper
 {
-    public static Game ToGame(CreateGameRequestDto createGameRequestDto) =>
+    public static Game ToGame(CreateGameRequestDto dto) =>
         new()
         {
-            Name = createGameRequestDto.Name,
-            VotingSystem = createGameRequestDto.VotingSystem,
-            RevealPolicy = createGameRequestDto.RevealPolicy,
-            IssuesPolicy = createGameRequestDto.IssuesPolicy,
-            AutoRevealCards = createGameRequestDto.AutoRevealCards,
-            ShowAverage = createGameRequestDto.ShowAverage,
-            ShowCountdownAnimation = createGameRequestDto.ShowCountdownAnimation,
-            EnableFunFeatures = createGameRequestDto.EnableFunFeatures,
+            Name = dto.DisplayName,
+            VotingSystem = dto.VotingSystem,
+            CustomValues = dto.CustomValues,
+            RevealPolicy = dto.RevealPolicy,
+            IssuesPolicy = dto.IssuesPolicy,
+            AutoRevealCards = dto.AutoRevealCards,
+            DefaultTimerMinutes = dto.DefaultTimerMinutes,
+            ShowAverage = dto.ShowAverage,
+            ShowCountdownAnimation = dto.ShowCountdownAnimation,
             IsActive = true,
-            IsDeleted = false
+            IsDeleted = false,
+            CreatedAt = DateTime.UtcNow
         };
-    
+
     public static Game ToGame(UpdateGameRequestDto updateGameRequestDto) =>
         new()
         {
@@ -32,24 +34,28 @@ public static class GameMapper
             ShowCountdownAnimation = updateGameRequestDto.ShowCountdownAnimation,
             EnableFunFeatures = updateGameRequestDto.EnableFunFeatures,
             IsActive = updateGameRequestDto.IsActive,
+            DefaultTimerMinutes = updateGameRequestDto.DefaultTimerMinutes,
+            AutoResetTimer = updateGameRequestDto.AutoResetTimer,
             IsDeleted = false
         };
+
 
     public static GameDto ToGameDto(Game game) =>
         new()
         {
             Id = game.Id,
             Name = game.Name,
-            VotingSystem = game.VotingSystem,
             InviteCode = game.InviteCode,
+            VotingSystem = game.VotingSystem,
+            CustomValues = game.CustomValues,
             RevealPolicy = game.RevealPolicy,
             IssuesPolicy = game.IssuesPolicy,
-            AutoRevealCards = game.AutoRevealCards,
             ShowAverage = game.ShowAverage,
             ShowCountdownAnimation = game.ShowCountdownAnimation,
             EnableFunFeatures = game.EnableFunFeatures,
+            DefaultTimerMinutes = game.DefaultTimerMinutes,
             IsActive = game.IsActive,
-            CreatedAt =  game.CreatedAt,
+            CreatedAt = game.CreatedAt,
             CreatedBy = game.CreatedBy,
             Participants = (game.Participants ?? [])
                 .Where(participant => participant.RemovedAt == null)
@@ -57,7 +63,7 @@ public static class GameMapper
                 .ToList(),
             Issues = (game.Issues ?? [])
                 .Where(issue => !issue.IsRemoved)
-                .Select(IssueMapper.ToDto)
+                .Select(issue => IssueMapper.ToDto(issue, issue.VotingResults?.FirstOrDefault()))
                 .ToList()
         };
 

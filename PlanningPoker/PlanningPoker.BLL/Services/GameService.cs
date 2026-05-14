@@ -33,14 +33,25 @@ public class GameService(
     /// </exception>
     public async Task<GameDto> AddGameAsync(CreateGameRequestDto createGameRequestDto)
     {
+        if (createGameRequestDto.VotingSystem == VotingSystem.Custom)
+        {
+            ValidateCustomValues(createGameRequestDto.CustomValues);
+
+            createGameRequestDto.CustomValues = string.Join(", ", createGameRequestDto.CustomValues
+                .Split(',')
+                .Select(v => v.Trim())
+                .Where(v => !string.IsNullOrEmpty(v))
+                .Distinct(StringComparer.OrdinalIgnoreCase));
+        }
+
         var currentUser = await currentUserContext.GetRequiredUserAsync();
         var game = GameMapper.ToGame(createGameRequestDto);
         await EnsureUniqueGameNameAsync(game.Name, currentUser.Id);
 
-        var hostDisplayName = string.IsNullOrWhiteSpace(createGameRequestDto.HostDisplayName)
+        var hostDisplayName = string.IsNullOrWhiteSpace(createGameRequestDto.DisplayName)
             ? currentUser.DisplayName
-            : createGameRequestDto.HostDisplayName.Trim();
-        
+            : createGameRequestDto.DisplayName.Trim();
+
         game.CreatedBy = currentUser.Id;
         game.IssuesPolicy = createGameRequestDto.IssuesPolicy;
         game.RevealPolicy = createGameRequestDto.RevealPolicy;
@@ -86,7 +97,7 @@ public class GameService(
 
         return GameMapper.ToGameDto(game);
     }
-    
+
     /// <summary>
     /// Оновлює параметри існуючої гри.
     /// Операція доступна лише користувачу з роллю Master у цій грі.
@@ -109,16 +120,36 @@ public class GameService(
 
         await gameAccessService.EnsureCanUpdateGameAsync(game);
 
+        if (dto.VotingSystem == VotingSystem.Custom)
+        {
+            ValidateCustomValues(dto.CustomValues);
+
+            dto.CustomValues = string.Join(", ",
+                dto.CustomValues!
+                    .Split(',')
+                    .Select(x => x.Trim())
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase));
+        }
+        else
+        {
+            dto.CustomValues = null;
+        }
+
+        await EnsureUniqueGameNameAsync(dto.Name, game.CreatedBy, gameId);
+
         game.Name = dto.Name.Trim();
         game.VotingSystem = dto.VotingSystem;
         game.RevealPolicy = dto.RevealPolicy;
         game.IssuesPolicy = dto.IssuesPolicy;
         game.AutoRevealCards = dto.AutoRevealCards;
         game.ShowAverage = dto.ShowAverage;
+        game.DefaultTimerMinutes = dto.DefaultTimerMinutes; // Час таймера
+        game.AutoResetTimer = dto.AutoResetTimer;
         game.ShowCountdownAnimation = dto.ShowCountdownAnimation;
         game.IsActive = dto.IsActive;
         game.EnableFunFeatures = dto.EnableFunFeatures;
-
+        
         var revealAllowedIds = dto.RevealAllowedParticipantIds.ToHashSet();
         var issuesAllowedIds = dto.IssuesAllowedParticipantIds.ToHashSet();
 
@@ -321,6 +352,41 @@ public class GameService(
         if (exists)
         {
             throw new ResourceAlreadyExistsException(nameof(Game), gameName);
+        }
+    }
+
+    /// <summary>
+    /// Перевіряє коректність значень карт, введеним користувачем.
+    /// </summary>
+    /// <param name="customValues"></param>
+    /// <exception cref="ValidationException"></exception>
+    private void ValidateCustomValues(string? customValues)
+    {
+        if (string.IsNullOrWhiteSpace(customValues))
+            throw new ValidationException("Custom values can't be empty");
+
+        var cards = customValues.Split(',')
+            .Select(v => v.Trim())
+            .Where(v => !string.IsNullOrEmpty(v))
+            .ToList();
+
+        if (cards.Count < 2)
+            throw new ValidationException("You need at least 2 cards");
+
+        if (cards.Count > 13)
+            throw new ValidationException("Maximum 15 cards allowed, you can write 13 and also break and question cards.");
+
+        if (cards.Distinct(StringComparer.OrdinalIgnoreCase).Count() != cards.Count)
+            throw new ValidationException("Dublicate card values aren't allowed!");
+
+        var regex = new System.Text.RegularExpressions.Regex(@"^[a-zA-Z0-9.\-\s]+$");
+        foreach (var card in cards)
+        {
+            if (card.Length > 3)
+                throw new ValidationException($"Card '{card}' is too long. Max 3 characters!");
+
+            if (!regex.IsMatch(card))
+                throw new ValidationException($"Card '{card}' contains forbidden characters. Use only letters, numbers, dots or dashes.");
         }
     }
 }

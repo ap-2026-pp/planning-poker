@@ -12,8 +12,9 @@ public class GameParticipant
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
     public bool IsConnected { get; set; }
     public DateTime? RemovedAt { get; set; }
-    public bool CanManageIssues { get; set; }
-    public bool CanRevealCards { get; set; }
+    public bool CanRevealCards { get; set; } = false;
+    public bool CanManageIssues { get; set; } = false;
     public ICollection<Vote> Votes { get; set; } = new List<Vote>();
     public ICollection<Issue> Issues { get; set; } = new List<Issue>();
 }
+

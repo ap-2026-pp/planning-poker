@@ -1,7 +1,8 @@
+using PlanningPoker.Domain.DTOs.Vote;
 namespace PlanningPoker.Domain.DTOs.VotingHistory;
 
 /// <summary>
-/// Один запис історії абоо завершеного результату
+/// Один запис історії або завершеного результату
 /// </summary>
 public class VotingHistoryItemDto
 {
@@ -17,6 +18,6 @@ public class VotingHistoryItemDto
     public DateTime CompletedAt { get; set;}
     public int TotalPlayers {get; set; }
     public int VotedCount { get; set; }
-    public List<VoteResultDto> PlayerResults {get; set; } = new();
+    public List<VoteResultDto> VotingResults {get; set; } = new();
 }
 

@@ -1,4 +1,5 @@
 using PlanningPoker.Domain.Models;
+using PlanningPoker.Domain.DTOs.Game;
 namespace PlanningPoker.Domain.Interfaces.Services;
 
 public interface IGameAccessService
@@ -10,6 +11,7 @@ public interface IGameAccessService
     Task<GameParticipant> EnsureCanVoteAsync(Guid gameId);
     Task<GameParticipant> GetRequiredActiveParticipantAsync(Guid gameId, Guid participantId);
     Task<IReadOnlyList<GameParticipant>> GetOtherActiveNonSpectatorParticipantsAsync(Game game, Guid excludedParticipantId);
+    Task UpdateBulkPermissionsAsync(Guid gameId, UpdateBulkPermissionsRequestDto dto);
     Task<GameParticipant> GetRequiredNonSpectatorParticipantAsync(
         Guid gameId,
         Guid participantId,

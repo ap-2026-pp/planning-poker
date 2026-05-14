@@ -10,7 +10,8 @@ namespace PlanningPoker.API.Controllers;
 [Authorize]
 [Route("api/games")]
 public class GameParticipantController(
-    IParticipantService participantService) : ControllerBase
+    IParticipantService participantService, 
+    IGameAccessService gameAccessService) : ControllerBase
 {
     [HttpGet("{gameId:guid}/participants")]
     public async Task<ActionResult<IEnumerable<GameParticipantDto>>> GetGameParticipants(Guid gameId)
@@ -70,5 +71,12 @@ public class GameParticipantController(
     {
         await participantService.TransferMasterAsync(gameId, participantId);
         return NoContent();
+    }
+
+    [HttpPut("{gameId:guid}/participants/permissions")]
+    public async Task<IActionResult> UpdatePermissions(Guid gameId, [FromBody] UpdateBulkPermissionsRequestDto dto)
+    {
+        await gameAccessService.UpdateBulkPermissionsAsync(gameId, dto);
+        return Ok();  
     }
 }

@@ -1,3 +1,5 @@
+using System.Net;
+using Microsoft.EntityFrameworkCore.Query;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.Models;
 
@@ -5,7 +7,7 @@ namespace PlanningPoker.Domain.Mappers;
 
 public static class IssueMapper
 {
-    public static IssueDto ToDto(Issue issue)
+    public static IssueDto ToDto(Issue issue, VotingResult? result = null)
     {
         return new IssueDto
         {
@@ -16,11 +18,15 @@ public static class IssueMapper
             Description = issue.Description,
             Order = issue.Order,
             IsCurrent = issue.IsCurrent,
+            FinalEstimate = result?.FinalEstimate,
+            Status = result != null
+                ? IssueStatus.Completed
+                : (issue.IsCurrent ? IssueStatus.Voting : IssueStatus.Pending)
             IsRemoved = issue.IsRemoved,
         };
     }
 
-    public static IssueDetailsDto ToDetailsDto(Issue issue)
+    public static IssueDetailsDto ToDetailsDto(Issue issue, VotingResult? result)
     {
         return new IssueDetailsDto
         {
@@ -29,35 +35,11 @@ public static class IssueMapper
             Url = issue.Url,
             Title = issue.Title,
             Description = issue.Description,
-            IsCurrent = issue.IsCurrent
+            FinalEstimate = result.FinalEstimate,
+            Status = result != null
+            ? IssueStatus.Completed
+            : (issue.IsCurrent ? IssueStatus.Voting : IssueStatus.Pending),
+            IsCurrent = issue.IsCurrent,
         };
-    }
-    public static Issue ToEntity(
-        CreateIssueDto dto,
-        Guid gameId,
-        Guid createdByParticipantId,
-        int order
-    )
-    {
-        return new Issue
-        {
-            Id = Guid.NewGuid(),
-            GameId = gameId,
-            Url = string.Empty,
-            Title = dto.Title,
-            Description = string.Empty,
-            Order = order,
-            IsCurrent = false,
-            IsRemoved = false,
-            CreatedAt = DateTime.UtcNow,
-            CreatedBy = createdByParticipantId
-    };
-    }
-
-    public static void UpdateEntity(Issue issue, UpdateIssueDto dto)
-    {
-        issue.Url = dto.Url ?? string.Empty;
-        issue.Title = dto.Title;
-        issue.Description = dto.Description ?? string.Empty;
     }
 }

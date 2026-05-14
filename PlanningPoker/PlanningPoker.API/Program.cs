@@ -93,15 +93,11 @@ builder.Services
         {
             OnMessageReceived = context =>
             {
-                if (context.Request.Path.StartsWithSegments(GameRoomHub.HubRoute))
+                var token = context.Request.Cookies["accessToken"];
+                if (!string.IsNullOrEmpty(token))
                 {
-                    var accessToken = context.Request.Query["access_token"].ToString();
-                    if (!string.IsNullOrWhiteSpace(accessToken))
-                    {
-                        context.Token = accessToken;
-                    }
+                    context.Token = token;
                 }
-
                 return Task.CompletedTask;
             },
             OnTokenValidated = async context =>
@@ -112,31 +108,17 @@ builder.Services
                     return;
                 }
 
-                var accessToken = context.Request.Path.StartsWithSegments(GameRoomHub.HubRoute)
-                    ? context.Request.Query["access_token"].ToString()
-                    : null;
-
-                if (string.IsNullOrWhiteSpace(accessToken))
+                const string bearerPrefix = "Bearer ";
+                var authorizationHeader = context.Request.Headers.Authorization.ToString();
+                if (authorizationHeader.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    const string bearerPrefix = "Bearer ";
-                    var authorizationHeader = context.Request.Headers.Authorization.ToString();
-                    if (authorizationHeader.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+                    var accessToken = authorizationHeader[bearerPrefix.Length..].Trim();
+                    var guestSessionService = context.HttpContext.RequestServices.GetRequiredService<IGuestSessionService>();
+                    var isActive = await guestSessionService.IsGuestAccessTokenActiveAsync(accessToken);
+                    if (!isActive)
                     {
-                        accessToken = authorizationHeader[bearerPrefix.Length..].Trim();
+                        context.Fail("Guest access token is invalid or expired.");
                     }
-                }
-
-                if (string.IsNullOrWhiteSpace(accessToken))
-                {
-                    context.Fail("Guest access token is missing.");
-                    return;
-                }
-
-                var guestSessionService = context.HttpContext.RequestServices.GetRequiredService<IGuestSessionService>();
-                var isActive = await guestSessionService.IsGuestAccessTokenActiveAsync(accessToken);
-                if (!isActive)
-                {
-                    context.Fail("Guest access token is invalid or expired.");
                 }
             }
         };

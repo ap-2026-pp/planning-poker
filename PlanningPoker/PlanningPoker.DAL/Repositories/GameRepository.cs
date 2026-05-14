@@ -24,7 +24,7 @@ internal class GameRepository(AppDbContext context) : BaseRepository<Game>(conte
     {
         return await _dbSet.AnyAsync(g => g.InviteCode == inviteCode && !g.IsDeleted);
     }
-    
+
     public new async Task<Game?> GetByIdAsync(Guid id)
     {
         return await _dbSet

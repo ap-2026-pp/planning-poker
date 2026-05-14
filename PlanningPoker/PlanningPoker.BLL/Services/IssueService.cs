@@ -33,7 +33,7 @@ public class IssueService(
             AccessControlConstants.IssuesResource);
         var issues = await repoIssues.GetByGameIdAsync(gameId);
 
-        return issues.Select(IssueMapper.ToDto);
+        return issues.Select(issue => IssueMapper.ToDto(issue));
     }
 
     /// <summary>
@@ -49,7 +49,7 @@ public class IssueService(
         var issue = await repoIssues.GetByGameAndIssueAsync(gameId, issueId)
                     ?? throw new NotFoundException(nameof(Issue), issueId);
 
-        return IssueMapper.ToDetailsDto(issue);
+        return IssueMapper.ToDetailsDto(issue, issue.VotingResults?.FirstOrDefault());
     }
 
     /// <summary>
@@ -224,6 +224,9 @@ public class IssueService(
         }
     }
 
+    /// <summary>
+    /// Встановлює задачу як активну для поточного голосування.
+    /// </summary>
     public async Task<IssueDto> SetIssueActiveAsync(Guid gameId, Guid issueId)
     {
         var game = await GetGameOrThrowAsync(gameId);
@@ -254,6 +257,7 @@ public class IssueService(
         }
 
         issue.IsCurrent = true;
+
         repoIssues.Update(issue);
 
         await repoIssues.SaveChangesAsync();
@@ -266,6 +270,29 @@ public class IssueService(
         await gameRealtimeService.NotifyIssueUpdatedAsync(game, IssueMapper.ToDto(issue));
 
         return IssueMapper.ToDto(issue);
+    }
+
+    public async Task<Issue> GetAndValidateActiveIssueAsync(Guid gameId, Guid issueId)
+    {
+        var issue = await repoIssues.GetByIdAsync(issueId)
+            ?? throw new NotFoundException("Issue", issueId);
+
+        if (issue.GameId != gameId)
+        {
+            throw new NotFoundException($"Issue {issueId} не знайдено в межах поточної гри.");
+        }
+
+        if (!issue.IsCurrent)
+        {
+            throw new InvalidOperationException("Голосування можливе тільки для активного питання (IsCurrent).");
+        }
+
+        if (issue.IsRemoved)
+        {
+            throw new NotFoundException("Issue", issueId);
+        }
+
+        return issue;
     }
 
     /// <summary>
@@ -326,7 +353,7 @@ public class IssueService(
                 Id = Guid.NewGuid(),
                 GameId = gameId,
                 Url = planeUrl,
-                Code = FormatCode(nextCodeNumber++),
+                Code = FormatCode(nextNumber),
                 Title = planeIssue.Name.Trim(),
                 Description = planeIssue.DescriptionHtml?.Trim() ?? string.Empty,
                 Order = nextOrder++,
@@ -350,6 +377,10 @@ public class IssueService(
             allIssues.Select(IssueMapper.ToDto));
 
         return allIssues.Select(IssueMapper.ToDto);
+        
+        //TODO
+        var allIssues = await repoIssues.GetByGameIdAsync(gameId);
+        return allIssues.Select(i => IssueMapper.ToDto(i, i.VotingResults?.FirstOrDefault()));
     }
 
     /// <summary>
@@ -392,7 +423,7 @@ public class IssueService(
             FileName = $"issues-{gameId}.csv"
         };
     }
-
+    
     private static string FormatCode(int number) => $"PP-{number}";
 
     private async Task<string> GenerateIssueCodeAsync(Guid gameId)

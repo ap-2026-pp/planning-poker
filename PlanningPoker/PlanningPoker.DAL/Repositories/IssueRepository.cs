@@ -111,4 +111,9 @@ internal class IssueRepository : BaseRepository<Issue>, IIssueRepository
                 issue.Url != null &&
                 issue.Url.Contains(planeIssueId));
     }
+
+    public async Task<Issue?> GetActiveIssueByGameIdAsync(Guid gameId)
+    {
+        return await _dbSet.FirstOrDefaultAsync(i => i.GameId == gameId && i.IsCurrent == true);
+    }
 }

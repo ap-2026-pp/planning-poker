@@ -69,7 +69,7 @@ internal class ParticipantRepository(AppDbContext context) : BaseRepository<Game
         participant.IsConnected = false;
         participant.RemovedAt = DateTime.UtcNow;
         _dbSet.Update(participant);
-    }
+    } 
 
     public void MarkParticipantOffline(GameParticipant participant)
     {

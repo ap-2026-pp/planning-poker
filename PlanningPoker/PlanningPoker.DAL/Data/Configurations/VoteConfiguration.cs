@@ -12,7 +12,7 @@ public class VoteConfiguration : IEntityTypeConfiguration<Vote>
 
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.FinalEstimate)
+        builder.Property(x => x.Estimate)
             .IsRequired()
             .HasMaxLength(200);
 

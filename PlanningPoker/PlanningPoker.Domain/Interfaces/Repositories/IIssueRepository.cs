@@ -18,6 +18,7 @@ public interface IIssueRepository : IBaseRepository<Issue>
     Task<string> GenerateIssueCodeAsync(Guid gameId);
     Task<Issue?> GetLastCreatedIssueAsync(Guid gameId);
     Task<IEnumerable<Issue>> GetByGameIdWithVotingResultsAsync(Guid gameId);
+    Task<Issue?> GetActiveIssueByGameIdAsync(Guid gameId);
     Task<Issue?> GetByUrlAsync(Guid gameId, string url);
     
     Task<Issue?> GetByPlaneIssueIdAsync(Guid gameId, string planeIssueId);

@@ -17,12 +17,15 @@ public static class DependencyInjection
         services.AddScoped<IIssueService, IssueService>();
         services.AddScoped<IVotingHistoryService, VotingHistoryService>();
         services.AddScoped<IGameAccessService, GameAccessService>();
-        
+        services.AddScoped<IVoteService, VoteService>();
+        services.AddScoped<IRoomStateService, RoomStateService>();
+        services.AddScoped<ICookieService, CookieService>();
+        services.AddScoped<ITimerService, TimerService>();
         services.AddScoped<IGuestAccountLinkService, GuestAccountLinkService>();
 
-        services.AddHttpClient<IPlaneService,PlaneService>(client =>
+        services.AddHttpClient<IPlaneService, PlaneService>(client =>
         {
-           client.BaseAddress = new Uri("https://api.plane.so");
+            client.BaseAddress = new Uri("https://api.plane.so");
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 

@@ -11,33 +11,43 @@ using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.BLL.Services;
 
-internal class UserService(
-    UserManager<User> userManager,
-    IJwtService jwtService,
-    ICurrentUserContext currentUserContext,
-    IGuestAccountLinkService guestAccountLinkService)
+internal class UserService
     : IUserService
 {
-    /// <summary>
-    /// Реєструє нового користувача, створює для нього пару токенів та, за наявності guest-сесії,
-    /// прив’язує гостьового учасника до нового акаунта.
-    /// </summary>
-    /// <param name="dto">Дані для реєстрації користувача.</param>
-    /// <returns>Дані авторизації нового користувача у вигляді <see cref="AuthResponseDto"/>.</returns>
-    /// <exception cref="ArgumentNullException">
-    /// Виникає, якщо вхідний DTO дорівнює <see langword="null"/>.
-    /// </exception>
-    /// <exception cref="ResourceAlreadyExistsException">
-    /// Виникає, якщо користувач із таким email уже існує.
-    /// </exception>
-    /// <exception cref="InvalidOperationException">
-    /// Виникає, якщо не вдалося створити користувача або зберегти його дані.
-    /// </exception>
-    public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
+    private readonly UserManager<User> _userManager;
+    private readonly IJwtService _jwtService;
+    private readonly ICurrentUserAccessor _currentUser;
+    private readonly ICookieService _cookieService;
+    private readonly IGuestAccountLinkService _guestAccountLinkService;
+    private readonly ICurrentUserContext _currentUserContext;
+    public UserService(
+        UserManager<User> userManager,
+        IJwtService jwtService,
+        ICurrentUserAccessor currentUser,
+        ICookieService cookieService,
+        IGuestAccountLinkService guestAccountLinkService,
+        ICurrentUserContext currentUserContext)
+    {
+        _userManager = userManager;
+        _jwtService = jwtService;
+        _currentUser = currentUser;
+        _cookieService = cookieService;
+        _guestAccountLinkService = guestAccountLinkService;
+        _currentUserContext = currentUserContext;
+    }
+    private void SetAuthCookies(string accessToken, string refreshToken, DateTime refreshTokenExpiry)
+    {
+        var refreshMinutes = (int)Math.Floor((refreshTokenExpiry - DateTime.UtcNow).TotalMinutes);
+
+        _cookieService.SetTokenCookie("accessToken", accessToken, (int)JwtDefaults.ExpiresInMinutes);
+        _cookieService.SetTokenCookie("refreshToken", refreshToken, refreshMinutes);
+    }
+
+    public async Task<UserDto> RegisterAsync(RegisterDto dto)
     {
         ArgumentNullException.ThrowIfNull(dto);
 
-        var existingUser = await userManager.FindByEmailAsync(dto.Email);
+        var existingUser = await _userManager.FindByEmailAsync(dto.Email);
         if (existingUser is not null)
             throw new ResourceAlreadyExistsException(nameof(User), "email", dto.Email);
 
@@ -53,119 +63,76 @@ internal class UserService(
             RefreshToken = string.Empty
         };
 
-        var result = await userManager.CreateAsync(user, dto.Password);
+        var result = await _userManager.CreateAsync(user, dto.Password);
 
         if (!result.Succeeded)
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
 
-        var refreshToken = jwtService.GenerateRefreshToken();
+        var refreshToken = _jwtService.GenerateRefreshToken();
         user.RefreshToken = refreshToken;
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(JwtDefaults.RefreshTokenExpiresInDays);
 
-        await userManager.UpdateAsync(user);
-        await guestAccountLinkService.AttachGuestParticipantToUserAsync(user);
+        await _userManager.UpdateAsync(user);
+        await _guestAccountLinkService.AttachGuestParticipantToUserAsync(user);
 
-        var roles = await userManager.GetRolesAsync(user);
-        var accessToken = jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
-
-        return AuthMapper.ToAuthResponseDto(
-            accessToken,
-            refreshToken,
-            DateTime.UtcNow.AddMinutes(JwtDefaults.ExpiresInMinutes),
-            user
-        );
+        var roles = await _userManager.GetRolesAsync(user);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email!, roles);
+        SetAuthCookies(accessToken, refreshToken, user.RefreshTokenExpiryTime.Value);
+        return AuthMapper.ToUserDto(user);
     }
 
-    /// <summary>
-    /// Виконує автентифікацію користувача за email і паролем, генерує нову пару токенів та,
-    /// за наявності guest-сесії, прив’язує гостьового учасника до авторизованого акаунта.
-    /// </summary>
-    /// <param name="dto">Облікові дані користувача для входу.</param>
-    /// <returns>Дані авторизації у вигляді <see cref="AuthResponseDto"/>.</returns>
-    /// <exception cref="ArgumentNullException">
-    /// Виникає, якщо вхідний DTO дорівнює <see langword="null"/>.
-    /// </exception>
-    /// <exception cref="UnauthorizedAccessException">
-    /// Виникає, якщо email або пароль некоректні.
-    /// </exception>
-    public async Task<AuthResponseDto> LoginAsync(LoginDto dto)
+    public async Task<UserDto> LoginAsync(LoginDto dto)
     {
         ArgumentNullException.ThrowIfNull(dto);
 
-        var user = await userManager.FindByEmailAsync(dto.Email);
+        var user = await _userManager.FindByEmailAsync(dto.Email);
         if (user is null)
             throw new UnauthorizedAccessException("Invalid credentials.");
 
-        var isPasswordValid = await userManager.CheckPasswordAsync(user, dto.Password);
+        var isPasswordValid = await _userManager.CheckPasswordAsync(user, dto.Password);
         if (!isPasswordValid)
             throw new UnauthorizedAccessException("Invalid credentials.");
 
-        var roles = await userManager.GetRolesAsync(user);
-        var accessToken = jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
-        var refreshToken = jwtService.GenerateRefreshToken();
+        var roles = await _userManager.GetRolesAsync(user);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
+        var refreshToken = _jwtService.GenerateRefreshToken();
 
         user.RefreshToken = refreshToken;
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(JwtDefaults.RefreshTokenExpiresInDays);
 
-        await userManager.UpdateAsync(user);
-        await guestAccountLinkService.AttachGuestParticipantToUserAsync(user);
+        await _userManager.UpdateAsync(user);
+        await _guestAccountLinkService.AttachGuestParticipantToUserAsync(user);
 
-        return AuthMapper.ToAuthResponseDto(
-            accessToken,
-            refreshToken,
-            DateTime.UtcNow.AddMinutes(JwtDefaults.ExpiresInMinutes),
-            user
-        );
+        SetAuthCookies(accessToken, refreshToken, user.RefreshTokenExpiryTime.Value);
+        return AuthMapper.ToUserDto(user);
     }
 
-    /// <summary>
-    /// Оновлює access token і refresh token на основі чинної пари токенів.
-    /// Перевіряє валідність access token, наявність користувача, відповідність refresh token та його строк дії.
-    /// </summary>
-    /// <param name="dto">Поточні access token і refresh token.</param>
-    /// <returns>Нова пара токенів у вигляді <see cref="AuthResponseDto"/>.</returns>
-    /// <exception cref="ArgumentNullException">
-    /// Виникає, якщо вхідний DTO дорівнює <see langword="null"/>.
-    /// </exception>
-    /// <exception cref="SecurityTokenException">
-    /// Виникає, якщо access token некоректний, користувача не знайдено,
-    /// refresh token не збігається або термін його дії завершився.
-    /// </exception>
-    public async Task<AuthResponseDto> RefreshTokensAsync(TokenRequestDto dto)
+    public async Task RefreshTokenAsync()
     {
-        ArgumentNullException.ThrowIfNull(dto);
+        var accessToken = _cookieService.GetCookie("accessToken")
+                          ?? throw new SecurityTokenException("Access token not found in cookies.");
+        var refreshToken = _cookieService.GetCookie("refreshToken")
+                           ?? throw new SecurityTokenException("Refresh token not found in cookies.");
 
-        var principal = jwtService.GetPrincipalFromExpiredToken(dto.AccessToken);
+        var principal = _jwtService.GetPrincipalFromExpiredToken(accessToken);
         var email = principal.FindFirstValue(ClaimTypes.Email);
 
-        if (string.IsNullOrWhiteSpace(email))
-            throw new SecurityTokenException("Invalid token.");
+        var user = await _userManager.FindByEmailAsync(email!)
+                   ?? throw new SecurityTokenException("User not found.");
 
-        var user = await userManager.FindByEmailAsync(email);
-        if (user is null)
-            throw new SecurityTokenException("User not found.");
 
-        if (user.RefreshToken != dto.RefreshToken)
-            throw new SecurityTokenException("Invalid refresh token.");
+        if (user.RefreshToken != refreshToken || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+            throw new SecurityTokenException("Invalid or expired refresh token.");
 
-        if (user.RefreshTokenExpiryTime is null || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
-            throw new SecurityTokenException("Refresh token expired.");
-
-        var roles = await userManager.GetRolesAsync(user);
-        var newAccessToken = jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
-        var newRefreshToken = jwtService.GenerateRefreshToken();
+        var roles = await _userManager.GetRolesAsync(user);
+        var newAccessToken = _jwtService.GenerateAccessToken(user.Id, GetRequiredEmail(user), roles);
+        var newRefreshToken = _jwtService.GenerateRefreshToken();
 
         user.RefreshToken = newRefreshToken;
         user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(JwtDefaults.RefreshTokenExpiresInDays);
+        await _userManager.UpdateAsync(user);
 
-        await userManager.UpdateAsync(user);
-
-        return AuthMapper.ToAuthResponseDto(
-            newAccessToken,
-            newRefreshToken,
-            DateTime.UtcNow.AddMinutes(JwtDefaults.ExpiresInMinutes),
-            user
-        );
+        SetAuthCookies(newAccessToken, newRefreshToken, user.RefreshTokenExpiryTime.Value);
     }
 
     /// <summary>
@@ -180,12 +147,16 @@ internal class UserService(
     /// </exception>
     public async Task RevokeTokenAsync()
     {
-        var user = await currentUserContext.GetRequiredUserAsync();
+        var user = await _currentUserContext.GetRequiredUserAsync();
 
         user.RefreshToken = string.Empty;
         user.RefreshTokenExpiryTime = null;
+        await _userManager.UpdateAsync(user);
 
-        await userManager.UpdateAsync(user);
+        _cookieService.DeleteCookie("accessToken");
+        _cookieService.DeleteCookie("refreshToken");
+
+        await _userManager.UpdateAsync(user);
     }
 
     /// <summary>
@@ -200,8 +171,7 @@ internal class UserService(
     /// </exception>
     public async Task<UserDto> GetCurrentUserAsync()
     {
-        var user = await currentUserContext.GetRequiredUserAsync();
-
+        var user = await _currentUserContext.GetRequiredUserAsync();
         return AuthMapper.ToUserDto(user);
     }
 
@@ -235,7 +205,7 @@ internal class UserService(
             throw new InvalidOperationException("Display name is required.");
         }
 
-        var user = await currentUserContext.GetRequiredUserAsync();
+        var user = await _currentUserContext.GetRequiredUserAsync();
         if (string.Equals(user.DisplayName, displayName, StringComparison.Ordinal))
         {
             return AuthMapper.ToUserDto(user);
@@ -243,7 +213,7 @@ internal class UserService(
 
         user.DisplayName = displayName;
 
-        var result = await userManager.UpdateAsync(user);
+        var result = await _userManager.UpdateAsync(user);
         return !result.Succeeded ? throw CreateIdentityOperationException(result) : AuthMapper.ToUserDto(user);
     }
 
@@ -273,9 +243,9 @@ internal class UserService(
         if (dto.OldPassword == dto.NewPassword)
             throw new InvalidOperationException("New password must be different from current password.");
 
-        var user = await currentUserContext.GetRequiredUserAsync();
+        var user = await _currentUserContext.GetRequiredUserAsync();
 
-        var result = await userManager.ChangePasswordAsync(user, dto.OldPassword, dto.NewPassword);
+        var result = await _userManager.ChangePasswordAsync(user, dto.OldPassword, dto.NewPassword);
 
         if (!result.Succeeded)
             throw CreateIdentityOperationException(result);
@@ -283,7 +253,7 @@ internal class UserService(
         user.RefreshToken = string.Empty;
         user.RefreshTokenExpiryTime = null;
 
-        var updateResult = await userManager.UpdateAsync(user);
+        var updateResult = await _userManager.UpdateAsync(user);
         if (!updateResult.Succeeded)
             throw CreateIdentityOperationException(updateResult);
     }
