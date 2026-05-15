@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.DependencyInjection;
 using PlanningPoker.API.Services;
 using PlanningPoker.Domain.Constants;
 using PlanningPoker.Domain.DTOs.Reactions;
@@ -15,7 +16,8 @@ public class GameRoomHub(
     IParticipantRepository participantRepository,
     IGameRoomNotifier gameRoomNotifier,
     GameRoomConnectionTracker connectionTracker,
-    IEmojiReactionService emojiReactionService) : Hub
+    IEmojiReactionService emojiReactionService,
+    IServiceScopeFactory serviceScopeFactory) : Hub
 {
     public const string HubRoute = "/hubs/game-room";
     private const string GameIdContextItemKey = "gameId";
@@ -50,6 +52,8 @@ public class GameRoomHub(
             participant.Id,
             Context.ConnectionId);
 
+        await Groups.AddToGroupAsync(Context.ConnectionId, GetGroupName(gameId));
+
         if (isFirstConnection && !participant.IsConnected)
         {
             participant.IsConnected = true;
@@ -59,8 +63,6 @@ public class GameRoomHub(
                 gameId,
                 ParticipantMapper.ToGameParticipantDto(participant));
         }
-
-        await Groups.AddToGroupAsync(Context.ConnectionId, GetGroupName(gameId));
         await base.OnConnectedAsync();
     }
 
@@ -75,17 +77,9 @@ public class GameRoomHub(
 
         if (connectionStateChange is { IsLastConnection: true } stateChange)
         {
-            var participant = await participantRepository.GetActiveByIdAsync(stateChange.ParticipantId);
-
-            if (participant is not null && participant.IsConnected)
-            {
-                participantRepository.MarkParticipantOffline(participant);
-                await participantRepository.SaveChangesAsync();
-
-                await gameRoomNotifier.NotifyParticipantUpdatedAsync(
-                    participant.GameId,
-                    ParticipantMapper.ToGameParticipantDto(participant));
-            }
+            connectionTracker.ScheduleOfflineTransition(
+                stateChange.ParticipantId,
+                MarkParticipantOfflineAsync);
         }
 
         await base.OnDisconnectedAsync(exception);
@@ -111,6 +105,27 @@ public class GameRoomHub(
         return !TryGetGameId(out var gameId) 
             ? throw new HubException("Game id is required.") 
             : gameId;
+    }
+
+    private async Task MarkParticipantOfflineAsync(Guid participantId)
+    {
+        await using var scope = serviceScopeFactory.CreateAsyncScope();
+
+        var scopedParticipantRepository = scope.ServiceProvider.GetRequiredService<IParticipantRepository>();
+        var scopedGameRoomNotifier = scope.ServiceProvider.GetRequiredService<IGameRoomNotifier>();
+        var participant = await scopedParticipantRepository.GetActiveByIdAsync(participantId);
+
+        if (participant is null || !participant.IsConnected)
+        {
+            return;
+        }
+
+        scopedParticipantRepository.MarkParticipantOffline(participant);
+        await scopedParticipantRepository.SaveChangesAsync();
+
+        await scopedGameRoomNotifier.NotifyParticipantUpdatedAsync(
+            participant.GameId,
+            ParticipantMapper.ToGameParticipantDto(participant));
     }
 
     private async Task<Guid> GetCurrentParticipantIdFromContextAsync(Guid gameId)
