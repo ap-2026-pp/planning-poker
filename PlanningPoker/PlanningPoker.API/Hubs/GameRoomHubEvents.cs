@@ -10,4 +10,5 @@ public static class GameRoomHubEvents
     public const string IssueUpdated = "IssueUpdated";
     public const string IssuesImported = "IssuesImported";
     public const string RoundStateUpdated = "RoundStateUpdated";
+    public const string EmojiReactionReceived = "EmojiReactionReceived";
 }

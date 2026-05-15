@@ -58,6 +58,7 @@ public class GameService(
         game.AutoRevealCards = createGameRequestDto.AutoRevealCards;
         game.IssuesPolicy = createGameRequestDto.IssuesPolicy;
         game.RevealPolicy = createGameRequestDto.RevealPolicy;
+        game.EnableFunFeatures = createGameRequestDto.EnableFunFeatures;
         game.InviteCode = await GenerateInviteCodeAsync();
         game.Participants =
         [
@@ -143,6 +144,7 @@ public class GameService(
 
         game.Name = dto.Name.Trim();
         game.VotingSystem = dto.VotingSystem;
+        game.CustomValues = dto.CustomValues;
         game.RevealPolicy = dto.RevealPolicy;
         game.IssuesPolicy = dto.IssuesPolicy;
         game.AutoRevealCards = dto.AutoRevealCards;

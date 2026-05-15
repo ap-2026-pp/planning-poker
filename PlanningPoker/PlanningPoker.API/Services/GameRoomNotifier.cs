@@ -3,6 +3,7 @@ using PlanningPoker.API.Hubs;
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.DTOs.Participant;
+using PlanningPoker.Domain.DTOs.Reactions;
 using PlanningPoker.Domain.DTOs.Room;
 using PlanningPoker.Domain.Interfaces.Services;
 
@@ -33,6 +34,9 @@ public class GameRoomNotifier(IHubContext<GameRoomHub> hubContext) : IGameRoomNo
 
     public Task NotifyRoundStateUpdatedAsync(Guid gameId, RoomStateDto roomState)
         => NotifyGroupAsync(gameId, GameRoomHubEvents.RoundStateUpdated, roomState);
+
+    public Task NotifyEmojiReactionAsync(Guid gameId, EmojiReactionDto reaction)
+        => NotifyGroupAsync(gameId, GameRoomHubEvents.EmojiReactionReceived, reaction);
 
     private Task NotifyGroupAsync(Guid gameId, string eventName, object payload)
     {

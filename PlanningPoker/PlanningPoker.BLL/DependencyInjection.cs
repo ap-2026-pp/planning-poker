@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<ICookieService, CookieService>();
         services.AddScoped<ITimerService, TimerService>();
         services.AddScoped<IGuestAccountLinkService, GuestAccountLinkService>();
+        services.AddScoped<IEmojiReactionService, EmojiReactionService>();
 
         services.AddHttpClient<IPlaneService, PlaneService>(client =>
         {

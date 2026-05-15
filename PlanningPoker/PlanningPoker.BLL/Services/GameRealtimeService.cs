@@ -1,5 +1,6 @@
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.DTOs.Participant;
+using PlanningPoker.Domain.DTOs.Reactions;
 using PlanningPoker.Domain.DTOs.Room;
 using PlanningPoker.Domain.Interfaces.Repositories;
 using PlanningPoker.Domain.Interfaces.Services;
@@ -52,6 +53,11 @@ public class GameRealtimeService(
     public async Task NotifyRoundStateUpdatedAsync(Game game, RoomStateDto toDto)
     {
         await gameRoomNotifier.NotifyRoundStateUpdatedAsync(game.Id, toDto);
+    }
+    
+    public async Task NotifyEmojiReactionAsync(Game game, EmojiReactionDto reaction)
+    {
+        await gameRoomNotifier.NotifyEmojiReactionAsync(game.Id, reaction);
     }
 
     private async Task NotifyAuthorizedUsersAboutGameUpdateAsync(Game game)

@@ -1,6 +1,7 @@
 using PlanningPoker.BLL.DTOs.Issue;
 using PlanningPoker.Domain.DTOs.Game;
 using PlanningPoker.Domain.DTOs.Participant;
+using PlanningPoker.Domain.DTOs.Reactions;
 using PlanningPoker.Domain.DTOs.Room;
 
 namespace PlanningPoker.Domain.Interfaces.Services;
@@ -18,4 +19,5 @@ public interface IGameRoomNotifier
     Task NotifyIssueUpdatedAsync(Guid gameId, IssueDto issue);
     Task NotifyIssuesImportedAsync(Guid gameId, IEnumerable<IssueDto> issues);
     Task NotifyRoundStateUpdatedAsync(Guid gameId, RoomStateDto roomState);
+    Task NotifyEmojiReactionAsync(Guid gameId, EmojiReactionDto reaction);
 }
