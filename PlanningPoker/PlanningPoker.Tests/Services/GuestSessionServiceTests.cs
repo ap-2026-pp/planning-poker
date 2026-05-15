@@ -3,7 +3,9 @@ using System.Security.Claims;
 using Microsoft.Extensions.Configuration;
 using Moq;
 using PlanningPoker.BLL.Services;
+using PlanningPoker.Domain.Constants;
 using PlanningPoker.Domain.Interfaces.Repositories;
+using PlanningPoker.Domain.Interfaces.Services;
 using PlanningPoker.Domain.Models;
 
 namespace PlanningPoker.Tests.Services;
@@ -11,7 +13,7 @@ namespace PlanningPoker.Tests.Services;
 public class GuestSessionServiceTests
 {
     private readonly Mock<IGuestSessionRepository> _repository = new();
-    private readonly GuestSessionService _guestSessionService;
+    private readonly IGuestSessionService _guestSessionService;
 
     public GuestSessionServiceTests()
     {
@@ -41,7 +43,14 @@ public class GuestSessionServiceTests
         Assert.False(session.IsRevoked);
         Assert.NotEqual(Guid.Empty, session.Id);
         Assert.True(session.ExpiresAt > DateTime.UtcNow.AddMinutes(50));
-        _repository.Verify(repository => repository.AddAsync(It.IsAny<GuestSession>()), Times.Once);
+
+        _repository.Verify(repository => repository.AddAsync(It.Is<GuestSession>(createdSession =>
+            createdSession.Id != Guid.Empty &&
+            createdSession.ParticipantId == participantId &&
+            createdSession.TokenHash != accessToken &&
+            !createdSession.IsRevoked &&
+            createdSession.ExpiresAt > DateTime.UtcNow.AddMinutes(50))), Times.Once);
+
         _repository.Verify(repository => repository.SaveChangesAsync(), Times.Once);
     }
 
@@ -53,8 +62,14 @@ public class GuestSessionServiceTests
         var token = _guestSessionService.GenerateGuestAccessToken(participantId);
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
 
-        Assert.Equal(participantId.ToString(), jwt.Claims.Single(claim => claim.Type == "participant_id").Value);
-        Assert.Equal("guest_access", jwt.Claims.Single(claim => claim.Type == "token_type").Value);
+        Assert.Equal(
+            participantId.ToString(),
+            jwt.Claims.Single(claim => claim.Type == GuestSessionDefaults.ParticipantIdClaimType).Value);
+
+        Assert.Equal(
+            GuestSessionDefaults.GuestAccessTokenType,
+            jwt.Claims.Single(claim => claim.Type == GuestSessionDefaults.TokenTypeClaimType).Value);
+
         Assert.DoesNotContain(jwt.Claims, claim => claim.Type == ClaimTypes.NameIdentifier);
     }
 
@@ -66,7 +81,69 @@ public class GuestSessionServiceTests
 
         var principal = _guestSessionService.GetPrincipalFromExpiredToken(token);
 
-        Assert.Equal(participantId.ToString(), principal.FindFirstValue("participant_id"));
-        Assert.Equal("guest_access", principal.FindFirstValue("token_type"));
+        Assert.Equal(
+            participantId.ToString(),
+            principal.FindFirstValue(GuestSessionDefaults.ParticipantIdClaimType));
+
+        Assert.Equal(
+            GuestSessionDefaults.GuestAccessTokenType,
+            principal.FindFirstValue(GuestSessionDefaults.TokenTypeClaimType));
+    }
+
+    [Fact]
+    public async Task IsGuestAccessTokenActiveAsync_WhenRepositoryReturnsSession_ReturnsTrue()
+    {
+        const string accessToken = "guest-access-token";
+
+        _repository
+            .Setup(repository => repository.GetActiveByTokenHashAsync(
+                It.Is<string>(hash => !string.IsNullOrWhiteSpace(hash) && hash != accessToken),
+                It.IsAny<DateTime>()))
+            .ReturnsAsync(new GuestSession
+            {
+                Id = Guid.NewGuid(),
+                ParticipantId = Guid.NewGuid(),
+                TokenHash = "hashed-token",
+                ExpiresAt = DateTime.UtcNow.AddMinutes(30),
+                IsRevoked = false
+            });
+
+        var result = await _guestSessionService.IsGuestAccessTokenActiveAsync(accessToken);
+
+        Assert.True(result);
+
+        _repository.Verify(repository => repository.GetActiveByTokenHashAsync(
+            It.Is<string>(hash => !string.IsNullOrWhiteSpace(hash) && hash != accessToken),
+            It.IsAny<DateTime>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task IsGuestAccessTokenActiveAsync_WhenRepositoryReturnsNull_ReturnsFalse()
+    {
+        const string accessToken = "guest-access-token";
+
+        _repository
+            .Setup(repository => repository.GetActiveByTokenHashAsync(
+                It.IsAny<string>(),
+                It.IsAny<DateTime>()))
+            .ReturnsAsync((GuestSession?)null);
+
+        var result = await _guestSessionService.IsGuestAccessTokenActiveAsync(accessToken);
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task RevokeGuestSessionsAsync_WhenParticipantIdIsProvided_RevokesSessionsAndSaves()
+    {
+        var participantId = Guid.NewGuid();
+
+        await _guestSessionService.RevokeGuestSessionsAsync(participantId);
+
+        _repository.Verify(repository => repository.RevokeActiveByParticipantIdAsync(
+            participantId,
+            It.IsAny<DateTime>()), Times.Once);
+
+        _repository.Verify(repository => repository.SaveChangesAsync(), Times.Once);
     }
 }

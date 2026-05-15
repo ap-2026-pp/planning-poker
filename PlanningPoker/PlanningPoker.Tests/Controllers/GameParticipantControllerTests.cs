@@ -12,11 +12,14 @@ namespace PlanningPoker.Tests.Controllers;
 public class GameParticipantControllerTests
 {
     private readonly Mock<IParticipantService> _participantService = new();
+    private readonly Mock<IGameAccessService> _gameAccessService = new();
     private readonly GameParticipantController _controller;
 
     public GameParticipantControllerTests()
     {
-        _controller = new GameParticipantController(_participantService.Object);
+        _controller = new GameParticipantController(
+            _participantService.Object,
+            _gameAccessService.Object);
     }
 
     [Fact]
@@ -178,6 +181,20 @@ public class GameParticipantControllerTests
         _participantService.Verify(service => service.TransferMasterAsync(gameId, participantId), Times.Once);
     }
 
+    [Fact]
+    public async Task SetSpectatorMode_WhenServiceSucceeds_ReturnsNoContent()
+    {
+        var gameId = Guid.NewGuid();
+        const bool isSpectator = true;
+
+        var result = await _controller.SetSpectatorMode(gameId, isSpectator);
+
+        Assert.IsType<NoContentResult>(result);
+        _participantService.Verify(
+            service => service.SetSpectatorModeAsync(gameId, isSpectator),
+            Times.Once);
+    }
+
     private static GameParticipantDto CreateParticipantDto(string displayName, ParticipantRole role)
     {
         return new GameParticipantDto
@@ -207,4 +224,3 @@ public class GameParticipantControllerTests
         };
     }
 }
-

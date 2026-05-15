@@ -17,16 +17,19 @@ public class GameAccessServiceTests
 
     public GameAccessServiceTests()
     {
-        _gameAccessService = new GameAccessService(_participantRepository.Object, _currentUserContext.Object);
+        _gameAccessService = new GameAccessService(
+            _participantRepository.Object,
+            _currentUserContext.Object);
     }
 
     [Fact]
     public async Task EnsureCanRevealCardsAsync_WhenRevealPolicyIsEveryone_AllowsPlayer()
     {
-        var participant = CreateParticipant(_gameId, _userId, ParticipantRole.Player);
-        participant.Game = CreateGame(_gameId, RevealPolicy.Everyone, IssuesPolicy.MasterOnly);
+        var game = CreateGame(_gameId, RevealPolicy.Everyone, IssuesPolicy.MasterOnly);
+        var participant = CreateParticipant(_gameId, _userId, ParticipantRole.Player, game);
 
         SetupCurrentUserIdentity(_userId);
+
         _participantRepository
             .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, _userId, null))
             .ReturnsAsync(participant);
@@ -39,10 +42,11 @@ public class GameAccessServiceTests
     [Fact]
     public async Task EnsureCanRevealCardsAsync_WhenRevealPolicyIsMasterOnlyAndParticipantIsNotMaster_ThrowsForbidden()
     {
-        var participant = CreateParticipant(_gameId, _userId, ParticipantRole.Player);
-        participant.Game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.MasterOnly);
+        var game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.MasterOnly);
+        var participant = CreateParticipant(_gameId, _userId, ParticipantRole.Player, game);
 
         SetupCurrentUserIdentity(_userId);
+
         _participantRepository
             .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, _userId, null))
             .ReturnsAsync(participant);
@@ -55,15 +59,41 @@ public class GameAccessServiceTests
     [Fact]
     public async Task EnsureCanManageIssuesAsync_WhenIssuesPolicyIsEveryone_AllowsPlayer()
     {
-        var participant = CreateParticipant(_gameId, _userId, ParticipantRole.Player);
-        participant.Game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.Everyone);
+        var game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.Everyone);
+        var participant = CreateParticipant(_gameId, _userId, ParticipantRole.Player, game);
 
         SetupCurrentUserIdentity(_userId);
+
         _participantRepository
             .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, _userId, null))
             .ReturnsAsync(participant);
 
-        var result = await _gameAccessService.EnsureCanManageIssuesAsync(_gameId, "manage", "issue");
+        var result = await _gameAccessService.EnsureCanManageIssuesAsync(
+            _gameId,
+            "manage",
+            "issue");
+
+        Assert.Same(participant, result);
+    }
+
+    [Fact]
+    public async Task EnsureCanManageIssuesAsync_WhenParticipantIsMaster_AllowsManagingIssues()
+    {
+        var game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.MasterOnly);
+        var participant = CreateParticipant(_gameId, _userId, ParticipantRole.Master, game);
+
+        participant.CanManageIssues = false;
+
+        SetupCurrentUserIdentity(_userId);
+
+        _participantRepository
+            .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, _userId, null))
+            .ReturnsAsync(participant);
+
+        var result = await _gameAccessService.EnsureCanManageIssuesAsync(
+            _gameId,
+            "manage",
+            "issue");
 
         Assert.Same(participant, result);
     }
@@ -71,15 +101,19 @@ public class GameAccessServiceTests
     [Fact]
     public async Task EnsureCanManageIssuesAsync_WhenParticipantIsSpectator_ThrowsForbidden()
     {
-        var participant = CreateParticipant(_gameId, _userId, ParticipantRole.Spectator);
-        participant.Game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.Everyone);
+        var game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.Everyone);
+        var participant = CreateParticipant(_gameId, _userId, ParticipantRole.Spectator, game);
 
         SetupCurrentUserIdentity(_userId);
+
         _participantRepository
             .Setup(repository => repository.GetCurrentParticipantAsync(_gameId, _userId, null))
             .ReturnsAsync(participant);
 
-        var act = async () => await _gameAccessService.EnsureCanManageIssuesAsync(_gameId, "manage", "issue");
+        var act = async () => await _gameAccessService.EnsureCanManageIssuesAsync(
+            _gameId,
+            "manage",
+            "issue");
 
         await Assert.ThrowsAsync<ForbiddenException>(act);
     }
@@ -87,7 +121,13 @@ public class GameAccessServiceTests
     [Fact]
     public async Task GetRequiredNonSpectatorParticipantAsync_WhenParticipantBelongsToAnotherGame_ThrowsNotFound()
     {
-        var otherGameParticipant = CreateParticipant(Guid.NewGuid(), Guid.NewGuid(), ParticipantRole.Player);
+        var otherGameId = Guid.NewGuid();
+        var otherGame = CreateGame(otherGameId, RevealPolicy.MasterOnly, IssuesPolicy.MasterOnly);
+        var otherGameParticipant = CreateParticipant(
+            otherGameId,
+            Guid.NewGuid(),
+            ParticipantRole.Player,
+            otherGame);
 
         _participantRepository
             .Setup(repository => repository.GetActiveByIdAsync(otherGameParticipant.Id))
@@ -105,21 +145,39 @@ public class GameAccessServiceTests
     [Fact]
     public async Task GetOtherActiveNonSpectatorParticipantsAsync_WhenRepositoryReturnsParticipants_FiltersSpectatorsAndExcludedParticipant()
     {
-        var excludedParticipant = CreateParticipant(_gameId, _userId, ParticipantRole.Master);
-        var playerParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Player);
-        var spectatorParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Spectator);
-        var removedParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Player);
+        var game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.MasterOnly);
+
+        var excludedParticipant = CreateParticipant(_gameId, _userId, ParticipantRole.Master, game);
+        var playerParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Player, game);
+        var spectatorParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Spectator, game);
+        var removedParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Player, game);
+
         removedParticipant.RemovedAt = DateTime.UtcNow.AddMinutes(-5);
 
-        var game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.MasterOnly);
+        game.Participants = new List<GameParticipant>
+        {
+            excludedParticipant,
+            playerParticipant,
+            spectatorParticipant,
+            removedParticipant
+        };
 
         _participantRepository
             .Setup(repository => repository.GetGameParticipantsAsync(_gameId))
-            .ReturnsAsync([excludedParticipant, playerParticipant, spectatorParticipant, removedParticipant]);
+            .ReturnsAsync(new List<GameParticipant>
+            {
+                excludedParticipant,
+                playerParticipant,
+                spectatorParticipant,
+                removedParticipant
+            });
 
-        var result = await _gameAccessService.GetOtherActiveNonSpectatorParticipantsAsync(game, excludedParticipant.Id);
+        var result = await _gameAccessService.GetOtherActiveNonSpectatorParticipantsAsync(
+            game,
+            excludedParticipant.Id);
 
         var participants = result.ToList();
+
         Assert.Single(participants);
         Assert.Same(playerParticipant, participants[0]);
     }
@@ -127,19 +185,29 @@ public class GameAccessServiceTests
     [Fact]
     public async Task GetOtherActiveNonSpectatorParticipantsAsync_WhenRepositoryReturnsEmpty_UsesGameParticipantsFallback()
     {
-        var excludedParticipant = CreateParticipant(_gameId, _userId, ParticipantRole.Master);
-        var playerParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Player);
-        var spectatorParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Spectator);
         var game = CreateGame(_gameId, RevealPolicy.MasterOnly, IssuesPolicy.MasterOnly);
-        game.Participants = [excludedParticipant, playerParticipant, spectatorParticipant];
+
+        var excludedParticipant = CreateParticipant(_gameId, _userId, ParticipantRole.Master, game);
+        var playerParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Player, game);
+        var spectatorParticipant = CreateParticipant(_gameId, Guid.NewGuid(), ParticipantRole.Spectator, game);
+
+        game.Participants = new List<GameParticipant>
+        {
+            excludedParticipant,
+            playerParticipant,
+            spectatorParticipant
+        };
 
         _participantRepository
             .Setup(repository => repository.GetGameParticipantsAsync(_gameId))
-            .ReturnsAsync([]);
+            .ReturnsAsync(new List<GameParticipant>());
 
-        var result = await _gameAccessService.GetOtherActiveNonSpectatorParticipantsAsync(game, excludedParticipant.Id);
+        var result = await _gameAccessService.GetOtherActiveNonSpectatorParticipantsAsync(
+            game,
+            excludedParticipant.Id);
 
         var participants = result.ToList();
+
         Assert.Single(participants);
         Assert.Same(playerParticipant, participants[0]);
     }
@@ -151,12 +219,17 @@ public class GameAccessServiceTests
             .Returns(new CurrentParticipantIdentity(userId, null));
     }
 
-    private static GameParticipant CreateParticipant(Guid gameId, Guid userId, ParticipantRole role)
+    private static GameParticipant CreateParticipant(
+        Guid gameId,
+        Guid userId,
+        ParticipantRole role,
+        Game? game = null)
     {
         return new GameParticipant
         {
             Id = Guid.NewGuid(),
             GameId = gameId,
+            Game = game ?? CreateGame(gameId, RevealPolicy.MasterOnly, IssuesPolicy.MasterOnly),
             UserId = userId,
             DisplayName = "Participant",
             Role = role,
@@ -174,7 +247,12 @@ public class GameAccessServiceTests
             InviteCode = "TEST-CODE-123",
             RevealPolicy = revealPolicy,
             IssuesPolicy = issuesPolicy,
-            CreatedBy = Guid.NewGuid()
+            CreatedBy = Guid.NewGuid(),
+            IsActive = true,
+            IsDeleted = false,
+            AutoRevealCards = false,
+            TimerEndsAt = null,
+            Participants = new List<GameParticipant>()
         };
     }
 }

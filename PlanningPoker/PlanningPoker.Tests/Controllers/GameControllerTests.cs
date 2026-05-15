@@ -14,6 +14,7 @@ namespace PlanningPoker.Tests.Controllers;
 public class GameControllerTests
 {
     private readonly Mock<IGameService> _gameService = new();
+    private readonly Mock<IGameAccessService> _gameAccessService = new();
     private readonly GameController _controller;
 
     public GameControllerTests()
@@ -25,7 +26,10 @@ public class GameControllerTests
             })
             .Build();
 
-        _controller = new GameController(_gameService.Object, new InviteLinkService(configuration))
+        _controller = new GameController(
+            _gameService.Object,
+            new InviteLinkService(configuration),
+            _gameAccessService.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -40,7 +44,9 @@ public class GameControllerTests
         var request = CreateGameRequest("new-game", "ScrumMaster", VotingSystem.Custom, true);
         var expectedGame = CreateGameDto("new-game", VotingSystem.Custom, true);
 
-        _gameService.Setup(service => service.AddGameAsync(request)).ReturnsAsync(expectedGame);
+        _gameService
+            .Setup(service => service.AddGameAsync(request))
+            .ReturnsAsync(expectedGame);
 
         var result = await _controller.CreateGame(request);
 
@@ -55,9 +61,10 @@ public class GameControllerTests
     public async Task CreateGame_WhenGameNameAlreadyExists_ThrowsException()
     {
         var request = CreateGameRequest("new-game", "ScrumMaster", VotingSystem.Custom, true);
+
         _gameService
             .Setup(service => service.AddGameAsync(request))
-            .ThrowsAsync(new ResourceAlreadyExistsException(nameof(Game), request.Name));
+            .ThrowsAsync(new ResourceAlreadyExistsException(nameof(Game), request.DisplayName));
 
         var act = async () => await _controller.CreateGame(request);
 
@@ -71,7 +78,9 @@ public class GameControllerTests
         var gameId = Guid.NewGuid();
         var expectedGame = CreateGameDto("existing-game", VotingSystem.Fibonacci, false);
 
-        _gameService.Setup(service => service.GetGameByIdAsync(gameId)).ReturnsAsync(expectedGame);
+        _gameService
+            .Setup(service => service.GetGameByIdAsync(gameId))
+            .ReturnsAsync(expectedGame);
 
         var result = await _controller.GetGame(gameId);
 
@@ -95,7 +104,10 @@ public class GameControllerTests
 
         _controller.Request.Scheme = "https";
         _controller.Request.Host = new HostString("api.example.com");
-        _gameService.Setup(service => service.GetGameInviteAsync(gameId)).ReturnsAsync(game);
+
+        _gameService
+            .Setup(service => service.GetGameInviteAsync(gameId))
+            .ReturnsAsync(game);
 
         var result = await _controller.GetGameInvite(gameId);
 
@@ -106,6 +118,7 @@ public class GameControllerTests
         Assert.Equal("INVITE-CODE-123", inviteDto.InviteCode);
         Assert.Equal("https://planning-poker.app/INVITE-CODE-123/", inviteDto.InviteUrl);
         Assert.False(string.IsNullOrWhiteSpace(inviteDto.QrCodeBase64));
+
         _gameService.Verify(service => service.GetGameInviteAsync(gameId), Times.Once);
     }
 
@@ -114,6 +127,7 @@ public class GameControllerTests
     {
         var gameId = Guid.NewGuid();
         var request = CreateUpdatedGameRequest("updated-game", VotingSystem.PowersOfTwo, false, false, false, false);
+
         var expectedGame = CreateGameDto(
             request.Name,
             request.VotingSystem,
@@ -122,7 +136,9 @@ public class GameControllerTests
             request.ShowCountdownAnimation,
             request.IsActive);
 
-        _gameService.Setup(service => service.UpdateGameAsync(gameId, request)).ReturnsAsync(expectedGame);
+        _gameService
+            .Setup(service => service.UpdateGameAsync(gameId, request))
+            .ReturnsAsync(expectedGame);
 
         var result = await _controller.UpdateGame(gameId, request);
 
@@ -138,6 +154,7 @@ public class GameControllerTests
     {
         var gameId = Guid.NewGuid();
         var request = CreateUpdatedGameRequest("updated-game", VotingSystem.PowersOfTwo, false);
+
         _gameService
             .Setup(service => service.UpdateGameAsync(gameId, request))
             .ThrowsAsync(new ForbiddenException("update", "game"));
@@ -197,21 +214,21 @@ public class GameControllerTests
 
     private static CreateGameRequestDto CreateGameRequest(
         string name,
-        string hostDisplayName,
+        string displayName,
         VotingSystem votingSystem,
         bool autoReveal)
     {
         return new CreateGameRequestDto
         {
-            Name = name,
-            HostDisplayName = hostDisplayName,
+            DisplayName = displayName,
             VotingSystem = votingSystem,
             RevealPolicy = RevealPolicy.Everyone,
             IssuesPolicy = IssuesPolicy.Everyone,
             AutoRevealCards = autoReveal,
             ShowAverage = true,
             ShowCountdownAnimation = true,
-            EnableFunFeatures = true
+            EnableFunFeatures = true,
+            AutoResetTimer = false
         };
     }
 
@@ -234,6 +251,10 @@ public class GameControllerTests
             ShowCountdownAnimation = showCountdownAnimation,
             EnableFunFeatures = true,
             IsActive = isActive,
+            AutoResetTimer = false,
+            DefaultTimerMinutes = 5,
+            RevealAllowedParticipantIds = [],
+            IssuesAllowedParticipantIds = []
         };
     }
 
