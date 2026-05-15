@@ -16,5 +16,6 @@ public interface IGameRealtimeService
     Task NotifyIssueUpdatedAsync(Game game, IssueDto toDto);
     Task NotifyIssuesImportedAsync(Game game, IEnumerable<IssueDto> select);
     Task NotifyRoundStateUpdatedAsync(Game game, RoomStateDto toDto);
+    Task NotifyRoundStateUpdatedAsync(Guid gameId, RoomStateDto toDto);
     Task NotifyEmojiReactionAsync(Game game, EmojiReactionDto reaction);
 }

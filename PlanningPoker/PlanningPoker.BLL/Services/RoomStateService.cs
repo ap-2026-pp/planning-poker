@@ -189,7 +189,7 @@ public class RoomStateService : IRoomStateService
             await _repoResults.SaveChangesAsync();
         }
 
-        await _timerService.StopTimerAsync(gameId);
+        await _timerService.StopTimerAsync(gameId, requireMasterAccess: false);
 
         var roomState = await GetRoomStateAsync(gameId);
         await _realtimeService.NotifyRoundStateUpdatedAsync(game, roomState);

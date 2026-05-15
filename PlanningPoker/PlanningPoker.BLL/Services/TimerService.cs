@@ -78,9 +78,12 @@ public class TimerService : ITimerService
     /// Зупиняє активний таймер гри.
     /// </summary>
     /// <param name="gameId">Ідентифікатор гри.</param>
-    public async Task StopTimerAsync(Guid gameId)
+    public async Task StopTimerAsync(Guid gameId, bool requireMasterAccess = true)
     {
-        await _accessService.GetRequiredMasterAsync(gameId, "Stop", "Timer");
+        if (requireMasterAccess)
+        {
+            await _accessService.GetRequiredMasterAsync(gameId, "Stop", "Timer");
+        }
 
         var timer = await _timerRepository.GetByIdAsync(gameId);
 

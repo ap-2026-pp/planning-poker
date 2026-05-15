@@ -54,6 +54,11 @@ public class GameRealtimeService(
     {
         await gameRoomNotifier.NotifyRoundStateUpdatedAsync(game.Id, toDto);
     }
+
+    public async Task NotifyRoundStateUpdatedAsync(Guid gameId, RoomStateDto toDto)
+    {
+        await gameRoomNotifier.NotifyRoundStateUpdatedAsync(gameId, toDto);
+    }
     
     public async Task NotifyEmojiReactionAsync(Game game, EmojiReactionDto reaction)
     {
